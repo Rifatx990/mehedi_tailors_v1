@@ -1,15 +1,54 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useStore } from '../../context/StoreContext.tsx';
 import AdminSidebar from '../../components/admin/AdminSidebar.tsx';
-import { TrashIcon, InformationCircleIcon, ArchiveBoxIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { Order, PaymentStatus } from '../../types.ts';
+import { 
+  TrashIcon, 
+  InformationCircleIcon, 
+  ArchiveBoxIcon, 
+  XMarkIcon,
+  WrenchScrewdriverIcon,
+  TruckIcon,
+  CheckIcon,
+  UserIcon,
+  MagnifyingGlassIcon,
+  FunnelIcon,
+  CalendarIcon
+} from '@heroicons/react/24/outline';
+import { Order, PaymentStatus, OrderStatus, ProductionStep } from '../../types.ts';
 
 const AdminOrdersPage: React.FC = () => {
-  const { orders, updateOrderStatus, updateOrder, removeOrder } = useStore();
+  const { orders, updateOrderStatus, updateProductionStep, updateOrder, removeOrder, allUsers, assignWorker } = useStore();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [paymentInput, setPaymentInput] = useState<number>(0);
+
+  // Filter State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'All'>('All');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  const workers = allUsers.filter(u => u.role === 'worker');
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      const matchesSearch = 
+        order.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (order.customerName || '').toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'All' || order.status === statusFilter;
+      
+      let matchesDate = true;
+      if (startDate || endDate) {
+        const orderDate = new Date(order.date).getTime();
+        if (startDate && orderDate < new Date(startDate).getTime()) matchesDate = false;
+        if (endDate && orderDate > new Date(endDate).getTime() + 86400000) matchesDate = false; // +1 day to include end date
+      }
+
+      return matchesSearch && matchesStatus && matchesDate;
+    });
+  }, [orders, searchTerm, statusFilter, startDate, endDate]);
 
   const handleRecordPayment = async () => {
     if (!selectedOrder) return;
@@ -22,51 +61,147 @@ const AdminOrdersPage: React.FC = () => {
     setPaymentInput(0);
   };
 
+  const statusOptions: OrderStatus[] = ['Pending', 'In Progress', 'Shipped', 'Delivered', 'Cancelled'];
+  const productionSteps: ProductionStep[] = ['Queue', 'Cutting', 'Stitching', 'Finishing', 'Ready'];
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       <AdminSidebar />
       <main className="flex-grow p-8 md:p-16">
         <header className="mb-12">
-          <h1 className="text-4xl font-bold serif">Order Pipeline</h1>
+          <div className="flex items-center space-x-3 text-amber-600 mb-2">
+            <span className="w-8 h-px bg-amber-600"></span>
+            <span className="text-[10px] font-bold uppercase tracking-widest">Atelier Management</span>
+          </div>
+          <h1 className="text-4xl font-bold serif text-slate-900">Order Pipeline</h1>
         </header>
 
-        {orders.length > 0 ? (
+        {/* Search and Filters */}
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 mb-8 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="relative col-span-1 lg:col-span-2">
+              <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+              <input 
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Search by Order ID or Patron Name..." 
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition" 
+              />
+            </div>
+            <div>
+              <div className="relative">
+                <FunnelIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                <select 
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value as any)}
+                  className="w-full pl-10 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition appearance-none font-bold text-[10px] uppercase tracking-widest text-slate-600"
+                >
+                  <option value="All">All Statuses</option>
+                  {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex space-x-2">
+              <div className="relative flex-grow">
+                <CalendarIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                <input 
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  className="w-full pl-10 pr-2 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none text-[10px] font-bold uppercase tracking-widest text-slate-600" 
+                />
+              </div>
+              <div className="relative flex-grow">
+                <input 
+                  type="date"
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  className="w-full px-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none text-[10px] font-bold uppercase tracking-widest text-slate-600" 
+                />
+              </div>
+            </div>
+          </div>
+          {(searchTerm || statusFilter !== 'All' || startDate || endDate) && (
+            <button 
+              onClick={() => { setSearchTerm(''); setStatusFilter('All'); setStartDate(''); setEndDate(''); }}
+              className="text-[10px] font-bold uppercase tracking-widest text-red-500 hover:text-red-600 transition underline underline-offset-4"
+            >
+              Reset Filters
+            </button>
+          )}
+        </div>
+
+        {filteredOrders.length > 0 ? (
           <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
             <table className="w-full text-left">
               <thead>
                 <tr className="text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b bg-slate-50/50">
-                  <th className="px-10 py-6">Order ID</th>
-                  <th className="px-10 py-6">Patron</th>
-                  <th className="px-10 py-6">Financials</th>
-                  <th className="px-10 py-6">Status</th>
-                  <th className="px-10 py-6 text-right">Actions</th>
+                  <th className="px-8 py-6">Order ID & Patron</th>
+                  <th className="px-8 py-6">Artisan Assigned</th>
+                  <th className="px-8 py-6">Production Step</th>
+                  <th className="px-8 py-6">Order Status</th>
+                  <th className="px-8 py-6">Financials</th>
+                  <th className="px-8 py-6 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {orders.map(order => (
-                  <tr key={order.id} className="hover:bg-slate-50/50 transition">
-                    <td className="px-10 py-8 font-mono text-xs font-bold">#{order.id}</td>
-                    <td className="px-10 py-8 font-bold">{order.customerName}</td>
-                    <td className="px-10 py-8">
+                {filteredOrders.map(order => (
+                  <tr key={order.id} className="hover:bg-slate-50/50 transition group">
+                    <td className="px-8 py-8">
+                       <div className="flex flex-col">
+                          <span className="font-mono text-xs font-bold text-slate-900">#{order.id}</span>
+                          <span className="text-sm font-bold text-slate-600 mt-1">{order.customerName}</span>
+                          <span className="text-[9px] text-slate-400 mt-0.5">{new Date(order.date).toLocaleDateString()}</span>
+                       </div>
+                    </td>
+                    <td className="px-8 py-8">
+                      <div className="flex items-center space-x-3 bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5 w-fit">
+                        <UserIcon className="w-3.5 h-3.5 text-blue-600" />
+                        <select 
+                          value={order.assignedWorkerId || ''}
+                          onChange={(e) => assignWorker(order.id, e.target.value)}
+                          className="bg-transparent text-[10px] font-bold uppercase tracking-widest outline-none text-slate-600 cursor-pointer"
+                        >
+                          <option value="">Unassigned</option>
+                          {workers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                        </select>
+                      </div>
+                    </td>
+                    <td className="px-8 py-8">
+                      <div className="flex items-center space-x-3 bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5 w-fit">
+                        <WrenchScrewdriverIcon className="w-3.5 h-3.5 text-teal-600" />
+                        <select 
+                          value={order.productionStep || 'Queue'}
+                          onChange={(e) => updateProductionStep(order.id, e.target.value as ProductionStep)}
+                          className="bg-transparent text-[10px] font-bold uppercase tracking-widest outline-none text-slate-600 cursor-pointer"
+                        >
+                          {productionSteps.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                    </td>
+                    <td className="px-8 py-8">
+                      <div className="flex items-center space-x-3 bg-white border border-slate-200 rounded-xl px-3 py-1.5 w-fit shadow-sm">
+                        <TruckIcon className="w-3.5 h-3.5 text-amber-600" />
+                        <select 
+                          value={order.status}
+                          onChange={(e) => updateOrderStatus(order.id, e.target.value as OrderStatus)}
+                          className="bg-transparent text-[10px] font-bold uppercase tracking-widest outline-none text-slate-900 cursor-pointer"
+                        >
+                          {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                    </td>
+                    <td className="px-8 py-8">
                       <div className="flex flex-col">
-                        <span className="font-bold text-sm">BDT {order.total.toLocaleString()}</span>
-                        <span className={`text-[9px] font-bold uppercase ${order.dueAmount > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                          {order.dueAmount > 0 ? `Due: ${order.dueAmount.toLocaleString()}` : 'Cleared'}
+                        <span className="font-bold text-sm text-slate-900">BDT {order.total.toLocaleString()}</span>
+                        <span className={`text-[9px] font-bold uppercase mt-0.5 ${order.dueAmount > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                          {order.dueAmount > 0 ? `Receivable: ${order.dueAmount.toLocaleString()}` : 'Fully Cleared'}
                         </span>
                       </div>
                     </td>
-                    <td className="px-10 py-8">
-                      <select 
-                        value={order.status}
-                        onChange={(e) => updateOrderStatus(order.id, e.target.value as any)}
-                        className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-widest outline-none"
-                      >
-                        {['Pending', 'In Progress', 'Shipped', 'Delivered', 'Cancelled'].map(s => <option key={s}>{s}</option>)}
-                      </select>
-                    </td>
-                    <td className="px-10 py-8 text-right space-x-2">
-                      <button onClick={() => { setSelectedOrder(order); setIsModalOpen(true); }} className="p-3 bg-slate-900 text-white rounded-xl hover:bg-amber-600 transition"><InformationCircleIcon className="w-5 h-5" /></button>
-                      <button onClick={() => removeOrder(order.id)} className="p-3 text-slate-300 hover:text-red-500 transition"><TrashIcon className="w-5 h-5" /></button>
+                    <td className="px-8 py-8 text-right space-x-2">
+                      <button onClick={() => { setSelectedOrder(order); setIsModalOpen(true); }} className="p-3 bg-slate-900 text-white rounded-xl hover:bg-amber-600 transition shadow-sm active:scale-95"><InformationCircleIcon className="w-5 h-5" /></button>
+                      <button onClick={() => removeOrder(order.id)} className="p-3 text-slate-300 hover:text-red-500 transition active:scale-95"><TrashIcon className="w-5 h-5" /></button>
                     </td>
                   </tr>
                 ))}
@@ -76,7 +211,7 @@ const AdminOrdersPage: React.FC = () => {
         ) : (
           <div className="py-20 text-center bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
              <ArchiveBoxIcon className="w-16 h-16 text-slate-200 mx-auto mb-6" />
-             <h3 className="text-xl font-bold serif text-slate-400">Pipeline Clear</h3>
+             <h3 className="text-xl font-bold serif text-slate-400">No Orders Matching Filters</h3>
           </div>
         )}
 
@@ -84,35 +219,38 @@ const AdminOrdersPage: React.FC = () => {
           <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-[3rem] p-10 md:p-12 w-full max-w-2xl shadow-2xl relative animate-in zoom-in duration-300">
               <button onClick={() => setIsModalOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-900"><XMarkIcon className="w-8 h-8" /></button>
-              <h2 className="text-3xl font-bold serif mb-6">Order Reconciliation</h2>
+              <h2 className="text-3xl font-bold serif mb-6 text-slate-900">Order Reconciliation</h2>
               
-              <div className="bg-slate-900 p-8 rounded-[2rem] text-white mb-8">
+              <div className="bg-slate-900 p-8 rounded-[2rem] text-white mb-8 shadow-2xl shadow-slate-900/20">
                  <div className="flex justify-between items-center pb-4 border-b border-white/10 mb-4">
-                    <span className="text-xs font-bold uppercase tracking-widest opacity-50">Grand Total</span>
+                    <span className="text-xs font-bold uppercase tracking-widest opacity-50">Contract Valuation</span>
                     <span className="text-xl font-bold">BDT {selectedOrder.total.toLocaleString()}</span>
                  </div>
                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold uppercase tracking-widest text-amber-500">Outstanding Receivable</span>
+                    <span className="text-xs font-bold uppercase tracking-widest text-amber-500">Amount Due</span>
                     <span className="text-2xl font-bold text-amber-500">BDT {selectedOrder.dueAmount.toLocaleString()}</span>
                  </div>
               </div>
 
               {selectedOrder.dueAmount > 0 ? (
-                <div className="space-y-4">
-                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block ml-1">Record Cash/Bank Receipt</label>
-                   <input 
-                    type="number" 
-                    value={paymentInput} 
-                    onChange={e => setPaymentInput(Number(e.target.value))} 
-                    className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none" 
-                    placeholder="Amount to record..." 
-                   />
-                   <button onClick={handleRecordPayment} className="w-full bg-amber-600 text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-xs shadow-lg">Process Receipt</button>
+                <div className="space-y-6">
+                   <div className="space-y-2">
+                     <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block ml-1">New Payment Received</label>
+                     <input 
+                      type="number" 
+                      value={paymentInput} 
+                      onChange={e => setPaymentInput(Number(e.target.value))} 
+                      className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition font-mono text-lg" 
+                      placeholder="0.00" 
+                     />
+                   </div>
+                   <button onClick={handleRecordPayment} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-bold uppercase tracking-widest text-[11px] shadow-xl hover:bg-emerald-600 transition-all active:scale-95">Update Ledger</button>
                 </div>
               ) : (
-                <div className="p-6 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-100 flex items-center justify-center space-x-3">
-                   <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                   <span className="text-xs font-bold uppercase tracking-widest">Financial Obligation Fully Met</span>
+                <div className="p-8 bg-emerald-50 text-emerald-700 rounded-[2rem] border border-emerald-100 flex flex-col items-center text-center space-y-3">
+                   <CheckIcon className="w-12 h-12 bg-emerald-100 p-2 rounded-full mb-2" />
+                   <h4 className="text-lg font-bold serif">Ledger Fully Settled</h4>
+                   <p className="text-xs opacity-75 font-medium uppercase tracking-widest">No outstanding dues for this contract</p>
                 </div>
               )}
             </div>

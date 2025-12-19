@@ -3,6 +3,7 @@ import React from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { StoreProvider } from './context/StoreContext.tsx';
 import Layout from './components/Layout.tsx';
+import ProtectedRoute from './components/ProtectedRoute.tsx';
 
 // Page components
 import HomePage from './pages/HomePage.tsx';
@@ -20,6 +21,8 @@ import ReturnsPage from './pages/ReturnsPage.tsx';
 import SizeGuidePage from './pages/SizeGuidePage.tsx';
 import TrackOrderPage from './pages/TrackOrderPage.tsx';
 import GiftCardPage from './pages/GiftCardPage.tsx';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage.tsx';
+import TermsPage from './pages/TermsPage.tsx';
 
 // Admin Pages
 import AdminLoginPage from './pages/admin/AdminLoginPage.tsx';
@@ -35,6 +38,7 @@ import AdminReviewsPage from './pages/admin/AdminReviewsPage.tsx';
 import AdminAppealsPage from './pages/admin/AdminAppealsPage.tsx';
 import AdminLabelStudioPage from './pages/admin/AdminLabelStudioPage.tsx';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage.tsx';
+import AdminMaterialRequestsPage from './pages/admin/AdminMaterialRequestsPage.tsx';
 
 // Admin Management
 import AdminManagementStaffPage from './pages/admin/AdminManagementStaffPage.tsx';
@@ -43,6 +47,7 @@ import AdminManagementCustomerPage from './pages/admin/AdminManagementCustomerPa
 
 // Worker Pages
 import WorkerDashboardPage from './pages/worker/WorkerDashboardPage.tsx';
+import WorkerTasksPage from './pages/worker/WorkerTasksPage.tsx';
 import WorkerMeasurementsPage from './pages/worker/WorkerMeasurementsPage.tsx';
 import WorkerHistoryPage from './pages/worker/WorkerHistoryPage.tsx';
 import WorkerRequisitionsPage from './pages/worker/WorkerRequisitionsPage.tsx';
@@ -59,36 +64,52 @@ const App: React.FC = () => {
     <StoreProvider>
       <Router>
         <Routes>
-          {/* Admin Routes - No Layout */}
+          {/* Admin Login */}
           <Route path="/admin/login" element={<AdminLoginPage />} />
-          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-          <Route path="/admin/products" element={<AdminProductsPage />} />
-          <Route path="/admin/labels" element={<AdminLabelStudioPage />} />
-          <Route path="/admin/orders" element={<AdminOrdersPage />} />
-          <Route path="/admin/fabrics" element={<AdminFabricsPage />} />
-          <Route path="/admin/categories" element={<AdminCategoriesPage />} />
-          <Route path="/admin/coupons" element={<AdminCouponsPage />} />
-          <Route path="/admin/banners" element={<AdminBannersPage />} />
-          <Route path="/admin/customers" element={<AdminCustomersPage />} />
-          <Route path="/admin/reviews" element={<AdminReviewsPage />} />
-          <Route path="/admin/appeals" element={<AdminAppealsPage />} />
-          <Route path="/admin/settings" element={<AdminSettingsPage />} />
-          <Route path="/admin/management/admins" element={<AdminManagementStaffPage />} />
-          <Route path="/admin/management/workers" element={<AdminManagementWorkerPage />} />
-          <Route path="/admin/management/customers" element={<AdminManagementCustomerPage />} />
 
-          {/* Worker Routes - No Layout */}
-          <Route path="/worker/dashboard" element={<WorkerDashboardPage />} />
-          <Route path="/worker/stations/cutting" element={<WorkerCuttingPage />} />
-          <Route path="/worker/stations/stitching" element={<WorkerStitchingPage />} />
-          <Route path="/worker/stations/finishing" element={<WorkerFinishingPage />} />
-          <Route path="/worker/stations/qc" element={<WorkerQCPage />} />
-          <Route path="/worker/measurements" element={<WorkerMeasurementsPage />} />
-          <Route path="/worker/history" element={<WorkerHistoryPage />} />
-          <Route path="/worker/requisitions" element={<WorkerRequisitionsPage />} />
-          <Route path="/worker/profile" element={<WorkerProfilePage />} />
+          {/* Protected Admin Routes */}
+          <Route path="/admin/*" element={
+            <ProtectedRoute role="admin">
+              <Routes>
+                <Route path="dashboard" element={<AdminDashboardPage />} />
+                <Route path="products" element={<AdminProductsPage />} />
+                <Route path="labels" element={<AdminLabelStudioPage />} />
+                <Route path="orders" element={<AdminOrdersPage />} />
+                <Route path="fabrics" element={<AdminFabricsPage />} />
+                <Route path="categories" element={<AdminCategoriesPage />} />
+                <Route path="coupons" element={<AdminCouponsPage />} />
+                <Route path="banners" element={<AdminBannersPage />} />
+                <Route path="customers" element={<AdminCustomersPage />} />
+                <Route path="reviews" element={<AdminReviewsPage />} />
+                <Route path="appeals" element={<AdminAppealsPage />} />
+                <Route path="settings" element={<AdminSettingsPage />} />
+                <Route path="requisitions" element={<AdminMaterialRequestsPage />} />
+                <Route path="management/admins" element={<AdminManagementStaffPage />} />
+                <Route path="management/workers" element={<AdminManagementWorkerPage />} />
+                <Route path="management/customers" element={<AdminManagementCustomerPage />} />
+              </Routes>
+            </ProtectedRoute>
+          } />
 
-          {/* Customer Routes - With Layout */}
+          {/* Protected Worker Routes */}
+          <Route path="/worker/*" element={
+            <ProtectedRoute role="worker">
+              <Routes>
+                <Route path="dashboard" element={<WorkerDashboardPage />} />
+                <Route path="tasks" element={<WorkerTasksPage />} />
+                <Route path="stations/cutting" element={<WorkerCuttingPage />} />
+                <Route path="stations/stitching" element={<WorkerStitchingPage />} />
+                <Route path="stations/finishing" element={<WorkerFinishingPage />} />
+                <Route path="stations/qc" element={<WorkerQCPage />} />
+                <Route path="measurements" element={<WorkerMeasurementsPage />} />
+                <Route path="history" element={<WorkerHistoryPage />} />
+                <Route path="requisitions" element={<WorkerRequisitionsPage />} />
+                <Route path="profile" element={<WorkerProfilePage />} />
+              </Routes>
+            </ProtectedRoute>
+          } />
+
+          {/* Public & Customer Routes - With Layout */}
           <Route path="/*" element={
             <Layout>
               <Routes>
@@ -96,11 +117,9 @@ const App: React.FC = () => {
                 <Route path="/shop" element={<ShopPage />} />
                 <Route path="/fabrics" element={<ShopPage />} />
                 <Route path="/product/:id" element={<ProductDetailsPage />} />
-                <Route path="/product/:id" element={<ProductDetailsPage />} />
                 <Route path="/custom-tailoring" element={<CustomTailoringPage />} />
                 <Route path="/cart" element={<CartPage />} />
                 <Route path="/wishlist" element={<WishlistPage />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/login" element={<AuthPage />} />
                 <Route path="/checkout" element={<CheckoutPage />} />
                 <Route path="/order-success/:orderId" element={<OrderSuccessPage />} />
@@ -109,6 +128,13 @@ const App: React.FC = () => {
                 <Route path="/size-guide" element={<SizeGuidePage />} />
                 <Route path="/track-order" element={<TrackOrderPage />} />
                 <Route path="/gift-cards" element={<GiftCardPage />} />
+                <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                <Route path="/terms" element={<TermsPage />} />
+                <Route path="/dashboard" element={
+                  <ProtectedRoute role="customer">
+                    <DashboardPage />
+                  </ProtectedRoute>
+                } />
                 <Route path="*" element={<div className="py-32 text-center text-4xl serif">Page Not Found</div>} />
               </Routes>
             </Layout>

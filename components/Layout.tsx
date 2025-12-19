@@ -11,15 +11,20 @@ import {
   XMarkIcon,
   CheckCircleIcon,
   ShieldCheckIcon,
-  WrenchIcon
+  WrenchIcon,
+  BellIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { cart, user, wishlist, adminUser, workerUser } = useStore();
+  const { cart, user, wishlist, adminUser, workerUser, notifications, markNotificationRead } = useStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const navigate = useNavigate();
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   const handleNewsletter = (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +33,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       setNewsletterEmail('');
       setTimeout(() => setSubscribed(false), 5000);
     }
+  };
+
+  const handleNotificationClick = (id: string, link?: string) => {
+    markNotificationRead(id);
+    setShowNotifications(false);
+    if (link) navigate(link);
   };
 
   return (
@@ -79,6 +90,58 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 </span>
               )}
             </Link>
+            
+            {/* Notification Bell */}
+            {user && (
+              <div className="relative">
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className={`p-2 transition-all rounded-full ${showNotifications ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  <BellIcon className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center animate-bounce">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+                
+                {showNotifications && (
+                  <>
+                    <div className="fixed inset-0 z-[-1]" onClick={() => setShowNotifications(false)}></div>
+                    <div className="absolute right-0 mt-4 w-80 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in duration-200">
+                      <div className="p-5 border-b border-slate-50 flex justify-between items-center">
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Atelier Notices</h3>
+                        <Link to="/dashboard" onClick={() => setShowNotifications(false)} className="text-[10px] font-bold uppercase text-amber-600 hover:underline">View All</Link>
+                      </div>
+                      <div className="max-h-96 overflow-y-auto no-scrollbar">
+                        {notifications.length === 0 ? (
+                          <div className="p-10 text-center">
+                            <p className="text-xs text-slate-400 italic">No recent updates.</p>
+                          </div>
+                        ) : (
+                          notifications.slice(0, 5).map(notif => (
+                            <button 
+                              key={notif.id}
+                              onClick={() => handleNotificationClick(notif.id, notif.link)}
+                              className={`w-full text-left p-5 border-b border-slate-50 last:border-none transition hover:bg-slate-50 flex items-start space-x-4 ${notif.isRead ? 'opacity-50' : 'bg-amber-50/30'}`}
+                            >
+                              <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${notif.isRead ? 'bg-slate-200' : 'bg-amber-600'}`}></div>
+                              <div>
+                                <h4 className="text-sm font-bold text-slate-900">{notif.title}</h4>
+                                <p className="text-xs text-slate-500 leading-relaxed mt-1">{notif.message}</p>
+                                <p className="text-[9px] text-slate-400 mt-2 font-bold uppercase">{new Date(notif.date).toLocaleDateString()}</p>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             <Link to={user ? "/dashboard" : "/login"} className="p-2 text-slate-600 hover:text-slate-900 transition flex items-center space-x-2">
               <UserIcon className="w-5 h-5" />
               {user && <span className="text-[10px] font-bold uppercase tracking-widest hidden lg:inline">{user.name.split(' ')[0]}</span>}
@@ -151,11 +214,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </ul>
           </div>
           <div>
-            <h4 className="text-white font-medium mb-6 uppercase tracking-widest text-[10px]">Shop</h4>
+            <h4 className="text-white font-medium mb-6 uppercase tracking-widest text-[10px]">Company</h4>
             <ul className="space-y-4 text-xs uppercase tracking-widest opacity-70">
-              <li><Link to="/shop" className="hover:text-white transition">All Collections</Link></li>
-              <li><Link to="/fabrics" className="hover:text-white transition">Fine Fabrics</Link></li>
-              <li><Link to="/custom-tailoring" className="hover:text-white transition">Bespoke Fitting</Link></li>
+              <li><Link to="/privacy" className="hover:text-white transition">Privacy Policy</Link></li>
+              <li><Link to="/terms" className="hover:text-white transition">Terms of Service</Link></li>
+              <li><Link to="/shop" className="hover:text-white transition">Collections</Link></li>
               <li><Link to="/gift-cards" className="hover:text-white transition">Gift Credits</Link></li>
             </ul>
           </div>

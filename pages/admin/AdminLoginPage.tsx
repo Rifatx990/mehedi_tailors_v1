@@ -9,7 +9,7 @@ const AdminLoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setAdminUser, adminUser } = useStore();
+  const { setAdminUser, adminUser, allUsers } = useStore();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -23,11 +23,17 @@ const AdminLoginPage: React.FC = () => {
     setLoading(true);
     setError('');
 
-    // SIMULATED SECURE ADMIN VERIFICATION
-    // DEFAULT CREDENTIALS:
-    // Email: admin@meheditailors.com
-    // Key: admin123
     setTimeout(() => {
+      // 1. Check Database first
+      const found = allUsers.find(u => u.email === email && u.role === 'admin');
+      if (found) {
+        setAdminUser(found);
+        navigate('/admin/dashboard');
+        setLoading(false);
+        return;
+      }
+
+      // 2. Simulation Defaults
       if (email === 'admin@meheditailors.com' && password === 'admin123') {
         const admin = {
           id: 'admin-001',

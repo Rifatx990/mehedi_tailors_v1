@@ -20,10 +20,6 @@ export interface EmailConfig {
   senderName: string;
   senderEmail: string;
   isEnabled: boolean;
-  // Legacy bridge fields for compatibility
-  serviceId?: string;
-  templateId?: string;
-  publicKey?: string;
 }
 
 export interface Fabric {
@@ -125,6 +121,7 @@ export interface User {
   specialization?: string;
   experience?: string;
   joinDate?: string;
+  password?: string; // For simulation auth
 }
 
 export interface Coupon {
@@ -161,4 +158,15 @@ export interface MaterialRequest {
   status: 'pending' | 'approved' | 'rejected';
   date: string;
   notes?: string;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  date: string;
+  isRead: boolean;
+  type: 'sale' | 'restock' | 'order_update' | 'general';
+  link?: string;
 }

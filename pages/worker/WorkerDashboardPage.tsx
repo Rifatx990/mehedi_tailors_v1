@@ -4,9 +4,7 @@ import { useStore } from '../../context/StoreContext.tsx';
 import { Link } from 'react-router-dom';
 import WorkerSidebar from '../../components/worker/WorkerSidebar.tsx';
 import { 
-  ClipboardDocumentCheckIcon,
   ScissorsIcon,
-  ScaleIcon,
   CheckCircleIcon,
   ClockIcon,
   SparklesIcon
@@ -66,7 +64,7 @@ const WorkerDashboardPage: React.FC = () => {
                              <p className="text-[10px] text-slate-400 uppercase font-bold">{order.productionStep || 'Queue'}</p>
                           </div>
                        </div>
-                       <Link to="/worker/tasks" className="text-[10px] font-bold uppercase tracking-widest text-teal-600 hover:text-teal-700">Update</Link>
+                       <Link to="/worker/tasks" className="text-[10px] font-bold uppercase tracking-widest text-teal-600 hover:text-teal-700">Update Phase</Link>
                     </div>
                  ))}
               </div>

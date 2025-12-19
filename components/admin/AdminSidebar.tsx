@@ -18,13 +18,15 @@ import {
   WrenchScrewdriverIcon,
   UserGroupIcon,
   QrCodeIcon,
-  Cog6ToothIcon
+  Cog6ToothIcon,
+  BeakerIcon
 } from '@heroicons/react/24/outline';
 
 const AdminSidebar: React.FC = () => {
-  const { setAdminUser, reviews } = useStore();
+  const { setAdminUser, reviews, materialRequests } = useStore();
   const navigate = useNavigate();
   const pendingReviews = reviews.filter(r => r.status === 'pending').length;
+  const pendingRequisitions = materialRequests.filter(r => r.status === 'pending').length;
 
   const handleLogout = () => {
     setAdminUser(null);
@@ -42,6 +44,7 @@ const AdminSidebar: React.FC = () => {
     { to: '/admin/coupons', label: 'Coupons', icon: TicketIcon },
     { to: '/admin/banners', label: 'Marketing Banners', icon: PhotoIcon },
     { type: 'separator', label: 'Management' },
+    { to: '/admin/requisitions', label: 'Material Requests', icon: BeakerIcon, badge: pendingRequisitions },
     { to: '/admin/management/admins', label: 'Admin Staff', icon: ShieldCheckIcon },
     { to: '/admin/management/workers', label: 'Artisan Team', icon: WrenchScrewdriverIcon },
     { to: '/admin/management/customers', label: 'Patron Directory', icon: UserGroupIcon },

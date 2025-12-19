@@ -1,15 +1,26 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useStore } from '../../context/StoreContext.tsx';
 import WorkerSidebar from '../../components/worker/WorkerSidebar.tsx';
-import { ScissorsIcon, ArchiveBoxIcon, CheckIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ScissorsIcon, ArchiveBoxIcon, CheckIcon, RocketLaunchIcon } from '@heroicons/react/24/outline';
 import { ProductionStep } from '../../types.ts';
 
 const WorkerTasksPage: React.FC = () => {
-  const { orders, updateProductionStep } = useStore();
-  const assignedOrders = orders.filter(o => o.status === 'In Progress' || o.status === 'Pending');
+  const { orders, updateProductionStep, updateOrderStatus, workerUser } = useStore();
+  
+  // Filter for orders specifically assigned to this worker
+  const assignedOrders = orders.filter(o => 
+    o.assignedWorkerId === workerUser?.id && 
+    (o.status === 'In Progress' || o.status === 'Pending')
+  );
 
   const steps: ProductionStep[] = ['Queue', 'Cutting', 'Stitching', 'Finishing', 'Ready'];
+
+  const handleHandover = async (orderId: string) => {
+    if (window.confirm("Finalize this craft? It will be sent to the Ready Bay for Quality Inspection.")) {
+        await updateProductionStep(orderId, 'Ready');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
@@ -17,7 +28,7 @@ const WorkerTasksPage: React.FC = () => {
       <main className="flex-grow p-8 md:p-16">
         <header className="mb-12">
           <h1 className="text-4xl font-bold serif">Production Queue</h1>
-          <p className="text-slate-400 mt-2">Live task tracking for current craftsmanship cycle.</p>
+          <p className="text-slate-400 mt-2">Live task tracking for your current craftsmanship cycle.</p>
         </header>
 
         {assignedOrders.length > 0 ? (
@@ -26,7 +37,7 @@ const WorkerTasksPage: React.FC = () => {
               <div key={order.id} className="bg-white rounded-[3rem] p-10 shadow-sm border border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-8 group">
                 <div className="flex items-center space-x-6">
                   <div className="w-16 h-20 bg-slate-50 rounded-2xl overflow-hidden border border-slate-100">
-                    {order.items[0]?.image && <img src={order.items[0].image} className="w-full h-full object-cover" />}
+                    {order.items[0]?.image && <img src={order.items[0].image} className="w-full h-full object-cover" alt="Garment" />}
                   </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-widest text-teal-600 mb-1 block">Order #{order.id}</span>
@@ -68,9 +79,20 @@ const WorkerTasksPage: React.FC = () => {
                       <p className="text-[9px] font-bold uppercase text-slate-400">Current Phase</p>
                       <p className="text-sm font-bold text-slate-900">{order.productionStep || 'Queue'}</p>
                    </div>
-                   <button className="p-4 bg-slate-900 text-white rounded-2xl hover:bg-teal-600 transition shadow-xl">
-                      <ScissorsIcon className="w-5 h-5" />
-                   </button>
+                   
+                   {order.productionStep === 'Finishing' ? (
+                      <button 
+                        onClick={() => handleHandover(order.id)}
+                        className="p-4 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition shadow-xl animate-bounce"
+                        title="Submit for Handover"
+                      >
+                         <RocketLaunchIcon className="w-5 h-5" />
+                      </button>
+                   ) : (
+                      <button className="p-4 bg-slate-900 text-white rounded-2xl hover:bg-teal-600 transition shadow-xl">
+                         <ScissorsIcon className="w-5 h-5" />
+                      </button>
+                   )}
                 </div>
               </div>
             ))}
@@ -79,7 +101,7 @@ const WorkerTasksPage: React.FC = () => {
           <div className="py-24 text-center bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
              <ArchiveBoxIcon className="w-16 h-16 text-slate-200 mx-auto mb-6" />
              <h3 className="text-xl font-bold serif text-slate-400">Queue Clear</h3>
-             <p className="text-slate-400 max-w-xs mx-auto mt-2">Enjoy your break, artisan. New designs will arrive soon.</p>
+             <p className="text-slate-400 max-w-xs mx-auto mt-2">Enjoy your break, artisan. No jobs are currently assigned to your station.</p>
           </div>
         )}
       </main>

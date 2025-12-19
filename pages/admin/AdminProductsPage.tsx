@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../../context/StoreContext.tsx';
 import AdminSidebar from '../../components/admin/AdminSidebar.tsx';
-import { PlusIcon, TrashIcon, PencilSquareIcon, PhotoIcon, XMarkIcon, ArchiveBoxIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, PencilSquareIcon, PhotoIcon, XMarkIcon, ArchiveBoxIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { Product } from '../../types.ts';
 
 const AdminProductsPage: React.FC = () => {
@@ -12,7 +12,7 @@ const AdminProductsPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<Partial<Product>>({
-    name: '', category: categories[0] || 'Uncategorized', price: 0, image: '', description: '', availableSizes: [], colors: []
+    name: '', category: categories[0] || 'Uncategorized', price: 0, image: '', description: '', availableSizes: [], colors: [], inStock: true
   });
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,12 +38,13 @@ const AdminProductsPage: React.FC = () => {
       name: form.name || 'Unnamed Product',
       category: form.category || categories[0] || 'General',
       price: form.price || 0,
+      discountPrice: form.discountPrice,
       image: form.image || 'https://via.placeholder.com/600x800',
       description: form.description || '',
       availableSizes: processArray(form.availableSizes),
       colors: processArray(form.colors),
       fabricType: form.fabricType || 'Premium',
-      inStock: true
+      inStock: form.inStock === undefined ? true : form.inStock
     };
 
     if (editingProduct) await updateProduct(productData);
@@ -63,7 +64,8 @@ const AdminProductsPage: React.FC = () => {
       description: '', 
       availableSizes: [], 
       colors: [],
-      fabricType: 'Premium'
+      fabricType: 'Premium',
+      inStock: true
     });
     setIsModalOpen(true);
   };
@@ -99,7 +101,7 @@ const AdminProductsPage: React.FC = () => {
               <thead>
                 <tr className="text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b bg-slate-50/50">
                   <th className="px-10 py-6">Product</th>
-                  <th className="px-10 py-6">Category</th>
+                  <th className="px-10 py-6">Availability</th>
                   <th className="px-10 py-6 text-center">Price</th>
                   <th className="px-10 py-6 text-right">Actions</th>
                 </tr>
@@ -109,13 +111,26 @@ const AdminProductsPage: React.FC = () => {
                   <tr key={p.id} className="hover:bg-slate-50/50 transition">
                     <td className="px-10 py-8 flex items-center space-x-4">
                       <img src={p.image} className="w-12 h-12 object-cover rounded-xl shadow-sm" alt="" />
-                      <span className="font-bold">{p.name}</span>
+                      <div className="flex flex-col">
+                        <span className="font-bold">{p.name}</span>
+                        <span className="text-[10px] font-bold uppercase text-slate-400">{p.category}</span>
+                      </div>
                     </td>
-                    <td className="px-10 py-8 text-xs font-bold uppercase text-slate-400">{p.category}</td>
-                    <td className="px-10 py-8 text-center font-bold">BDT {p.price.toLocaleString()}</td>
+                    <td className="px-10 py-8">
+                       <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest ${p.inStock ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                          <div className={`w-1.5 h-1.5 rounded-full ${p.inStock ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                          <span>{p.inStock ? 'In Stock' : 'Out of Stock'}</span>
+                       </div>
+                    </td>
+                    <td className="px-10 py-8 text-center">
+                       <div className="flex flex-col items-center">
+                          <span className="font-bold">BDT {p.price.toLocaleString()}</span>
+                          {p.discountPrice && <span className="text-[9px] text-rose-500 font-bold uppercase">Sale: BDT {p.discountPrice.toLocaleString()}</span>}
+                       </div>
+                    </td>
                     <td className="px-10 py-8 text-right space-x-2">
                       <button onClick={() => openEditModal(p)} className="p-2 text-slate-400 hover:text-amber-600"><PencilSquareIcon className="w-5 h-5" /></button>
-                      <button onClick={() => removeProduct(p.id)} className="p-2 text-slate-400 hover:text-red-500"><TrashIcon className="w-5 h-5" /></button>
+                      <button onClick={() => removeProduct(p.id)} className="p-2 text-slate-300 hover:text-red-500"><TrashIcon className="w-5 h-5" /></button>
                     </td>
                   </tr>
                 ))}
@@ -140,19 +155,35 @@ const AdminProductsPage: React.FC = () => {
                     <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">Name</label>
                     <input required value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none" />
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">Base Price</label>
+                      <input type="number" required value={form.price} onChange={e => setForm({...form, price: parseFloat(e.target.value)})} className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">Sale Price (Optional)</label>
+                      <input type="number" value={form.discountPrice || ''} onChange={e => setForm({...form, discountPrice: e.target.value ? parseFloat(e.target.value) : undefined})} className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none" placeholder="No discount" />
+                    </div>
+                  </div>
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">Category</label>
                     <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none">
                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">Price (BDT)</label>
-                    <input type="number" required value={form.price} onChange={e => setForm({...form, price: parseFloat(e.target.value)})} className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">Fabric Type</label>
-                    <input value={form.fabricType} onChange={e => setForm({...form, fabricType: e.target.value})} className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none" placeholder="Silk, Cotton, etc." />
+                  
+                  <div className="flex items-center justify-between p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div>
+                       <h4 className="text-sm font-bold text-slate-900">Inventory Status</h4>
+                       <p className="text-[10px] text-slate-400 uppercase font-bold">Patrons will be notified on restock</p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setForm({...form, inStock: !form.inStock})}
+                      className={`w-14 h-8 rounded-full transition-all relative shrink-0 ${form.inStock ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    >
+                      <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${form.inStock ? 'left-7' : 'left-1'}`}></div>
+                    </button>
                   </div>
                 </div>
                 <div className="space-y-6">
@@ -173,7 +204,7 @@ const AdminProductsPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <button type="submit" className="w-full bg-slate-900 text-white py-5 mt-10 rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl">Commit to Archive</button>
+              <button type="submit" className="w-full bg-slate-900 text-white py-5 mt-10 rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl transition-all hover:bg-slate-800">Commit to Archive & Notify Patrons</button>
             </form>
           </div>
         )}

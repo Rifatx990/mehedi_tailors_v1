@@ -19,7 +19,6 @@ const CheckoutPage: React.FC = () => {
   const [paymentType, setPaymentType] = useState<'full' | 'advance'>('full');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Get state from CartPage if coming from coupon/discount flow
   const cartState = location.state || {};
   const discountAmount = cartState.discountAmount || 0;
   
@@ -36,7 +35,6 @@ const CheckoutPage: React.FC = () => {
   const delivery = subtotal > 5000 ? 0 : 150;
   const total = subtotal - discountAmount + delivery;
 
-  // 30% Advance Calculation
   const advanceAmount = Math.ceil(total * 0.3);
   const dueAmount = total - advanceAmount;
 
@@ -48,6 +46,8 @@ const CheckoutPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (cart.length === 0) return;
+    
     setIsProcessing(true);
 
     setTimeout(() => {
@@ -55,14 +55,15 @@ const CheckoutPage: React.FC = () => {
         id: `MT-${Math.floor(100000 + Math.random() * 900000)}`,
         date: new Date().toISOString(),
         status: 'Pending' as const,
-        paymentStatus: paymentType === 'full' ? 'Fully Paid' : 'Partially Paid' as any,
+        productionStep: 'Queue' as const,
+        paymentStatus: (paymentType === 'full' ? 'Fully Paid' : 'Partially Paid') as any,
         total: total,
         subtotal: subtotal,
         discountAmount: discountAmount,
         paidAmount: currentPaymentRequirement,
         dueAmount: paymentType === 'full' ? 0 : dueAmount,
         items: [...cart],
-        paymentMethod: paymentMethod === 'cod' ? 'Cash on Delivery' : 'SSLCommerz (Paid)',
+        paymentMethod: paymentMethod === 'cod' ? 'Cash on Delivery' : 'SSLCommerz',
         address: `${formData.address}, ${formData.area}, ${formData.city}`,
         customerName: formData.name,
         customerEmail: formData.email
@@ -71,18 +72,24 @@ const CheckoutPage: React.FC = () => {
       placeOrder(newOrder);
       setIsProcessing(false);
       navigate(`/order-success/${newOrder.id}`);
-    }, 2000);
+    }, 1500);
   };
 
-  if (cart.length === 0) return null;
+  if (cart.length === 0) {
+    return (
+      <div className="py-32 text-center">
+        <h2 className="text-3xl font-bold serif mb-6">Your bag is empty</h2>
+        <Link to="/shop" className="text-amber-600 font-bold underline">Go Shopping</Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-slate-50 min-h-screen py-12 md:py-20">
+    <div className="bg-slate-50 min-h-screen py-20">
       {isProcessing && (
         <div className="fixed inset-0 z-[100] bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center">
           <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mb-6"></div>
-          <h2 className="text-2xl font-bold serif mb-2">Processing Your Order</h2>
-          <p className="text-slate-500">Securing your bespoke purchase...</p>
+          <h2 className="text-2xl font-bold serif">Securing Bespoke Order...</h2>
         </div>
       )}
 
@@ -94,117 +101,96 @@ const CheckoutPage: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           <div className="lg:col-span-7 space-y-8">
-            <div className="bg-white p-8 md:p-10 rounded-3xl shadow-sm border border-slate-100">
-              <h2 className="text-2xl font-bold serif mb-8">Shipping Information</h2>
+            <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-100">
+              <h2 className="text-2xl font-bold serif mb-8">1. Logistics Identity</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Full Name</label>
-                  <input required name="name" value={formData.name} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-600/20 focus:border-amber-600 outline-none transition" />
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Full Legal Name</label>
+                  <input required name="name" value={formData.name} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-600/20 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Email Address</label>
-                  <input required type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-600/20 focus:border-amber-600 outline-none transition" />
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Secure Email</label>
+                  <input required type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-600/20 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Phone Number</label>
-                  <input required name="phone" value={formData.phone} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-600/20 focus:border-amber-600 outline-none transition" />
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Contact Mobile</label>
+                  <input required name="phone" value={formData.phone} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-600/20 outline-none" />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Delivery Address</label>
-                  <input required name="address" value={formData.address} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-600/20 focus:border-amber-600 outline-none transition" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">City</label>
-                  <select name="city" value={formData.city} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-600/20 focus:border-amber-600 outline-none transition">
-                    <option>Dhaka</option><option>Savar</option><option>Chittagong</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Area / Zip</label>
-                  <input required name="area" value={formData.area} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-600/20 focus:border-amber-600 outline-none transition" />
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Delivery Coordinates</label>
+                  <input required name="address" value={formData.address} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-600/20 outline-none" />
                 </div>
               </div>
             </div>
 
-            {/* Payment Strategy Selection */}
-            <div className="bg-white p-8 md:p-10 rounded-3xl shadow-sm border border-slate-100">
-              <h2 className="text-2xl font-bold serif mb-2">Payment Option</h2>
-              <p className="text-slate-400 text-xs uppercase tracking-widest mb-8 font-bold">Choose how you want to clear your dues</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-100">
+              <h2 className="text-2xl font-bold serif mb-8">2. Settlement Structure</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
                 <button 
                   type="button" 
                   onClick={() => setPaymentType('full')} 
-                  className={`p-8 border-2 rounded-[2rem] text-left transition relative overflow-hidden group ${paymentType === 'full' ? 'border-amber-600 bg-amber-50 shadow-md shadow-amber-100' : 'border-slate-100 hover:border-slate-200'}`}
+                  className={`p-6 border-2 rounded-2xl text-left transition ${paymentType === 'full' ? 'border-slate-900 bg-slate-50' : 'border-slate-100 hover:border-slate-200'}`}
                 >
-                  <WalletIcon className={`w-8 h-8 mb-4 ${paymentType === 'full' ? 'text-amber-600' : 'text-slate-300'}`} />
-                  <h4 className="font-bold text-slate-900">Full Payment</h4>
-                  <p className="text-xs text-slate-500 mt-1">Pay the total amount BDT {total.toLocaleString()} now.</p>
-                  {paymentType === 'full' && <div className="absolute top-4 right-4 w-2 h-2 bg-amber-600 rounded-full animate-ping"></div>}
+                  <WalletIcon className="w-6 h-6 mb-3 text-slate-900" />
+                  <h4 className="font-bold">Full Settlement</h4>
+                  <p className="text-xs text-slate-400 mt-1">Clear the total BDT {total.toLocaleString()} now.</p>
                 </button>
-                
                 <button 
                   type="button" 
                   onClick={() => setPaymentType('advance')} 
-                  className={`p-8 border-2 rounded-[2rem] text-left transition relative overflow-hidden group ${paymentType === 'advance' ? 'border-amber-600 bg-amber-50 shadow-md shadow-amber-100' : 'border-slate-100 hover:border-slate-200'}`}
+                  className={`p-6 border-2 rounded-2xl text-left transition ${paymentType === 'advance' ? 'border-amber-600 bg-amber-50' : 'border-slate-100 hover:border-slate-200'}`}
                 >
-                  <ReceiptPercentIcon className={`w-8 h-8 mb-4 ${paymentType === 'advance' ? 'text-amber-600' : 'text-slate-300'}`} />
-                  <h4 className="font-bold text-slate-900">30% Advance</h4>
-                  <p className="text-xs text-slate-500 mt-1">Pay BDT {advanceAmount.toLocaleString()} to begin bespoke work.</p>
-                  <div className="mt-4 bg-amber-600/10 inline-block px-3 py-1 rounded-full text-[10px] font-bold text-amber-700 uppercase tracking-widest">
-                    Balance Due Later
-                  </div>
+                  <ReceiptPercentIcon className="w-6 h-6 mb-3 text-amber-600" />
+                  <h4 className="font-bold">30% Artisan Advance</h4>
+                  <p className="text-xs text-slate-400 mt-1">Pay BDT {advanceAmount.toLocaleString()} to trigger production.</p>
                 </button>
               </div>
 
-              <div className="mt-10 pt-10 border-t border-slate-50 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button type="button" onClick={() => setPaymentMethod('sslcommerz')} className={`p-6 border-2 rounded-2xl flex flex-col items-center space-y-3 transition ${paymentMethod === 'sslcommerz' ? 'border-amber-600 bg-amber-50 shadow-sm' : 'border-slate-100 hover:border-slate-200'}`}>
-                  <CreditCardIcon className={`w-8 h-8 ${paymentMethod === 'sslcommerz' ? 'text-amber-600' : 'text-slate-400'}`} />
-                  <span className="font-bold text-sm">Online Payment</span>
+              <div className="flex gap-4">
+                <button type="button" onClick={() => setPaymentMethod('sslcommerz')} className={`flex-1 p-4 border-2 rounded-xl flex items-center justify-center space-x-2 transition ${paymentMethod === 'sslcommerz' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-100'}`}>
+                   <CreditCardIcon className="w-5 h-5" />
+                   <span className="text-xs font-bold uppercase">Digital Pay</span>
                 </button>
-                <button type="button" onClick={() => setPaymentMethod('cod')} className={`p-6 border-2 rounded-2xl flex flex-col items-center space-y-3 transition ${paymentMethod === 'cod' ? 'border-amber-600 bg-amber-50 shadow-sm' : 'border-slate-100 hover:border-slate-200'}`}>
-                  <BanknotesIcon className={`w-8 h-8 ${paymentMethod === 'cod' ? 'text-amber-600' : 'text-slate-400'}`} />
-                  <span className="font-bold text-sm">Cash on Delivery</span>
+                <button type="button" onClick={() => setPaymentMethod('cod')} className={`flex-1 p-4 border-2 rounded-xl flex items-center justify-center space-x-2 transition ${paymentMethod === 'cod' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-100'}`}>
+                   <BanknotesIcon className="w-5 h-5" />
+                   <span className="text-xs font-bold uppercase">Cash (Advance Required)</span>
                 </button>
               </div>
             </div>
           </div>
 
           <div className="lg:col-span-5">
-            <div className="bg-white p-8 md:p-10 rounded-[3rem] shadow-lg border border-slate-100 sticky top-28">
-              <h2 className="text-2xl font-bold serif mb-8">Checkout Summary</h2>
-              <div className="space-y-4 mb-8">
-                <div className="flex justify-between text-sm">
-                   <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Order Value</span>
+            <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl sticky top-28">
+              <h2 className="text-2xl font-bold serif mb-8 border-b border-white/10 pb-6">Ledger Summary</h2>
+              <div className="space-y-4 mb-10 text-sm">
+                <div className="flex justify-between">
+                   <span className="text-slate-400">Inventory Subtotal</span>
+                   <span>BDT {subtotal.toLocaleString()}</span>
+                </div>
+                {discountAmount > 0 && (
+                   <div className="flex justify-between text-emerald-400">
+                      <span>Promotional Credit</span>
+                      <span>-BDT {discountAmount.toLocaleString()}</span>
+                   </div>
+                )}
+                <div className="flex justify-between border-t border-white/10 pt-4">
+                   <span className="font-bold">Contract Valuation</span>
                    <span className="font-bold">BDT {total.toLocaleString()}</span>
                 </div>
-                {paymentType === 'advance' && (
-                  <>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-amber-600 font-bold uppercase tracking-widest text-[10px]">Bespoke Advance (30%)</span>
-                      <span className="font-bold text-amber-600">BDT {advanceAmount.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm pt-4 border-t border-slate-50 italic">
-                      <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Balance Due on Pickup</span>
-                      <span className="font-bold text-slate-400">BDT {dueAmount.toLocaleString()}</span>
-                    </div>
-                  </>
-                )}
               </div>
               
-              <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 mb-10">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400 block mb-2">Immediate Payment Due</span>
-                <span className="text-4xl font-bold text-slate-900 tracking-tighter">BDT {currentPaymentRequirement.toLocaleString()}</span>
+              <div className="bg-white/5 p-6 rounded-2xl border border-white/10 mb-8">
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-2">Current Requirement</p>
+                 <p className="text-4xl font-bold">BDT {currentPaymentRequirement.toLocaleString()}</p>
+                 {paymentType === 'advance' && (
+                    <p className="text-[10px] text-slate-400 mt-3 font-medium uppercase tracking-widest italic">Balance BDT {dueAmount.toLocaleString()} due on calibration fitting.</p>
+                 )}
               </div>
               
-              <button type="submit" className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-bold uppercase tracking-widest hover:bg-slate-800 transition shadow-xl shadow-slate-200 flex items-center justify-center space-x-3 text-xs">
-                <span>{paymentMethod === 'sslcommerz' ? `Securely Pay BDT ${currentPaymentRequirement.toLocaleString()}` : 'Confirm Order'}</span>
+              <button type="submit" className="w-full bg-amber-600 text-white py-5 rounded-2xl font-bold uppercase tracking-widest hover:bg-amber-700 transition shadow-xl shadow-amber-600/20 flex items-center justify-center space-x-3">
+                <span>Finalize Contract</span>
                 <ShieldCheckIcon className="w-5 h-5" />
               </button>
-              
-              <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest mt-6 leading-relaxed">
-                By completing this order you agree to Mehedi Tailors <br/> bespoke terms of service.
-              </p>
             </div>
           </div>
         </form>

@@ -24,7 +24,7 @@ const AdminDashboardPage: React.FC = () => {
     outstandingDues: orders.reduce((acc, curr) => acc + (curr.dueAmount || 0), 0),
     activeOrders: orders.filter(o => o.status !== 'Delivered' && o.status !== 'Cancelled').length,
     totalProducts: products.length,
-    totalCustomers: allUsers.length
+    totalCustomers: allUsers.filter(u => u.role === 'customer').length
   }), [orders, products, allUsers]);
 
   const navTiles = [
@@ -33,7 +33,7 @@ const AdminDashboardPage: React.FC = () => {
     { label: 'Fabric Vault', to: '/admin/fabrics', icon: SwatchIcon, color: 'bg-emerald-500' },
     { label: 'Coupons', to: '/admin/coupons', icon: TicketIcon, color: 'bg-rose-500' },
     { label: 'Banners', to: '/admin/banners', icon: PhotoIcon, color: 'bg-indigo-500' },
-    { label: 'Customers', to: '/admin/customers', icon: UsersIcon, color: 'bg-slate-700' },
+    { label: 'Patron Directory', to: '/admin/management/customers', icon: UsersIcon, color: 'bg-slate-700' },
   ];
 
   return (
