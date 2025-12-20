@@ -30,13 +30,15 @@ import {
   ClockIcon,
   GiftIcon,
   MegaphoneIcon,
+  CloudArrowUpIcon,
   CircleStackIcon
 } from '@heroicons/react/24/outline';
 
 const AdminSidebar: React.FC = () => {
-  const { setAdminUser, reviews, materialRequests, dues } = useStore();
+  const { setAdminUser, reviews, materialRequests, dues, syncToServer } = useStore();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const pendingReviews = reviews.filter(r => r.status === 'pending').length;
   const pendingRequisitions = materialRequests.filter(r => r.status === 'pending').length;
@@ -45,6 +47,12 @@ const AdminSidebar: React.FC = () => {
   const handleLogout = () => {
     setAdminUser(null);
     navigate('/admin/login');
+  };
+
+  const handleGlobalSync = async () => {
+    setSyncing(true);
+    await syncToServer();
+    setSyncing(false);
   };
 
   const navItems = [
@@ -102,6 +110,19 @@ const AdminSidebar: React.FC = () => {
             <p className="text-[10px] uppercase tracking-[0.4em] text-amber-500 font-bold mt-1">Atelier Control</p>
           </div>
           <button onClick={() => setIsOpen(false)} className="md:hidden p-2 hover:bg-white/10 rounded-full"><XMarkIcon className="w-6 h-6" /></button>
+        </div>
+
+        {/* Global Sync Action */}
+        <div className="mb-8">
+           <button 
+            onClick={handleGlobalSync}
+            disabled={syncing}
+            className={`w-full flex items-center justify-center space-x-3 py-4 rounded-2xl font-black uppercase tracking-widest text-[9px] transition-all border ${syncing ? 'bg-slate-800 border-white/10 text-slate-500' : 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-500/20 active:scale-95'}`}
+           >
+              {syncing ? <CloudArrowUpIcon className="w-4 h-4 animate-bounce" /> : <CircleStackIcon className="w-4 h-4" />}
+              <span>{syncing ? 'Broadcasting...' : 'Push Global Sync'}</span>
+           </button>
+           <p className="text-[7px] text-slate-600 text-center mt-3 uppercase font-black tracking-widest">Update server database.json</p>
         </div>
 
         <nav className="flex-grow space-y-1">

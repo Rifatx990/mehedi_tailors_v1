@@ -16,7 +16,8 @@ import {
   TagIcon,
   ExclamationCircleIcon,
   XMarkIcon,
-  GiftIcon
+  GiftIcon,
+  BriefcaseIcon
 } from '@heroicons/react/24/solid';
 import { Review, Offer, Notice } from '../types.ts';
 
@@ -30,9 +31,11 @@ const HomePage: React.FC = () => {
   const activeOffers = offers.filter(o => o.isActive);
   const activeNotices = notices.filter(n => n.isActive);
   const activeUpcoming = upcomingProducts.filter(p => p.isActive);
+  const activeBrands = partnerBrands.filter(b => b.isActive);
 
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
+  const [isOffersModalOpen, setIsOffersModalOpen] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '', name: user?.name || '' });
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [homeSearch, setHomeSearch] = useState('');
@@ -173,7 +176,31 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* 3. Artisan Offers */}
+      {/* 3. Partner Brands Marquee */}
+      {activeBrands.length > 0 && (
+        <section className="py-16 md:py-24 bg-slate-50 border-y border-slate-100 overflow-hidden">
+           <div className="container mx-auto px-6 mb-12">
+              <p className="text-[9px] font-black uppercase tracking-[0.5em] text-slate-400 text-center">Curated Textile Alliances</p>
+           </div>
+           <div className="relative flex overflow-x-hidden group">
+              <div className="flex space-x-16 md:space-x-32 animate-marquee whitespace-nowrap py-4">
+                 {[...activeBrands, ...activeBrands].map((brand, idx) => (
+                    <div key={`${brand.id}-${idx}`} className="flex flex-col items-center flex-shrink-0">
+                       <img 
+                        src={brand.logo} 
+                        alt={brand.name} 
+                        className="h-8 md:h-12 w-auto grayscale opacity-30 hover:grayscale-0 hover:opacity-100 transition-all duration-700 cursor-pointer" 
+                        referrerPolicy="no-referrer"
+                       />
+                       <span className="text-[7px] font-black uppercase tracking-widest text-slate-300 mt-4">{brand.name}</span>
+                    </div>
+                 ))}
+              </div>
+           </div>
+        </section>
+      )}
+
+      {/* 4. Artisan Offers Hub */}
       {activeOffers.length > 0 && (
         <section className="py-20 md:py-32 bg-slate-950 relative overflow-hidden">
            <div className="absolute top-0 right-0 w-96 h-96 bg-amber-600/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
@@ -186,11 +213,17 @@ const HomePage: React.FC = () => {
                     </div>
                     <h2 className="text-4xl md:text-6xl font-bold serif text-white tracking-tight">Artisan Offers</h2>
                  </div>
-                 <Link to="/shop" className="text-amber-500 font-black uppercase tracking-widest text-[10px] border-b-2 border-amber-500/20 pb-1 hover:border-amber-500 transition-all">View All Promotions</Link>
+                 <button 
+                  onClick={() => setIsOffersModalOpen(true)}
+                  className="text-amber-500 font-black uppercase tracking-widest text-[10px] border-b-2 border-amber-500/20 pb-1 hover:border-amber-500 transition-all flex items-center space-x-2"
+                 >
+                  <span>Explore Promotion Hub</span>
+                  <ArrowRightIcon className="w-3 h-3" />
+                 </button>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                 {activeOffers.map(offer => (
+                 {activeOffers.slice(0, 2).map(offer => (
                     <Link key={offer.id} to={offer.linkUrl || "/shop"} className="group bg-white/5 backdrop-blur-xl rounded-[3rem] border border-white/10 overflow-hidden flex flex-col md:flex-row hover:bg-white/10 transition-all duration-500">
                        <div className="md:w-2/5 aspect-[4/3] md:aspect-auto overflow-hidden">
                           <img src={offer.imageUrl} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" alt="" />
@@ -213,7 +246,47 @@ const HomePage: React.FC = () => {
         </section>
       )}
 
-      {/* Buy Gift Card System Integration */}
+      {/* Promotion Hub Modal */}
+      {isOffersModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-3xl flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
+           <div className="bg-white rounded-[3rem] w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col shadow-3xl animate-in zoom-in slide-in-from-bottom-10 duration-500">
+              <div className="p-8 md:p-12 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                 <div>
+                    <h2 className="text-3xl md:text-4xl font-bold serif text-slate-900 tracking-tight">Atelier Promotion Hub</h2>
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-600 mt-1">Live Institutional Benefits</p>
+                 </div>
+                 <button onClick={() => setIsOffersModalOpen(false)} className="p-4 bg-slate-900 text-white rounded-full hover:rotate-90 transition-all">
+                    <XMarkIcon className="w-8 h-8" />
+                 </button>
+              </div>
+              <div className="flex-grow overflow-y-auto p-8 md:p-16 no-scrollbar">
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {activeOffers.map(offer => (
+                       <Link key={offer.id} to={offer.linkUrl || "/shop"} onClick={() => setIsOffersModalOpen(false)} className="bg-slate-50 border border-slate-100 rounded-[2.5rem] overflow-hidden group hover:shadow-2xl hover:bg-white transition-all duration-500 flex flex-col">
+                          <div className="aspect-[16/9] overflow-hidden relative">
+                             <img src={offer.imageUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="" />
+                             <div className="absolute top-4 right-4 bg-amber-600 text-white px-4 py-1.5 rounded-full text-[8px] font-black uppercase shadow-xl">{offer.discountTag}</div>
+                          </div>
+                          <div className="p-8 flex-grow flex flex-col">
+                             <h3 className="text-2xl font-bold serif mb-3 text-slate-900">{offer.title}</h3>
+                             <p className="text-sm text-slate-500 leading-relaxed mb-8 italic">"{offer.description}"</p>
+                             <div className="mt-auto flex items-center space-x-3 text-amber-600 font-black uppercase tracking-widest text-[9px] group-hover:translate-x-2 transition-transform">
+                                <span>Apply Benefit</span>
+                                <ArrowRightIcon className="w-4 h-4" />
+                             </div>
+                          </div>
+                       </Link>
+                    ))}
+                 </div>
+              </div>
+              <div className="p-8 bg-slate-900 text-white text-center">
+                 <p className="text-[9px] font-black uppercase tracking-[0.5em] opacity-40">Mehedi Tailors & Fabrics • Bespoke Excellence since 1980</p>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* 5. Buy Gift Card System Integration */}
       {systemConfig.giftCardsEnabled && (
         <section className="py-20 md:py-40 bg-white">
            <div className="container mx-auto px-6">
@@ -253,7 +326,7 @@ const HomePage: React.FC = () => {
         </section>
       )}
 
-      {/* 4. Upcoming Products */}
+      {/* 6. Upcoming Products */}
       {activeUpcoming.length > 0 && (
         <section className="py-20 md:py-40 bg-slate-50 border-y border-slate-100">
            <div className="container mx-auto px-6 mb-16 md:mb-20 text-center">
@@ -267,7 +340,7 @@ const HomePage: React.FC = () => {
            
            <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10">
               {activeUpcoming.map(p => (
-                 <div key={p.id} className="bg-white rounded-[2.5rem] md:rounded-[3.5rem] p-6 shadow-sm border border-slate-100 flex flex-col group hover:shadow-xl transition-all duration-700">
+                 <div key={p.id} className="bg-white rounded-[2.5rem] md:rounded-[3.5rem] p-6 shadow-sm border border-slate-100 flex flex-col group hover:shadow-xl transition-all duration-1000">
                     <div className="relative aspect-[16/10] rounded-[2rem] overflow-hidden mb-8 shadow-inner">
                        <img src={p.image} className="w-full h-full object-cover grayscale opacity-40 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-1000" alt="" />
                        <div className="absolute inset-0 bg-slate-900/5 group-hover:bg-transparent transition-all"></div>
@@ -286,7 +359,7 @@ const HomePage: React.FC = () => {
         </section>
       )}
 
-      {/* 5. Patron Perspectives */}
+      {/* 7. Patron Perspectives */}
       <section className="py-20 md:py-40 bg-white">
         <div className="container mx-auto px-6 text-center mb-16 md:mb-24 relative">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-50 text-amber-600 rounded-[1.8rem] mb-10 shadow-sm border border-slate-100">
