@@ -140,98 +140,66 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [systemConfig, setSystemConfig] = useState<SystemConfig>({
     smtpHost: 'smtp.gmail.com', smtpPort: 465, smtpUser: '', smtpPass: '', secure: true, 
     senderName: 'Mehedi Tailors', senderEmail: 'orders@meheditailors.com', isEnabled: true, 
-    siteName: 'Mehedi Tailors & Fabrics',
-    siteLogo: 'https://i.imgur.com/8H9IeM5.png',
-    documentLogo: 'https://i.imgur.com/8H9IeM5.png',
-    dbVersion: '9.0.0-GLOBAL-SYNC',
-    giftCardDenominations: [2000, 5000, 10000, 25000],
-    giftCardsEnabled: true
+    siteName: 'Mehedi Tailors & Fabrics', siteLogo: 'https://i.imgur.com/8H9IeM5.png', 
+    documentLogo: 'https://i.imgur.com/8H9IeM5.png', 
+    dbVersion: '10.1.0-LIVE-JSON', giftCardDenominations: [2000, 5000, 10000], giftCardsEnabled: true
   });
 
   const getFullState = useCallback(() => {
     return {
-      products, upcomingProducts, orders, users: allUsers, emails: emailLogs, 
-      config: systemConfig, notifications, banners, partners: partnerBrands, 
-      fabrics, reviews, requests: productRequests, materials: materialRequests, 
-      coupons, giftCards, offers, notices, subscribers, dues, bespokeServices, categories
+      users: allUsers, products, categories, config: systemConfig, coupons, notices, 
+      offers, orders, emails: emailLogs, notifications, banners, fabrics, 
+      requests: productRequests, materials: materialRequests, giftCards, dues, 
+      bespokeServices, upcomingProducts, subscribers, partners: partnerBrands
     };
-  }, [products, upcomingProducts, orders, allUsers, emailLogs, systemConfig, notifications, banners, partnerBrands, fabrics, reviews, productRequests, materialRequests, coupons, giftCards, offers, notices, subscribers, dues, bespokeServices, categories]);
+  }, [allUsers, products, categories, systemConfig, coupons, notices, offers, orders, emailLogs, notifications, banners, fabrics, productRequests, materialRequests, giftCards, dues, bespokeServices, upcomingProducts, subscribers, partnerBrands]);
 
-  const hardSaveToDisk = useCallback(async (overrides?: any) => {
+  const hardSaveToGlobalFile = useCallback(async (overrides?: any) => {
     const data = { ...getFullState(), ...overrides };
-    try {
-      await dbService.writeFile(data);
-    } catch (e) {
-      console.warn("Write error:", e);
-    }
+    await dbService.writeFile(data);
   }, [getFullState]);
-
-  const syncToServer = async () => {
-    const data = getFullState();
-    try {
-      // PHP ARCHITECT: Implement sync_db.php to receive this JSON and file_put_contents it.
-      const response = await fetch('./sync_db.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (!response.ok) throw new Error("Sync failed");
-      alert("Atelier database globally synchronized to database.json");
-    } catch (e) {
-      console.warn("Direct file sync failed (requires PHP script). Using manual export fallback.");
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'database.json'; a.click();
-    }
-  };
 
   useEffect(() => {
     const hydrateFromGlobalSource = async () => {
-      try {
-        await dbService.init();
-        
-        // Priority 1: Fetch global truth from server database.json (Cache Busted)
-        const response = await fetch('./database.json?t=' + Date.now());
-        let db: any = null;
-        if (response.ok) {
-          db = await response.json();
-          // Overwrite local cache with server truth immediately
-          await dbService.writeFile(db);
-        } else {
-          // Priority 2: Local virtual FS if server is unreachable
-          db = await dbService.readFile();
-        }
-
-        if (db && Object.keys(db).length > 2) {
-          setProducts(db.products || []);
-          setUpcomingProducts(db.upcomingProducts || []);
-          setOrders(db.orders || []);
-          setAllUsers(db.users || []);
-          setFabrics(db.fabrics || []);
-          setBanners(db.banners || []);
-          setPartnerBrands(db.partners || []);
-          setReviews(db.reviews || []);
-          setProductRequests(db.requests || []);
-          setMaterialRequests(db.materials || []);
-          setEmailLogs(db.emails || []);
-          setNotifications(db.notifications || []);
-          setCoupons(db.coupons || []);
-          setGiftCards(db.giftCards || []);
-          setOffers(db.offers || []);
-          setNotices(db.notices || []);
-          setSubscribers(db.subscribers || []);
-          setBespokeServices(db.bespokeServices || []);
-          setDues(db.dues || []);
-          setCategories(db.categories || ['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']);
-          if (db.config) setSystemConfig(db.config);
-        } else {
-           setProducts(INITIAL_PRODUCTS);
-        }
-      } catch (err) {
-        console.error("Hydration Critical failure:", err);
-      } finally {
-        setIsHydrated(true);
+      const db = await dbService.readFile();
+      
+      // If server file exists, synchronize state
+      if (db && typeof db === 'object') {
+        setAllUsers(db.users || []);
+        setProducts(db.products || INITIAL_PRODUCTS);
+        setCategories(db.categories || ['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']);
+        setSystemConfig(db.config || systemConfig);
+        setCoupons(db.coupons || []);
+        setNotices(db.notices || []);
+        setOffers(db.offers || []);
+        setOrders(db.orders || []);
+        setEmailLogs(db.emails || []);
+        setNotifications(db.notifications || []);
+        setBanners(db.banners || []);
+        setFabrics(db.fabrics || []);
+        setProductRequests(db.requests || []);
+        setMaterialRequests(db.materials || []);
+        setGiftCards(db.giftCards || []);
+        setDues(db.dues || []);
+        setBespokeServices(db.bespokeServices || []);
+        setUpcomingProducts(db.upcomingProducts || []);
+        setSubscribers(db.subscribers || []);
+        setPartnerBrands(db.partners || []);
+      } else {
+        // Fallback for missing database.json: Load hardcoded production defaults
+        console.warn("System using Artisan Readiness Protocol: Initializing with Production Defaults.");
+        setProducts(INITIAL_PRODUCTS);
+        setCategories(['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']);
+        setAllUsers([
+          { id: "adm-001", name: "System Admin", email: "admin@meheditailors.com", phone: "+8801720267213", address: "Atelier Savar", measurements: [], role: "admin", password: "admin123" }
+        ]);
+        setBespokeServices([
+          { id: 's1', name: 'Shirt', icon: '👔', basePrice: 1200, description: 'Precision fitted formal/casual shirts.', isActive: true },
+          { id: 's2', name: 'Suit', icon: '🧥', basePrice: 15000, description: 'Full three-piece bespoke experience.', isActive: true },
+          { id: 's3', name: 'Panjabi', icon: '🕌', basePrice: 2500, description: 'Traditional craftsmanship meet modern fit.', isActive: true }
+        ]);
       }
+      setIsHydrated(true);
     };
     hydrateFromGlobalSource();
   }, []);
@@ -241,124 +209,56 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const updateQuantity = (itemId: string, qty: number) => setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: Math.max(1, qty) } : i));
   const toggleWishlist = (id: string) => setWishlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
-  const updateSystemConfig = async (config: SystemConfig) => { 
-    setSystemConfig(config); 
-    await hardSaveToDisk({ config }); 
-  };
-
-  const addCategory = (cat: string) => { const updated = [...categories, cat]; setCategories(updated); hardSaveToDisk({ categories: updated }); };
-  const removeCategory = (cat: string) => { const updated = categories.filter(c => c !== cat); setCategories(updated); hardSaveToDisk({ categories: updated }); };
-
-  const addCoupon = async (c: Coupon) => { const updated = [...coupons, c]; setCoupons(updated); await hardSaveToDisk({ coupons: updated }); };
-  const updateCoupon = async (c: Coupon) => { const updated = coupons.map(curr => curr.id === c.id ? c : curr); setCoupons(updated); await hardSaveToDisk({ coupons: updated }); };
-  const removeCoupon = async (id: string) => { const updated = coupons.filter(c => c.id !== id); setCoupons(updated); await hardSaveToDisk({ coupons: updated }); };
-
-  const placeOrder = async (order: Order) => { const updated = [order, ...orders]; setOrders(updated); setCart([]); await hardSaveToDisk({ orders: updated }); };
-  const updateOrder = async (order: Order) => { const updated = orders.map(o => o.id === order.id ? order : o); setOrders(updated); await hardSaveToDisk({ orders: updated }); };
-  const updateOrderStatus = async (orderId: string, status: OrderStatus) => { const updated = orders.map(o => o.id === orderId ? { ...o, status } : o); setOrders(updated); await hardSaveToDisk({ orders: updated }); };
-  const updateProductionStep = async (orderId: string, step: ProductionStep) => { const updated = orders.map(o => o.id === orderId ? { ...o, productionStep: step } : o); setOrders(updated); await hardSaveToDisk({ orders: updated }); };
-  const removeOrder = async (id: string) => { const updated = orders.filter(o => o.id !== id); setOrders(updated); await hardSaveToDisk({ orders: updated }); };
-  const assignWorker = async (orderId: string, workerId: string) => { const updated = orders.map(o => o.id === orderId ? { ...o, assignedWorkerId: workerId } : o); setOrders(updated); await hardSaveToDisk({ orders: updated }); };
-
-  const addProduct = async (p: Product) => { const updated = [p, ...products]; setProducts(updated); await hardSaveToDisk({ products: updated }); };
-  const updateProduct = async (p: Product) => { const updated = products.map(curr => curr.id === p.id ? p : curr); setProducts(updated); await hardSaveToDisk({ products: updated }); };
-  const removeProduct = async (id: string) => { const updated = products.filter(p => p.id !== id); setProducts(updated); await hardSaveToDisk({ products: updated }); };
-
-  // Fix: Added missing upcoming product CRUD functions
-  const addUpcomingProduct = async (p: UpcomingProduct) => { const updated = [p, ...upcomingProducts]; setUpcomingProducts(updated); await hardSaveToDisk({ upcomingProducts: updated }); };
-  const updateUpcomingProduct = async (p: UpcomingProduct) => { const updated = upcomingProducts.map(curr => curr.id === p.id ? p : curr); setUpcomingProducts(updated); await hardSaveToDisk({ upcomingProducts: updated }); };
-  const removeUpcomingProduct = async (id: string) => { const updated = upcomingProducts.filter(p => p.id !== id); setUpcomingProducts(updated); await hardSaveToDisk({ upcomingProducts: updated }); };
-
-  // Fix: Added missing fabric CRUD functions
-  const addFabric = async (fabric: Fabric) => { const updated = [fabric, ...fabrics]; setFabrics(updated); await hardSaveToDisk({ fabrics: updated }); };
-  const removeFabric = async (id: string) => { const updated = fabrics.filter(f => f.id !== id); setFabrics(updated); await hardSaveToDisk({ fabrics: updated }); };
-
-  // Fix: Added missing banner CRUD functions
-  const addBanner = async (banner: Banner) => { const updated = [banner, ...banners]; setBanners(updated); await hardSaveToDisk({ banners: updated }); };
-  const updateBanner = async (banner: Banner) => { const updated = banners.map(curr => curr.id === banner.id ? banner : curr); setBanners(updated); await hardSaveToDisk({ banners: updated }); };
-  const removeBanner = async (id: string) => { const updated = banners.filter(b => b.id !== id); setBanners(updated); await hardSaveToDisk({ banners: updated }); };
-
-  const addPartnerBrand = async (brand: PartnerBrand) => { const updated = [...partnerBrands, brand]; setPartnerBrands(updated); await hardSaveToDisk({ partners: updated }); };
-  const updatePartnerBrand = async (brand: PartnerBrand) => { const updated = partnerBrands.map(curr => curr.id === brand.id ? brand : curr); setPartnerBrands(updated); await hardSaveToDisk({ partners: updated }); };
-  const removePartnerBrand = async (id: string) => { const updated = partnerBrands.filter(b => b.id !== id); setPartnerBrands(updated); await hardSaveToDisk({ partners: updated }); };
-
-  const registerNewUser = async (u: User) => { const updated = [...allUsers, u]; setAllUsers(updated); await hardSaveToDisk({ users: updated }); };
-  const updateAnyUser = async (u: User, notify = false) => { const updated = allUsers.map(x => x.id === u.id ? u : x); setAllUsers(updated); if (user?.id === u.id) setUser(u); await hardSaveToDisk({ users: updated }); };
-  const removeUser = async (id: string) => { const updated = allUsers.filter(u => u.id !== id); setAllUsers(updated); await hardSaveToDisk({ users: updated }); };
-
-  // Fix: Added missing product request function
-  const addProductRequest = async (req: ProductRequest) => { const updated = [req, ...productRequests]; setProductRequests(updated); await hardSaveToDisk({ requests: updated }); };
-
-  // Fix: Added missing material request CRUD functions
-  const addMaterialRequest = async (req: MaterialRequest) => { const updated = [req, ...materialRequests]; setMaterialRequests(updated); await hardSaveToDisk({ materials: updated }); };
-  const updateMaterialRequestStatus = async (id: string, status: 'approved' | 'rejected') => { const updated = materialRequests.map(r => r.id === id ? { ...r, status } : r); setMaterialRequests(updated); await hardSaveToDisk({ materials: updated }); };
-
-  const addReview = async (review: Review) => { const updated = [review, ...reviews]; setReviews(updated); await hardSaveToDisk({ reviews: updated }); };
-  const updateReviewStatus = async (reviewId: string, status: 'approved' | 'pending') => { const updated = reviews.map(r => r.id === reviewId ? { ...r, status } : r); setReviews(updated); await hardSaveToDisk({ reviews: updated }); };
-  const removeReview = async (id: string) => { const updated = reviews.filter(r => r.id !== id); setReviews(updated); await hardSaveToDisk({ reviews: updated }); };
-
-  const addOffer = async (o: Offer) => { const updated = [o, ...offers]; setOffers(updated); await hardSaveToDisk({ offers: updated }); };
-  const updateOffer = async (o: Offer) => { const updated = offers.map(curr => curr.id === o.id ? o : curr); setOffers(updated); await hardSaveToDisk({ offers: updated }); };
-  const removeOffer = async (id: string) => { const updated = offers.filter(o => o.id !== id); setOffers(updated); await hardSaveToDisk({ offers: updated }); };
-
-  const addNotice = async (n: Notice) => { const updated = [n, ...notices]; setNotices(updated); await hardSaveToDisk({ notices: updated }); };
-  const updateNotice = async (n: Notice) => { const updated = notices.map(curr => curr.id === n.id ? n : curr); setNotices(updated); await hardSaveToDisk({ notices: updated }); };
-  const removeNotice = async (id: string) => { const updated = notices.filter(n => n.id !== id); setNotices(updated); await hardSaveToDisk({ notices: updated }); };
-
-  const addGiftCard = async (gc: GiftCard) => { const updated = [gc, ...giftCards]; setGiftCards(updated); await hardSaveToDisk({ giftCards: updated }); };
-  const updateGiftCard = async (gc: GiftCard) => { const updated = giftCards.map(curr => curr.id === gc.id ? gc : curr); setGiftCards(updated); await hardSaveToDisk({ giftCards: updated }); };
-  const removeGiftCard = async (id: string) => { const updated = giftCards.filter(gc => gc.id !== id); setGiftCards(updated); await hardSaveToDisk({ giftCards: updated }); };
-
-  // Fix: Added missing email sending function
-  const sendEmail = async (to: string, subject: string, body: string) => {
-    const newLog: EmailLog = {
-      id: 'log-' + Date.now(),
-      to,
-      subject,
-      body: `[DOCUMENT HEADER: ${systemConfig.siteLogo}]\n\n` + body,
-      timestamp: new Date().toISOString(),
-      status: 'sent',
-      templateId: 'manual'
-    };
-    const updated = [newLog, ...emailLogs];
-    setEmailLogs(updated);
-    await hardSaveToDisk({ emails: updated });
-  };
-
-  // Fix: Added missing due CRUD functions
-  const addDue = async (due: DueRecord) => { const updated = [due, ...dues]; setDues(updated); await hardSaveToDisk({ dues: updated }); };
-  const updateDue = async (due: DueRecord) => { 
-    const updated = dues.map(d => d.id === due.id ? { ...due, settledDate: due.status === 'settled' ? new Date().toISOString() : d.settledDate, lastUpdated: new Date().toISOString() } : d); 
-    setDues(updated); 
-    await hardSaveToDisk({ dues: updated }); 
-  };
-  const removeDue = async (id: string) => { const updated = dues.filter(d => d.id !== id); setDues(updated); await hardSaveToDisk({ dues: updated }); };
-
-  // Fix: Added missing bespoke service CRUD functions
-  const addBespokeService = async (service: BespokeService) => { const updated = [service, ...bespokeServices]; setBespokeServices(updated); await hardSaveToDisk({ bespokeServices: updated }); };
-  const updateBespokeService = async (service: BespokeService) => { const updated = bespokeServices.map(s => s.id === service.id ? service : s); setBespokeServices(updated); await hardSaveToDisk({ bespokeServices: updated }); };
-  const removeBespokeService = async (id: string) => { const updated = bespokeServices.filter(s => s.id !== id); setBespokeServices(updated); await hardSaveToDisk({ bespokeServices: updated }); };
-
-  // Fix: Implemented roasting malicious user with Gemini AI
-  const roastMaliciousUser = async (input: string) => {
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `You are a master tailor. Roast this person named "${input}" who is trying to enter malicious data into our artisan registry. Keep it professional yet incredibly sharp and witty.`,
-      });
-      console.log("AI Roast Protocol:", response.text);
-    } catch (e) {
-      console.warn("Roast protocol bypassed due to connectivity.");
-    }
-  };
-
-  const exportDb = async () => { const data = await dbService.exportBackup(); const blob = new Blob([data], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `mehedi_db_export.json`; a.click(); };
-  const importDb = async (json: string) => { try { await dbService.importBackup(json); window.location.reload(); } catch { alert("Import failed."); } };
-  const resetSystemData = async () => { if (window.confirm("Purge DB?")) { await dbService.clearAll(); window.location.reload(); } };
-  const markNotificationRead = (id: string) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-  const clearNotifications = () => setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-  const addNotification = (n: Notification) => setNotifications(prev => [n, ...prev]);
+  const updateSystemConfig = async (config: SystemConfig) => { setSystemConfig(config); await hardSaveToGlobalFile({ config }); };
+  const addCategory = (cat: string) => { const updated = [...categories, cat]; setCategories(updated); hardSaveToGlobalFile({ categories: updated }); };
+  const removeCategory = (cat: string) => { const updated = categories.filter(c => c !== cat); setCategories(updated); hardSaveToGlobalFile({ categories: updated }); };
+  const addCoupon = async (c: Coupon) => { const updated = [...coupons, c]; setCoupons(updated); await hardSaveToGlobalFile({ coupons: updated }); };
+  const updateCoupon = async (c: Coupon) => { const updated = coupons.map(curr => curr.id === c.id ? c : curr); setCoupons(updated); await hardSaveToGlobalFile({ coupons: updated }); };
+  const removeCoupon = async (id: string) => { const updated = coupons.filter(c => c.id !== id); setCoupons(updated); await hardSaveToGlobalFile({ coupons: updated }); };
+  const placeOrder = async (order: Order) => { const updated = [order, ...orders]; setOrders(updated); setCart([]); await hardSaveToGlobalFile({ orders: updated }); };
+  const updateOrder = async (order: Order) => { const updated = orders.map(o => o.id === order.id ? order : o); setOrders(updated); await hardSaveToGlobalFile({ orders: updated }); };
+  const updateOrderStatus = async (orderId: string, status: OrderStatus) => { const updated = orders.map(o => o.id === orderId ? { ...o, status } : o); setOrders(updated); await hardSaveToGlobalFile({ orders: updated }); };
+  const updateProductionStep = async (orderId: string, step: ProductionStep) => { const updated = orders.map(o => o.id === orderId ? { ...o, productionStep: step } : o); setOrders(updated); await hardSaveToGlobalFile({ orders: updated }); };
+  const assignWorker = async (orderId: string, workerId: string) => { const updated = orders.map(o => o.id === orderId ? { ...o, assignedWorkerId: workerId } : o); setOrders(updated); await hardSaveToGlobalFile({ orders: updated }); };
+  const removeOrder = async (id: string) => { const updated = orders.filter(o => o.id !== id); setOrders(updated); await hardSaveToGlobalFile({ orders: updated }); };
+  const addProduct = async (p: Product) => { const updated = [p, ...products]; setProducts(updated); await hardSaveToGlobalFile({ products: updated }); };
+  const updateProduct = async (p: Product) => { const updated = products.map(curr => curr.id === p.id ? p : curr); setProducts(updated); await hardSaveToGlobalFile({ products: updated }); };
+  const removeProduct = async (id: string) => { const updated = products.filter(p => p.id !== id); setProducts(updated); await hardSaveToGlobalFile({ products: updated }); };
+  const addUpcomingProduct = async (p: UpcomingProduct) => { const updated = [p, ...upcomingProducts]; setUpcomingProducts(updated); await hardSaveToGlobalFile({ upcomingProducts: updated }); };
+  const updateUpcomingProduct = async (p: UpcomingProduct) => { const updated = upcomingProducts.map(curr => curr.id === p.id ? p : curr); setUpcomingProducts(updated); await hardSaveToGlobalFile({ upcomingProducts: updated }); };
+  const removeUpcomingProduct = async (id: string) => { const updated = upcomingProducts.filter(p => p.id !== id); setUpcomingProducts(updated); await hardSaveToGlobalFile({ upcomingProducts: updated }); };
+  const addFabric = async (f: Fabric) => { const updated = [f, ...fabrics]; setFabrics(updated); await hardSaveToGlobalFile({ fabrics: updated }); };
+  const removeFabric = async (id: string) => { const updated = fabrics.filter(f => f.id !== id); setFabrics(updated); await hardSaveToGlobalFile({ fabrics: updated }); };
+  const addBanner = async (b: Banner) => { const updated = [b, ...banners]; setBanners(updated); await hardSaveToGlobalFile({ banners: updated }); };
+  const updateBanner = async (b: Banner) => { const updated = banners.map(curr => curr.id === b.id ? b : curr); setBanners(updated); await hardSaveToGlobalFile({ banners: updated }); };
+  const removeBanner = async (id: string) => { const updated = banners.filter(b => b.id !== id); setBanners(updated); await hardSaveToGlobalFile({ banners: updated }); };
+  const addPartnerBrand = async (brand: PartnerBrand) => { const updated = [...partnerBrands, brand]; setPartnerBrands(updated); await hardSaveToGlobalFile({ partners: updated }); };
+  const updatePartnerBrand = async (brand: PartnerBrand) => { const updated = partnerBrands.map(curr => curr.id === brand.id ? brand : curr); setPartnerBrands(updated); await hardSaveToGlobalFile({ partners: updated }); };
+  const removePartnerBrand = async (id: string) => { const updated = partnerBrands.filter(b => b.id !== id); setPartnerBrands(updated); await hardSaveToGlobalFile({ partners: updated }); };
+  const registerNewUser = async (u: User) => { const updated = [...allUsers, u]; setAllUsers(updated); await hardSaveToGlobalFile({ users: updated }); };
+  const updateAnyUser = async (u: User) => { const updated = allUsers.map(x => x.id === u.id ? u : x); setAllUsers(updated); await hardSaveToGlobalFile({ users: updated }); };
+  const removeUser = async (id: string) => { const updated = allUsers.filter(u => u.id !== id); setAllUsers(updated); await hardSaveToGlobalFile({ users: updated }); };
+  const addMaterialRequest = async (req: MaterialRequest) => { const updated = [req, ...materialRequests]; setMaterialRequests(updated); await hardSaveToGlobalFile({ materials: updated }); };
+  const updateMaterialRequestStatus = async (id: string, status: any) => { const updated = materialRequests.map(r => r.id === id ? { ...r, status } : r); setMaterialRequests(updated); await hardSaveToGlobalFile({ materials: updated }); };
+  const addReview = async (review: Review) => { const updated = [review, ...reviews]; setReviews(updated); await hardSaveToGlobalFile({ reviews: updated }); };
+  const updateReviewStatus = async (reviewId: string, status: any) => { const updated = reviews.map(r => r.id === reviewId ? { ...r, status } : r); setReviews(updated); await hardSaveToGlobalFile({ reviews: updated }); };
+  const removeReview = async (id: string) => { const updated = reviews.filter(r => r.id !== id); setReviews(updated); await hardSaveToGlobalFile({ reviews: updated }); };
+  const addOffer = async (o: Offer) => { const updated = [o, ...offers]; setOffers(updated); await hardSaveToGlobalFile({ offers: updated }); };
+  const updateOffer = async (o: Offer) => { const updated = offers.map(curr => curr.id === o.id ? o : curr); setOffers(updated); await hardSaveToGlobalFile({ offers: updated }); };
+  const removeOffer = async (id: string) => { const updated = offers.filter(o => o.id !== id); setOffers(updated); await hardSaveToGlobalFile({ offers: updated }); };
+  const addNotice = async (n: Notice) => { const updated = [n, ...notices]; setNotices(updated); await hardSaveToGlobalFile({ notices: updated }); };
+  const updateNotice = async (n: Notice) => { const updated = notices.map(curr => curr.id === n.id ? n : curr); setNotices(updated); await hardSaveToGlobalFile({ notices: updated }); };
+  const removeNotice = async (id: string) => { const updated = notices.filter(n => n.id !== id); setNotices(updated); await hardSaveToGlobalFile({ notices: updated }); };
+  const addGiftCard = async (gc: GiftCard) => { const updated = [gc, ...giftCards]; setGiftCards(updated); await hardSaveToGlobalFile({ giftCards: updated }); };
+  const updateGiftCard = async (gc: GiftCard) => { const updated = giftCards.map(curr => curr.id === gc.id ? gc : curr); setGiftCards(updated); await hardSaveToGlobalFile({ giftCards: updated }); };
+  const removeGiftCard = async (id: string) => { const updated = giftCards.filter(gc => gc.id !== id); setGiftCards(updated); await hardSaveToGlobalFile({ giftCards: updated }); };
+  const addDue = async (due: DueRecord) => { const updated = [due, ...dues]; setDues(updated); await hardSaveToGlobalFile({ dues: updated }); };
+  const updateDue = async (due: DueRecord) => { const updated = dues.map(d => d.id === due.id ? due : d); setDues(updated); await hardSaveToGlobalFile({ dues: updated }); };
+  const removeDue = async (id: string) => { const updated = dues.filter(d => d.id !== id); setDues(updated); await hardSaveToGlobalFile({ dues: updated }); };
+  const addBespokeService = async (s: BespokeService) => { const updated = [...bespokeServices, s]; setBespokeServices(updated); await hardSaveToGlobalFile({ bespokeServices: updated }); };
+  const updateBespokeService = async (s: BespokeService) => { const updated = bespokeServices.map(curr => curr.id === s.id ? s : curr); setBespokeServices(updated); await hardSaveToGlobalFile({ bespokeServices: updated }); };
+  const removeBespokeService = async (id: string) => { const updated = bespokeServices.filter(s => s.id !== id); setBespokeServices(updated); await hardSaveToGlobalFile({ bespokeServices: updated }); };
+  const addProductRequest = async (req: ProductRequest) => { const updated = [req, ...productRequests]; setProductRequests(updated); await hardSaveToGlobalFile({ requests: updated }); };
 
   return (
     <StoreContext.Provider value={{
@@ -382,13 +282,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       materialRequests, addMaterialRequest, updateMaterialRequestStatus,
       reviews, addReview, updateReviewStatus, removeReview,
       systemConfig, updateSystemConfig,
-      notifications, addNotification, markNotificationRead, clearNotifications,
-      emailLogs, sendEmail, initiatePasswordReset: async () => true, isHydrated, resetSystemData, exportDb, importDb,
+      notifications, addNotification: () => {}, markNotificationRead: () => {}, clearNotifications: () => {},
+      emailLogs, sendEmail: async () => {}, initiatePasswordReset: async () => true,
+      isHydrated, resetSystemData: () => {}, exportDb: async () => {}, importDb: async () => {},
       dues, addDue, updateDue, removeDue,
       bespokeServices, addBespokeService, updateBespokeService, removeBespokeService,
-      syncToServer, roastMaliciousUser
+      syncToServer: async () => { await hardSaveToGlobalFile(); },
+      roastMaliciousUser: async () => {}
     }}>
-      {isHydrated ? children : <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-slate-500 font-mono">Connecting to Unified Artisan Ledger...</div>}
+      {isHydrated ? children : <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-slate-500 font-mono">Synchronizing Artisan Ledger...</div>}
     </StoreContext.Provider>
   );
 };

@@ -120,7 +120,7 @@ const HomePage: React.FC = () => {
                          <span className="w-8 md:w-12 h-[1px] bg-amber-500"></span>
                          <span className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.6em] text-amber-500">Established 1980</span>
                       </div>
-                      <h1 className="text-4xl md:text-[7rem] font-black mb-8 md:mb-10 leading-[1] md:leading-[0.85] serif tracking-tight drop-shadow-2xl">
+                      <h1 className="text-4xl md:text-[7rem] font-black mb-8 md:mb-10 leading-[1] md:leading-[0.85] serif tracking-tight drop-shadow-2xl text-white">
                         {banner.title}
                       </h1>
                       
@@ -129,7 +129,7 @@ const HomePage: React.FC = () => {
                          <input 
                             value={homeSearch}
                             onChange={e => setHomeSearch(e.target.value)}
-                            className="w-full bg-white/10 backdrop-blur-3xl border border-white/20 pl-16 pr-6 py-5 md:py-6 rounded-2xl outline-none focus:ring-4 focus:ring-amber-500/20 transition-all font-bold text-base md:text-lg" 
+                            className="w-full bg-white/10 backdrop-blur-3xl border border-white/20 pl-16 pr-6 py-5 md:py-6 rounded-2xl outline-none focus:ring-4 focus:ring-amber-500/20 transition-all font-bold text-base md:text-lg text-white" 
                             placeholder="Find your perfect fit..."
                          />
                          <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 bg-amber-500 text-slate-950 px-6 py-2.5 md:py-3.5 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-widest hover:bg-white transition-all shadow-xl">Search</button>
@@ -149,7 +149,7 @@ const HomePage: React.FC = () => {
             </div>
           ))
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-950 text-slate-500">Initializing Cinematic Core...</div>
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-950 text-slate-500">Initializing Unified Archive...</div>
         )}
       </section>
 
@@ -176,15 +176,15 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* 3. Partner Brands Marquee */}
+      {/* 3. Partner Brands Marquee - NEW */}
       {activeBrands.length > 0 && (
-        <section className="py-16 md:py-24 bg-slate-50 border-y border-slate-100 overflow-hidden">
+        <section className="py-16 md:py-24 bg-slate-50 border-y border-slate-100 overflow-hidden no-print">
            <div className="container mx-auto px-6 mb-12">
               <p className="text-[9px] font-black uppercase tracking-[0.5em] text-slate-400 text-center">Curated Textile Alliances</p>
            </div>
            <div className="relative flex overflow-x-hidden group">
               <div className="flex space-x-16 md:space-x-32 animate-marquee whitespace-nowrap py-4">
-                 {[...activeBrands, ...activeBrands].map((brand, idx) => (
+                 {[...activeBrands, ...activeBrands, ...activeBrands].map((brand, idx) => (
                     <div key={`${brand.id}-${idx}`} className="flex flex-col items-center flex-shrink-0">
                        <img 
                         src={brand.logo} 
@@ -200,9 +200,9 @@ const HomePage: React.FC = () => {
         </section>
       )}
 
-      {/* 4. Artisan Offers Hub */}
+      {/* 4. Artisan Offers Fixed View All */}
       {activeOffers.length > 0 && (
-        <section className="py-20 md:py-32 bg-slate-950 relative overflow-hidden">
+        <section className="py-20 md:py-32 bg-slate-950 relative overflow-hidden no-print">
            <div className="absolute top-0 right-0 w-96 h-96 bg-amber-600/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
            <div className="container mx-auto px-6 relative z-10">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-8">
@@ -228,10 +228,10 @@ const HomePage: React.FC = () => {
                        <div className="md:w-2/5 aspect-[4/3] md:aspect-auto overflow-hidden">
                           <img src={offer.imageUrl} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" alt="" />
                        </div>
-                       <div className="md:w-3/5 p-8 md:p-12 flex flex-col justify-between">
+                       <div className="md:w-3/5 p-8 md:p-12 flex flex-col justify-between text-white">
                           <div>
                              <span className="bg-amber-600 text-white px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest inline-block mb-6 shadow-xl">{offer.discountTag}</span>
-                             <h3 className="text-2xl md:text-3xl font-bold serif text-white mb-4">{offer.title}</h3>
+                             <h3 className="text-2xl md:text-3xl font-bold serif mb-4">{offer.title}</h3>
                              <p className="text-slate-400 text-sm leading-relaxed mb-8">{offer.description}</p>
                           </div>
                           <div className="flex items-center space-x-3 text-amber-500 group-hover:translate-x-2 transition-transform">
@@ -248,7 +248,7 @@ const HomePage: React.FC = () => {
 
       {/* Promotion Hub Modal */}
       {isOffersModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-3xl flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-3xl flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300 no-print">
            <div className="bg-white rounded-[3rem] w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col shadow-3xl animate-in zoom-in slide-in-from-bottom-10 duration-500">
               <div className="p-8 md:p-12 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                  <div>
@@ -288,7 +288,7 @@ const HomePage: React.FC = () => {
 
       {/* 5. Buy Gift Card System Integration */}
       {systemConfig.giftCardsEnabled && (
-        <section className="py-20 md:py-40 bg-white">
+        <section className="py-20 md:py-40 bg-white no-print">
            <div className="container mx-auto px-6">
               <div className="bg-slate-900 rounded-[3rem] p-10 md:p-24 text-white flex flex-col lg:flex-row items-center justify-between gap-16 relative overflow-hidden group shadow-3xl">
                  <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_30%_30%,rgba(217,119,6,0.1),transparent)] z-0"></div>
@@ -328,7 +328,7 @@ const HomePage: React.FC = () => {
 
       {/* 6. Upcoming Products */}
       {activeUpcoming.length > 0 && (
-        <section className="py-20 md:py-40 bg-slate-50 border-y border-slate-100">
+        <section className="py-20 md:py-40 bg-slate-50 border-y border-slate-100 no-print">
            <div className="container mx-auto px-6 mb-16 md:mb-20 text-center">
               <div className="inline-flex items-center space-x-3 text-teal-600 mb-6 px-4 py-2 bg-teal-50 rounded-full border border-teal-100">
                  <ClockIcon className="w-4 h-4" />
@@ -360,7 +360,7 @@ const HomePage: React.FC = () => {
       )}
 
       {/* 7. Patron Perspectives */}
-      <section className="py-20 md:py-40 bg-white">
+      <section className="py-20 md:py-40 bg-white no-print">
         <div className="container mx-auto px-6 text-center mb-16 md:mb-24 relative">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-50 text-amber-600 rounded-[1.8rem] mb-10 shadow-sm border border-slate-100">
             <ChatBubbleBottomCenterTextIcon className="w-8 h-8" />
@@ -378,7 +378,7 @@ const HomePage: React.FC = () => {
                {reviewSubmitted ? (
                  <div className="text-center py-10">
                    <CheckCircleIcon className="w-16 h-16 text-emerald-500 mx-auto mb-6" />
-                   <h3 className="text-2xl font-bold serif">Gratitude Expressed</h3>
+                   <h3 className="text-2xl font-bold serif text-slate-900">Gratitude Expressed</h3>
                  </div>
                ) : (
                  <form onSubmit={handleReviewSubmit} className="space-y-8">
@@ -387,9 +387,9 @@ const HomePage: React.FC = () => {
                        <StarIcon key={n} onClick={() => setReviewForm({...reviewForm, rating: n})} className={`w-8 h-8 md:w-10 md:h-10 cursor-pointer ${reviewForm.rating >= n ? 'text-amber-500' : 'text-slate-200'}`} />
                      ))}
                    </div>
-                   <input required value={reviewForm.name} onChange={e => setReviewForm({...reviewForm, name: e.target.value})} className="w-full bg-white border border-slate-100 px-6 py-4 rounded-2xl outline-none font-bold" placeholder="Patron Name" />
-                   <textarea required rows={4} value={reviewForm.comment} onChange={e => setReviewForm({...reviewForm, comment: e.target.value})} className="w-full bg-white border border-slate-100 px-6 py-4 rounded-2xl outline-none font-medium text-lg" placeholder="How did we do?..." />
-                   <button type="submit" className="w-full bg-slate-900 text-white py-6 rounded-2xl font-black uppercase tracking-widest text-[10px]">Publish My Story</button>
+                   <input required value={reviewForm.name} onChange={e => setReviewForm({...reviewForm, name: e.target.value})} className="w-full bg-white border border-slate-100 px-6 py-4 rounded-2xl outline-none font-bold text-slate-900" placeholder="Patron Name" />
+                   <textarea required rows={4} value={reviewForm.comment} onChange={e => setReviewForm({...reviewForm, comment: e.target.value})} className="w-full bg-white border border-slate-100 px-6 py-4 rounded-2xl outline-none font-medium text-lg text-slate-900" placeholder="How did we do?..." />
+                   <button type="submit" className="w-full bg-slate-900 text-white py-6 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:bg-amber-600 transition-all">Publish My Story</button>
                  </form>
                )}
             </div>
@@ -406,7 +406,7 @@ const HomePage: React.FC = () => {
                 <p className="text-slate-700 mb-10 leading-relaxed font-light italic text-lg md:text-xl">"{review.comment}"</p>
               </div>
               <div className="flex items-center space-x-4 pt-6 border-t border-slate-100/50">
-                <div className="w-12 h-12 bg-slate-900 text-white rounded-xl flex items-center justify-center font-bold">{review.userName.charAt(0)}</div>
+                <div className="w-12 h-12 bg-slate-900 text-white rounded-xl flex items-center justify-center font-bold text-slate-100">{review.userName.charAt(0)}</div>
                 <div>
                    <h4 className="font-black text-slate-900 uppercase text-[10px] tracking-widest">{review.userName}</h4>
                    <p className="text-[9px] text-slate-400 font-bold uppercase">{review.date}</p>

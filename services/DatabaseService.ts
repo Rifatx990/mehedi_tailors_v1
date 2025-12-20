@@ -1,112 +1,69 @@
 
 /**
- * ATELIER CORE DATABASE SERVICE (Virtual File System)
- * Mimics a root-level 'database.json' file.
+ * ATELIER CORE DATABASE SERVICE (Pure File Interface)
+ * Interacts directly with the server-side database.json.
  */
 
-const DB_NAME = 'MehediAtelierDB';
-const DB_VERSION = 11; 
-const STORE_NAME = 'filesystem';
-const DB_FILE_KEY = 'database.json';
-
 export class DatabaseService {
-  private db: IDBDatabase | null = null;
-
-  async init(): Promise<void> {
-    if (this.db) return;
-    return new Promise((resolve, reject) => {
-      try {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-        request.onupgradeneeded = (event) => {
-          const db = (event.target as IDBOpenDBRequest).result;
-          if (!db.objectStoreNames.contains(STORE_NAME)) {
-            db.createObjectStore(STORE_NAME);
-          }
-        };
-
-        request.onsuccess = (event) => {
-          this.db = (event.target as IDBOpenDBRequest).result;
-          resolve();
-        };
-
-        request.onerror = (event) => {
-          console.error('Database initialization error:', event);
-          reject('Virtual File System initialization failed.');
-        };
-      } catch (e) {
-        reject(e);
-      }
-    });
-  }
-
   /**
-   * Reads the entire 'database.json' file.
-   * If local storage is empty, it attempts to fetch the physical /database.json seed.
+   * Reads the physical 'database.json' file from the server.
+   * Cache-busting ensures we never get stale data from the browser cache.
    */
   async readFile(): Promise<any> {
-    if (!this.db) await this.init();
-    return new Promise((resolve, reject) => {
-      try {
-        const transaction = this.db!.transaction([STORE_NAME], 'readonly');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.get(DB_FILE_KEY);
-
-        request.onsuccess = async () => {
-          const data = request.result;
-          if (data) {
-            resolve(JSON.parse(data));
-          } else {
-            // Seed from physical file if first run
-            try {
-              const response = await fetch('./database.json');
-              if (response.ok) {
-                const seedData = await response.json();
-                await this.writeFile(seedData);
-                resolve(seedData);
-              } else {
-                resolve({});
-              }
-            } catch (err) {
-              console.warn("Could not find database.json seed file, starting fresh.");
-              resolve({});
-            }
-          }
-        };
-        request.onerror = () => reject('Failed to read database.json');
-      } catch (e) {
-        reject(e);
+    try {
+      const response = await fetch(`./database.json?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (response.status === 404) {
+        // This is expected on first-time setup before the PHP sync creates the file
+        console.warn("Database Ledger not yet established on server. Readiness protocol active.");
+        return null;
       }
-    });
+
+      if (!response.ok) {
+        throw new Error(`Database connection failed: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (err) {
+      console.warn("Artisan Ledger Handshake Bypassed:", err);
+      return null;
+    }
   }
 
   /**
-   * Overwrites the 'database.json' virtual file.
+   * Dispatches the updated state to the PHP Sync Bridge.
+   * This is what makes changes global across all devices.
    */
-  async writeFile(data: any): Promise<void> {
-    if (!this.db) await this.init();
-    return new Promise((resolve, reject) => {
-      try {
-        const transaction = this.db!.transaction([STORE_NAME], 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        const jsonString = JSON.stringify(data, null, 2); // Prettify for possible future disk writes
-        const request = store.put(jsonString, DB_FILE_KEY);
-
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject('Failed to write to database.json');
-      } catch (e) {
-        reject(e);
+  async writeFile(data: any): Promise<boolean> {
+    try {
+      // PHP ARCHITECT: Ensure sync_db.php exists in the root to handle this POST
+      const response = await fetch('./sync_db.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data, null, 2)
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Sync Bridge Rejected Payload:", errorText);
+        return false;
       }
-    });
-  }
 
-  async clearAll(): Promise<void> {
-    await this.writeFile({});
+      return true;
+    } catch (e) {
+      console.error("Sync Bridge failure. Check sync_db.php existence and write permissions.", e);
+      return false;
+    }
   }
 
   async exportBackup(): Promise<string> {
-    const fullDb = await this.readFile();
-    return JSON.stringify(fullDb, null, 2);
+    const data = await this.readFile();
+    return JSON.stringify(data || {}, null, 2);
   }
 
   async importBackup(json: string): Promise<void> {
