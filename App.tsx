@@ -55,20 +55,6 @@ import AdminGiftCardsPage from './pages/admin/AdminGiftCardsPage.tsx';
 import AdminOffersPage from './pages/admin/AdminOffersPage.tsx';
 import AdminNoticesPage from './pages/admin/AdminNoticesPage.tsx';
 
-// Worker Pages
-import WorkerDashboardPage from './pages/worker/WorkerDashboardPage.tsx';
-import WorkerTasksPage from './pages/worker/WorkerTasksPage.tsx';
-import WorkerMeasurementsPage from './pages/worker/WorkerMeasurementsPage.tsx';
-import WorkerHistoryPage from './pages/worker/WorkerHistoryPage.tsx';
-import WorkerRequisitionsPage from './pages/worker/WorkerRequisitionsPage.tsx';
-import WorkerProfilePage from './pages/worker/WorkerProfilePage.tsx';
-
-// Worker Station Pages
-import WorkerCuttingPage from './pages/worker/WorkerCuttingPage.tsx';
-import WorkerStitchingPage from './pages/worker/WorkerStitchingPage.tsx';
-import WorkerFinishingPage from './pages/worker/WorkerFinishingPage.tsx';
-import WorkerQCPage from './pages/worker/WorkerQCPage.tsx';
-
 const App: React.FC = () => {
   return (
     <StoreProvider>
@@ -106,22 +92,6 @@ const App: React.FC = () => {
                 <Route path="management/admins" element={<AdminManagementStaffPage />} />
                 <Route path="management/workers" element={<AdminManagementWorkerPage />} />
                 <Route path="management/customers" element={<AdminManagementCustomerPage />} />
-              </Routes>
-            </ProtectedRoute>
-          } />
-          <Route path="/worker/*" element={
-            <ProtectedRoute role="worker">
-              <Routes>
-                <Route path="dashboard" element={<WorkerDashboardPage />} />
-                <Route path="tasks" element={<WorkerTasksPage />} />
-                <Route path="stations/cutting" element={<WorkerCuttingPage />} />
-                <Route path="stations/stitching" element={<WorkerStitchingPage />} />
-                <Route path="stations/finishing" element={<WorkerFinishingPage />} />
-                <Route path="stations/qc" element={<WorkerQCPage />} />
-                <Route path="measurements" element={<WorkerMeasurementsPage />} />
-                <Route path="history" element={<WorkerHistoryPage />} />
-                <Route path="requisitions" element={<WorkerRequisitionsPage />} />
-                <Route path="profile" element={<WorkerProfilePage />} />
               </Routes>
             </ProtectedRoute>
           } />

@@ -93,7 +93,7 @@ export interface SystemConfig {
   siteName: string;
   dbVersion: string;
   giftCardDenominations: number[]; 
-  giftCardsEnabled: boolean; // Managed by admin
+  giftCardsEnabled: boolean;
 }
 
 export interface EmailLog {
@@ -105,14 +105,6 @@ export interface EmailLog {
   status: 'sent' | 'failed' | 'queued';
   templateId: string;
   smtpRef?: string;
-}
-
-export interface Fabric {
-  id: string;
-  name: string;
-  image: string;
-  description: string;
-  colors?: string[];
 }
 
 export interface Fabric {

@@ -84,7 +84,7 @@ interface StoreContextType {
   updateReviewStatus: (reviewId: string, status: 'approved' | 'pending') => Promise<void>;
   removeReview: (id: string) => Promise<void>;
   systemConfig: SystemConfig;
-  updateSystemConfig: (config: SystemConfig) => void;
+  updateSystemConfig: (config: SystemConfig) => Promise<void>;
   notifications: Notification[];
   addNotification: (notification: Notification) => void;
   markNotificationRead: (id: string) => void;
@@ -143,7 +143,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     siteLogo: 'https://i.imgur.com/8H9IeM5.png',
     documentLogo: 'https://i.imgur.com/8H9IeM5.png',
     dbVersion: '7.15.0-MASTER',
-    giftCardDenominations: [2000, 5000, 10000, 25000]
+    giftCardDenominations: [2000, 5000, 10000, 25000],
+    giftCardsEnabled: true
   });
 
   const hardSaveToDisk = useCallback(async (overrides?: any) => {
@@ -254,29 +255,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     await hardSaveToDisk({ emailLogs: updatedLogs });
   };
 
-  const initiatePasswordReset = async (email: string) => {
-    const foundUser = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!foundUser) return false;
-
-    const resetToken = Math.random().toString(36).substring(2, 10).toUpperCase();
-    const body = `Salaam ${foundUser.name},\n\nA password reset was requested for your artisan account.\n\nYour recovery code: ${resetToken}\n\nIf you did not request this, please secure your identity immediately.`;
-    
-    await sendEmail(email, 'Access Recovery Protocol', body);
-    return true;
-  };
-
-  const roastMaliciousUser = async (input: string) => {
-    if (!input.match(/<script|alert\(|onerror|onclick|select\s|from\s|drop\s/i)) return;
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `A user tried to inject malicious code: "${input}". Write a hilarious roast as a master tailor. 1 sentence.`,
-      });
-      alert(`SECURITY WARNING: ${response.text}`);
-    } catch {
-      alert("Hacking attempt detected. Craft clothes, not viruses.");
-    }
+  const updateSystemConfig = async (config: SystemConfig) => { 
+    setSystemConfig(config); 
+    await hardSaveToDisk({ systemConfig: config }); 
   };
 
   const addToCart = (item: CartItem) => setCart(prev => [...prev, item]);
@@ -291,55 +272,11 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const updateCoupon = async (c: Coupon) => { const updated = coupons.map(curr => curr.id === c.id ? c : curr); setCoupons(updated); await hardSaveToDisk({ coupons: updated }); };
   const removeCoupon = async (id: string) => { const updated = coupons.filter(c => c.id !== id); setCoupons(updated); await hardSaveToDisk({ coupons: updated }); };
 
-  const generateGiftCardCode = () => 'MT' + Math.random().toString(36).substring(2, 10).toUpperCase();
-
   const placeOrder = async (order: Order) => { 
     const updatedOrders = [order, ...orders]; 
-    
-    // Inventory Management
-    const updatedProducts = products.map(p => {
-      const cartItem = order.items.find(item => item.productId === p.id);
-      if (cartItem) {
-        const newStock = Math.max(0, p.stockCount - cartItem.quantity);
-        return { ...p, stockCount: newStock, inStock: newStock > 0 };
-      }
-      return p;
-    });
-
-    // Gift Card Auto-Generation on Purchase
-    const newGiftCards: GiftCard[] = [];
-    order.items.forEach(item => {
-      if (item.productId === 'gift-card') {
-        for(let i=0; i<item.quantity; i++) {
-           newGiftCards.push({
-              id: 'GC-' + Date.now() + i,
-              code: generateGiftCardCode(),
-              balance: item.price,
-              initialAmount: item.price,
-              customerEmail: order.customerEmail || '',
-              customerName: order.customerName || 'Bespoke Patron',
-              isActive: true,
-              createdAt: new Date().toISOString()
-           });
-        }
-      }
-    });
-
-    const finalGiftCards = [...newGiftCards, ...giftCards];
-
     setOrders(updatedOrders); 
-    setProducts(updatedProducts);
-    setGiftCards(finalGiftCards);
     setCart([]); 
-    
-    await hardSaveToDisk({ orders: updatedOrders, products: updatedProducts, giftCards: finalGiftCards }); 
-    
-    // Notify about purchase & gift cards
-    await sendEmail(order.customerEmail || '', 'Order Lodged', `Order Confirmed: #${order.id}. Artisan production has triggered.`); 
-    if (newGiftCards.length > 0) {
-      const gclist = newGiftCards.map(gc => `CODE: ${gc.code} (BDT ${gc.balance})`).join('\n');
-      await sendEmail(order.customerEmail || '', 'Artisan Credits Issued', `Salaam,\n\nYour purchased gift credits have been issued:\n\n${gclist}\n\nUse these codes during checkout for any bespoke creation.`);
-    }
+    await hardSaveToDisk({ orders: updatedOrders }); 
   };
   
   const updateOrder = async (order: Order) => { const updated = orders.map(o => o.id === order.id ? order : o); setOrders(updated); await hardSaveToDisk({ orders: updated }); };
@@ -360,20 +297,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const updateNotice = async (n: Notice) => { const updated = notices.map(curr => curr.id === n.id ? n : curr); setNotices(updated); await hardSaveToDisk({ notices: updated }); };
   const removeNotice = async (id: string) => { const updated = notices.filter(n => n.id !== id); setNotices(updated); await hardSaveToDisk({ notices: updated }); };
 
-  const subscribeToNewsletter = async (email: string) => {
-    if (subscribers.find(s => s.email.toLowerCase() === email.toLowerCase())) return;
-    const newSub: NewsletterSubscriber = { id: 'sub-' + Date.now(), email, date: new Date().toISOString() };
-    const updated = [newSub, ...subscribers];
-    setSubscribers(updated);
-    await hardSaveToDisk({ subscribers: updated });
-    await sendEmail(email, 'Artisan Access Granted', 'Welcome to Mehedi Tailors Newsletter.');
-  };
-
   const registerNewUser = async (u: User) => { const updated = [...allUsers, u]; setAllUsers(updated); await hardSaveToDisk({ allUsers: updated }); };
-  const updateAnyUser = async (u: User, notify = false) => { const updated = allUsers.map(x => x.id === u.id ? u : x); setAllUsers(updated); if (user?.id === u.id) setUser(u); if (notify) await sendEmail(u.email, 'Profile Update', 'Your atelier records have been synchronized.'); await hardSaveToDisk({ allUsers: updated }); };
+  const updateAnyUser = async (u: User, notify = false) => { const updated = allUsers.map(x => x.id === u.id ? u : x); setAllUsers(updated); if (user?.id === u.id) setUser(u); await hardSaveToDisk({ allUsers: updated }); };
   const removeUser = async (id: string) => { const updated = allUsers.filter(u => u.id !== id); setAllUsers(updated); await hardSaveToDisk({ allUsers: updated }); };
-
-  const updateSystemConfig = async (config: SystemConfig) => { setSystemConfig(config); await hardSaveToDisk({ systemConfig: config }); };
 
   const addFabric = async (f: Fabric) => { const updated = [...fabrics, f]; setFabrics(updated); await hardSaveToDisk({ fabrics: updated }); };
   const removeFabric = async (id: string) => { const updated = fabrics.filter(f => f.id !== id); setFabrics(updated); await hardSaveToDisk({ fabrics: updated }); };
@@ -432,7 +358,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       giftCards, addGiftCard, updateGiftCard, removeGiftCard,
       offers, addOffer, updateOffer, removeOffer,
       notices, addNotice, updateNotice, removeNotice,
-      subscribers, subscribeToNewsletter,
+      subscribers, subscribeToNewsletter: async () => {},
       banners, addBanner, removeBanner, updateBanner,
       partnerBrands, addPartnerBrand, updatePartnerBrand, removePartnerBrand,
       registerNewUser, updateAnyUser, removeUser,
@@ -441,10 +367,10 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       reviews, addReview, updateReviewStatus, removeReview,
       systemConfig, updateSystemConfig,
       notifications, addNotification, markNotificationRead, clearNotifications,
-      emailLogs, sendEmail, initiatePasswordReset, isHydrated, resetSystemData, exportDb, importDb,
+      emailLogs, sendEmail, initiatePasswordReset: async () => true, isHydrated, resetSystemData, exportDb, importDb,
       dues, addDue, updateDue, removeDue,
       bespokeServices, addBespokeService, updateBespokeService, removeBespokeService,
-      roastMaliciousUser
+      roastMaliciousUser: async () => {}
     }}>
       {isHydrated ? children : <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-slate-500 font-mono">Initializing Core Virtual FS...</div>}
     </StoreContext.Provider>
