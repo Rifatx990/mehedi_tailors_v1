@@ -50,48 +50,64 @@ export class DatabaseService {
   async save(store: string, data: any): Promise<void> {
     if (!this.db) await this.init();
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([store], 'readwrite');
-      const objectStore = transaction.objectStore(store);
-      
-      const clearRequest = objectStore.clear();
-      
-      clearRequest.onsuccess = () => {
-        if (Array.isArray(data)) {
-          if (data.length === 0) {
-            transaction.commit();
-            return;
+      try {
+        const transaction = this.db!.transaction([store], 'readwrite');
+        const objectStore = transaction.objectStore(store);
+        
+        const clearRequest = objectStore.clear();
+        
+        clearRequest.onsuccess = () => {
+          if (Array.isArray(data)) {
+            if (data.length === 0) {
+              return;
+            }
+            data.forEach(item => {
+              if (item && item.id) objectStore.put(item);
+            });
+          } else if (data && data.id) {
+            objectStore.put(data);
           }
-          data.forEach(item => objectStore.put(item));
-        } else if (data) {
-          objectStore.put(data);
-        }
-      };
+        };
 
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = (err) => {
-        console.error(`Save failed for store ${store}:`, err);
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = (err) => {
+          console.error(`Save failed for store ${store}:`, err);
+          reject(err);
+        };
+      } catch (err) {
         reject(err);
-      };
+      }
     });
   }
 
   async getAll(store: string): Promise<any[]> {
     if (!this.db) await this.init();
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([store], 'readonly');
-      const objectStore = transaction.objectStore(store);
-      const request = objectStore.getAll();
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject([]);
+      try {
+        const transaction = this.db!.transaction([store], 'readonly');
+        const objectStore = transaction.objectStore(store);
+        const request = objectStore.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject([]);
+      } catch (err) {
+        reject([]);
+      }
     });
   }
 
   async clearAll(): Promise<void> {
     if (!this.db) await this.init();
     const storeNames = Object.values(STORES);
-    const transaction = this.db!.transaction(storeNames, 'readwrite');
-    storeNames.forEach(store => transaction.objectStore(store).clear());
-    return new Promise((resolve) => transaction.oncomplete = () => resolve());
+    return new Promise((resolve, reject) => {
+      try {
+        const transaction = this.db!.transaction(storeNames, 'readwrite');
+        storeNames.forEach(store => transaction.objectStore(store).clear());
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = (err) => reject(err);
+      } catch (err) {
+        reject(err);
+      }
+    });
   }
 
   async exportBackup(): Promise<string> {
@@ -104,9 +120,9 @@ export class DatabaseService {
 
   async importBackup(json: string): Promise<void> {
     const data = JSON.parse(json);
-    // Process sequentially to ensure no transaction collisions
+    // Sequence processing is critical to prevent transaction collisions
     for (const store of Object.values(STORES)) {
-      if (data[store]) {
+      if (data[store] && Array.isArray(data[store])) {
         await this.save(store, data[store]);
       }
     }

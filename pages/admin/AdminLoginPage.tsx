@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { useNavigate } from 'react-router-dom';
 import { LockClosedIcon, ShieldCheckIcon, ChevronLeftIcon } from '@heroicons/react/24/solid';
+import { ExclamationCircleIcon } from '@heroicons/react/24/outline';
 
 const AdminLoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -24,30 +25,18 @@ const AdminLoginPage: React.FC = () => {
     setError('');
 
     setTimeout(() => {
-      // 1. Check Database first
-      const found = allUsers.find(u => u.email === email && u.role === 'admin');
+      // STRICT DATABASE CHECK FOR ADMINS
+      const found = allUsers.find(u => 
+        u.email.toLowerCase() === email.toLowerCase() && 
+        u.password === password && 
+        u.role === 'admin'
+      );
+
       if (found) {
         setAdminUser(found);
         navigate('/admin/dashboard');
-        setLoading(false);
-        return;
-      }
-
-      // 2. Simulation Defaults
-      if (email === 'admin@meheditailors.com' && password === 'admin123') {
-        const admin = {
-          id: 'admin-001',
-          name: 'Mehedi Admin',
-          email: email,
-          phone: '+8801720267213',
-          address: 'Dhonaid, Ashulia',
-          measurements: [],
-          role: 'admin' as const
-        };
-        setAdminUser(admin);
-        navigate('/admin/dashboard');
       } else {
-        setError('Unauthorized access. Please verify your administrative credentials.');
+        setError('Unauthorized access. Access restricted to system controllers.');
       }
       setLoading(false);
     }, 1200);
@@ -74,8 +63,9 @@ const AdminLoginPage: React.FC = () => {
 
         <form onSubmit={handleLogin} className="bg-white rounded-[2.5rem] p-10 md:p-12 shadow-2xl space-y-8">
           {error && (
-            <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-xs font-bold uppercase tracking-widest border border-red-100 animate-in fade-in slide-in-from-top-2">
-              {error}
+            <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-[10px] font-bold uppercase tracking-widest border border-red-100 animate-in fade-in slide-in-from-top-2 flex items-center space-x-3">
+              <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 

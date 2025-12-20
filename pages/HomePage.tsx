@@ -150,25 +150,6 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* Partner Brands */}
-      {activePartners.length > 0 && (
-        <section className="py-24 bg-slate-50 border-y border-slate-100">
-           <div className="container mx-auto px-4 text-center mb-16">
-              <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-slate-400 mb-2">Artisan Collaborations</p>
-              <h2 className="text-3xl font-bold serif">Millers & Clothiers</h2>
-           </div>
-           <div className="container mx-auto px-4">
-              <div className="flex flex-wrap justify-center items-center gap-16 md:gap-24 opacity-50 hover:opacity-100 transition-opacity">
-                 {activePartners.map(brand => (
-                    <div key={brand.id} className="h-12 md:h-16 w-32 md:w-44 flex items-center justify-center grayscale hover:grayscale-0 transition-all hover:scale-110" title={brand.name}>
-                       <img src={brand.logo} alt={brand.name} className="max-w-full max-h-full object-contain" />
-                    </div>
-                 ))}
-              </div>
-           </div>
-        </section>
-      )}
-
       {/* Testimonials */}
       <section className="py-32 bg-white relative overflow-hidden">
         <div className="container mx-auto px-4 text-center mb-20">
@@ -264,6 +245,25 @@ const HomePage: React.FC = () => {
           )}
         </div>
       </section>
+
+      {/* Partner Brands - Moved to Bottom */}
+      {activePartners.length > 0 && (
+        <section className="py-24 bg-slate-50 border-t border-slate-100">
+           <div className="container mx-auto px-4 text-center mb-16">
+              <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-slate-400 mb-2">Artisan Collaborations</p>
+              <h2 className="text-3xl font-bold serif">Millers & Clothiers</h2>
+           </div>
+           <div className="container mx-auto px-4">
+              <div className="flex flex-wrap justify-center items-center gap-16 md:gap-24 opacity-50 hover:opacity-100 transition-opacity">
+                 {activePartners.map(brand => (
+                    <div key={brand.id} className="h-12 md:h-16 w-32 md:w-44 flex items-center justify-center grayscale hover:grayscale-0 transition-all hover:scale-110" title={brand.name}>
+                       <img src={brand.logo} alt={brand.name} className="max-w-full max-h-full object-contain" />
+                    </div>
+                 ))}
+              </div>
+           </div>
+        </section>
+      )}
     </div>
   );
 };
