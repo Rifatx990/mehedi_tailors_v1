@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
@@ -13,137 +14,117 @@ import {
 
 const OrderSuccessPage: React.FC = () => {
   const { orderId } = useParams();
-  const { orders } = useStore();
+  const { orders, systemConfig } = useStore();
   const order = orders.find(o => o.id === orderId);
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleDownload = () => {
-    window.print();
-  };
 
   if (!order) {
     return (
-      <div className="py-32 text-center">
-        <h1 className="text-3xl font-bold serif mb-6">Order not found.</h1>
-        <Link to="/" className="text-amber-600 font-bold underline">Go Home</Link>
+      <div className="py-32 text-center bg-slate-50 min-h-screen flex flex-col items-center justify-center">
+        <h1 className="text-4xl font-bold serif mb-6 text-slate-400 tracking-tighter">Order Ledger Missing</h1>
+        <p className="text-slate-500 mb-10">We couldn't locate this artisan commission in the world archive.</p>
+        <Link to="/" className="bg-slate-950 text-white px-10 py-4 rounded-full font-bold text-xs uppercase tracking-widest shadow-xl">Return to Store</Link>
       </div>
     );
   }
 
   return (
-    <div className="bg-slate-50 min-h-screen py-20">
+    <div className="bg-slate-100 min-h-screen py-12 md:py-24">
       <div className="container mx-auto px-4 max-w-4xl">
-        <div className="text-center mb-12 animate-in zoom-in duration-700 no-print">
-          <div className="flex justify-center mb-6">
-            <CheckCircleIcon className="w-20 h-20 text-green-500" />
+        <div className="text-center mb-16 animate-in zoom-in duration-700 no-print">
+          <div className="flex justify-center mb-8">
+            <div className="w-24 h-24 bg-emerald-50 rounded-full flex items-center justify-center shadow-inner">
+               <CheckCircleIcon className="w-16 h-16 text-emerald-500" />
+            </div>
           </div>
-          <h1 className="text-5xl font-bold serif mb-4">Shukriya!</h1>
-          <p className="text-slate-500 text-lg">Your order <span className="text-slate-900 font-bold">#{order.id}</span> has been successfully placed.</p>
+          <h1 className="text-5xl md:text-6xl font-bold serif mb-4 tracking-tighter">Commission Logged.</h1>
+          <p className="text-slate-500 text-lg">Order <span className="text-slate-900 font-bold font-mono bg-slate-200 px-2 py-0.5 rounded">#{order.id}</span> is now synchronized with the world ledger.</p>
         </div>
 
-        {/* Invoice Card */}
-        <div className="invoice-card bg-white rounded-[40px] shadow-2xl overflow-hidden border border-slate-100 animate-in slide-in-from-bottom-8 duration-1000">
-          <div className="invoice-header bg-slate-900 p-12 text-white flex flex-col md:flex-row justify-between items-start md:items-center space-y-6 md:space-y-0">
+        <div className="bg-white rounded-[3rem] shadow-3xl overflow-hidden border border-slate-200 invoice-card animate-in slide-in-from-bottom-10 duration-1000">
+          <div className="bg-slate-950 p-10 md:p-16 text-white flex flex-col md:flex-row justify-between items-start md:items-center space-y-10 md:space-y-0 invoice-header">
             <div>
-              <h2 className="text-2xl font-bold serif tracking-tighter">MEHEDI TAILORS</h2>
-              <p className="text-slate-400 text-xs uppercase tracking-[0.3em] mt-1">Invoice Receipt</p>
+              <h2 className="text-3xl font-bold serif tracking-tighter mb-1 uppercase">MEHEDI TAILORS</h2>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.4em]">Official Artisan Invoice</p>
             </div>
-            <div className="flex space-x-3 no-print">
-              <button 
-                onClick={handlePrint}
-                className="bg-white/10 hover:bg-white/20 p-3 rounded-full transition" 
-                title="Print Invoice"
-              >
-                <PrinterIcon className="w-5 h-5" />
-              </button>
-              <button 
-                onClick={handleDownload}
-                className="bg-white/10 hover:bg-white/20 p-3 rounded-full transition" 
-                title="Download PDF"
-              >
-                <ArrowDownTrayIcon className="w-5 h-5" />
+            <div className="flex space-x-4 no-print">
+              <button onClick={() => window.print()} className="bg-white/10 hover:bg-white text-white hover:text-slate-950 p-5 rounded-2xl transition-all shadow-2xl">
+                <PrinterIcon className="w-7 h-7" />
               </button>
             </div>
           </div>
 
-          <div className="p-12">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-16">
+          <div className="p-10 md:p-16">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-16 mb-20">
               <div className="space-y-4">
                 <div className="flex items-center space-x-3 text-slate-400">
                   <CalendarDaysIcon className="w-5 h-5" />
-                  <span className="text-xs font-bold uppercase tracking-widest">Order Date</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Archive Date</span>
                 </div>
-                <p className="text-lg font-medium">{new Date(order.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                <p className="text-xl font-bold text-slate-900">{new Date(order.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
               </div>
               <div className="space-y-4">
                 <div className="flex items-center space-x-3 text-slate-400">
                   <MapPinIcon className="w-5 h-5" />
-                  <span className="text-xs font-bold uppercase tracking-widest">Shipping To</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Shipment Coordinates</span>
                 </div>
-                <p className="text-lg font-medium leading-relaxed">{order.address}</p>
-                <p className="text-sm font-bold text-slate-900">{order.customerName}</p>
+                <p className="text-xl font-bold text-slate-900 leading-tight">{order.address}</p>
+                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">{order.customerName}</p>
               </div>
             </div>
 
-            {/* Item Table */}
-            <div className="border-t border-slate-100 pt-12 mb-12">
-              <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 mb-8">Order Items</h3>
-              <div className="space-y-12">
+            <div className="border-t border-slate-100 pt-16 mb-20">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 mb-12 flex items-center space-x-3">
+                 <ScissorsIcon className="w-5 h-5" />
+                 <span>Manifested Items</span>
+              </h3>
+              <div className="space-y-16">
                 {order.items.map((item, idx) => (
-                  <div key={idx} className="pb-8 border-b border-slate-100 last:border-none last:pb-0">
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="flex items-center space-x-6">
-                        <div className="w-16 h-20 bg-slate-50 rounded overflow-hidden no-print flex-shrink-0">
-                          <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
+                  <div key={idx} className="pb-16 border-b border-slate-50 last:border-none last:pb-0">
+                    <div className="flex justify-between items-start mb-10">
+                      <div className="flex items-center space-x-10">
+                        <div className="w-20 h-28 bg-slate-50 rounded-2xl overflow-hidden no-print shadow-inner border border-slate-100 flex-shrink-0">
+                          <img src={item.image} className="w-full h-full object-cover" alt="" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-lg">{item.name}</h4>
-                          <p className="text-xs text-slate-400 uppercase tracking-widest">
-                            {item.quantity} x BDT {item.price.toLocaleString()}
-                            {item.isCustomOrder && <span className="ml-2 text-amber-600 font-bold">• Bespoke Craft</span>}
+                          <h4 className="font-bold text-2xl text-slate-900 leading-tight">{item.name}</h4>
+                          <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mt-2">
+                             {item.quantity} Unit(s) • BDT {item.price.toLocaleString()} per piece
                           </p>
+                          {item.isCustomOrder && <span className="inline-block mt-4 bg-amber-600 text-white text-[8px] font-black uppercase tracking-widest px-4 py-1.5 rounded-lg shadow-xl shadow-amber-600/20">Bespoke Artisan Craft</span>}
                         </div>
                       </div>
-                      <span className="font-bold text-lg">BDT {(item.price * item.quantity).toLocaleString()}</span>
+                      <span className="font-black text-2xl text-slate-900 font-mono tracking-tighter">BDT {(item.price * item.quantity).toLocaleString()}</span>
                     </div>
 
-                    {/* Bespoke Details (Measurements & Design) */}
                     {item.isCustomOrder && (
-                      <div className="bg-slate-50 rounded-3xl p-8 mt-4 grid grid-cols-1 md:grid-cols-2 gap-8 border border-slate-100">
-                        {/* Measurements Section */}
-                        {item.measurements && (
-                          <div className="space-y-4">
-                            <h5 className="flex items-center space-x-2 text-[10px] font-bold uppercase tracking-widest text-amber-700">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 bg-slate-50 p-10 rounded-[2.5rem] border border-slate-100 shadow-inner">
+                        {item.measurements && Object.keys(item.measurements).length > 0 && (
+                          <div>
+                            <h5 className="flex items-center space-x-3 text-[10px] font-black uppercase tracking-widest text-amber-700 mb-6">
                               <ScissorsIcon className="w-4 h-4" />
-                              <span>Measurement Silhouettes</span>
+                              <span>Measurement Silhouette</span>
                             </h5>
-                            <div className="grid grid-cols-2 gap-4">
-                              {/* Fix: Operator '>' cannot be applied to types 'unknown' and 'number'. Added typeof check. */}
+                            <div className="grid grid-cols-2 gap-x-10 gap-y-3">
                               {Object.entries(item.measurements).filter(([k, v]) => k !== 'id' && k !== 'label' && typeof v === 'number' && v > 0).map(([key, val]) => (
-                                <div key={key} className="flex justify-between items-center border-b border-slate-200 pb-1">
-                                  <span className="text-[10px] uppercase font-medium text-slate-400">{key}</span>
-                                  <span className="text-xs font-bold font-mono text-slate-900">{val}"</span>
+                                <div key={key} className="flex justify-between items-center border-b border-slate-200 pb-1.5">
+                                  <span className="text-[9px] uppercase font-black text-slate-400">{key}</span>
+                                  <span className="text-xs font-black font-mono text-slate-900">{val}"</span>
                                 </div>
                               ))}
                             </div>
                           </div>
                         )}
-
-                        {/* Design Options Section */}
                         {item.designOptions && (
-                          <div className="space-y-4">
-                            <h5 className="flex items-center space-x-2 text-[10px] font-bold uppercase tracking-widest text-teal-700">
+                          <div>
+                            <h5 className="flex items-center space-x-3 text-[10px] font-black uppercase tracking-widest text-teal-700 mb-6">
                               <AdjustmentsHorizontalIcon className="w-4 h-4" />
-                              <span>Tailoring Directives</span>
+                              <span>Technical Directives</span>
                             </h5>
-                            <div className="grid grid-cols-1 gap-2">
+                            <div className="space-y-3">
                               {Object.entries(item.designOptions).map(([key, val]) => (
-                                <div key={key} className="flex justify-between items-center bg-white px-3 py-1.5 rounded-lg border border-slate-100">
-                                  <span className="text-[9px] uppercase font-bold text-slate-400">{key}</span>
-                                  <span className="text-[10px] font-bold text-slate-900">{val as string}</span>
+                                <div key={key} className="flex justify-between items-center bg-white px-5 py-3 rounded-2xl border border-slate-200/50 shadow-sm">
+                                  <span className="text-[9px] uppercase font-black text-slate-400">{key}</span>
+                                  <span className="text-[11px] font-black text-slate-900">{val as string}</span>
                                 </div>
                               ))}
                             </div>
@@ -156,45 +137,36 @@ const OrderSuccessPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Total Section */}
-            <div className="invoice-footer bg-slate-50 p-8 rounded-3xl space-y-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500 font-medium">Method</span>
-                <span className="font-bold text-slate-900 uppercase tracking-widest text-xs">{order.paymentMethod}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500 font-medium">Payment Status</span>
-                <span className={`font-bold px-3 py-1 rounded-full text-[10px] uppercase tracking-widest ${order.paymentStatus === 'Fully Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                  {order.paymentStatus}
-                </span>
-              </div>
-              <div className="flex justify-between items-center pt-4 border-t border-slate-200">
-                <span className="text-slate-500 font-bold uppercase tracking-widest text-xs">Grand Total</span>
-                <span className="text-3xl font-bold serif text-slate-900">BDT {order.total.toLocaleString()}</span>
-              </div>
-              {order.dueAmount > 0 && (
-                <div className="flex justify-between items-center bg-amber-50 p-4 rounded-2xl border border-amber-100">
-                   <span className="text-amber-800 font-bold uppercase tracking-widest text-[10px]">Collectible on Pickup</span>
-                   <span className="text-xl font-bold text-amber-800">BDT {order.dueAmount.toLocaleString()}</span>
-                </div>
-              )}
+            <div className="bg-slate-50 p-10 md:p-14 rounded-[3rem] space-y-6 border border-slate-100 shadow-inner">
+               <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-black uppercase tracking-widest text-[10px]">Net Settlement Method</span>
+                  <span className="font-black text-slate-950 uppercase tracking-widest text-xs">{order.paymentMethod}</span>
+               </div>
+               <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-black uppercase tracking-widest text-[10px]">World Ledger Total</span>
+                  <span className="text-4xl font-black serif text-slate-950 tracking-tighter">BDT {order.total.toLocaleString()}</span>
+               </div>
+               {order.dueAmount > 0 && (
+                 <div className="mt-8 p-8 bg-amber-600 text-white rounded-[2rem] flex flex-col sm:flex-row justify-between items-center shadow-3xl shadow-amber-600/30 gap-6">
+                    <div className="text-center sm:text-left">
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80">Remaining Artisan Balance</p>
+                        <p className="text-sm font-bold uppercase mt-1">Due on Pickup/Fitting</p>
+                    </div>
+                    <span className="text-4xl font-black font-mono tracking-tighter">BDT {order.dueAmount.toLocaleString()}</span>
+                 </div>
+               )}
             </div>
 
-            <div className="mt-12 text-center no-print">
-              <p className="text-slate-400 text-sm mb-8">Your artisan journey has officially begun. We will notify you at <span className="text-slate-900 font-bold">{order.customerEmail}</span> as we progress.</p>
-              <div className="flex flex-col sm:flex-row justify-center gap-4">
-                <Link to="/dashboard" className="bg-slate-900 text-white px-10 py-4 rounded-full font-bold uppercase tracking-widest text-xs hover:bg-slate-800 transition shadow-xl shadow-slate-200">
-                  Track My Order
-                </Link>
-                <Link to="/shop" className="bg-white border border-slate-200 text-slate-900 px-10 py-4 rounded-full font-bold uppercase tracking-widest text-xs hover:bg-slate-50 transition">
-                  Continue Shopping
-                </Link>
-              </div>
+            <div className="mt-20 text-center no-print">
+               <p className="text-slate-400 text-sm max-w-lg mx-auto leading-relaxed mb-12">Artisan production has been initiated. Status updates will be broadcasted to <span className="text-slate-950 font-black">{order.customerEmail}</span> as we progress.</p>
+               <div className="flex flex-col sm:flex-row justify-center gap-6">
+                  <Link to="/dashboard" className="bg-slate-950 text-white px-16 py-6 rounded-[1.8rem] font-black uppercase tracking-[0.3em] text-[10px] shadow-3xl active:scale-95 transition-all">Monitor Life-Cycle</Link>
+                  <Link to="/shop" className="bg-white border-2 border-slate-950 text-slate-950 px-16 py-6 rounded-[1.8rem] font-black uppercase tracking-[0.3em] text-[10px] hover:bg-slate-950 hover:text-white transition-all">Explore More</Link>
+               </div>
             </div>
             
-            {/* Print Only Footer */}
-            <div className="hidden print:block mt-12 pt-8 border-t border-slate-100 text-center text-[10px] text-slate-400 uppercase tracking-[0.3em] font-bold">
-              Mehedi Tailors & Fabrics • Dhonaid, Ashulia, Savar, Dhaka • +8801720267213
+            <div className="hidden print:block mt-24 pt-10 border-t border-slate-100 text-center">
+               <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.5em]">{systemConfig.siteName} • Heritage Bespoke Solutions &copy; 2025</p>
             </div>
           </div>
         </div>
