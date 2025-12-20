@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext.tsx';
+import { useLocation } from 'react-router-dom';
 import { MagnifyingGlassIcon, CheckIcon, ExclamationCircleIcon, ClockIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
 import { Order, ProductionStep, OrderStatus } from '../types.ts';
 
@@ -10,6 +11,26 @@ const TrackOrderPage: React.FC = () => {
   const [foundOrder, setFoundOrder] = useState<Order | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [loading, setLoading] = useState(false);
+  const location = useLocation();
+
+  // Auto-search logic from URL params
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const id = params.get('id');
+    if (id && !hasSearched && orders.length > 0) {
+      const cleanId = id.trim();
+      setSearchId(cleanId);
+      setLoading(true);
+      
+      // Artificial delay for visual consistency
+      setTimeout(() => {
+        const order = orders.find(o => o.id.toLowerCase() === cleanId.toLowerCase());
+        setFoundOrder(order || null);
+        setHasSearched(true);
+        setLoading(false);
+      }, 500);
+    }
+  }, [location.search, orders, hasSearched]);
 
   const handleTrack = (e: React.FormEvent) => {
     e.preventDefault();

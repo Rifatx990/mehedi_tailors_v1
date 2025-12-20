@@ -14,7 +14,7 @@ import {
 
 const InvoicePage: React.FC = () => {
   const { orderId } = useParams();
-  const { orders, user, adminUser, workerUser } = useStore();
+  const { orders, user, adminUser, workerUser, systemConfig } = useStore();
   const navigate = useNavigate();
   const order = orders.find(o => o.id === orderId);
 
@@ -51,8 +51,12 @@ const InvoicePage: React.FC = () => {
 
         <div className="bg-white rounded-[40px] shadow-2xl overflow-hidden border border-slate-200 invoice-card">
           <div className="bg-slate-900 p-12 text-white flex flex-col md:flex-row justify-between items-start md:items-center space-y-6 md:space-y-0 invoice-header">
-            <div>
-              <h2 className="text-3xl font-bold serif tracking-tighter">MEHEDI TAILORS</h2>
+            <div className="flex flex-col">
+              {systemConfig.documentLogo ? (
+                <img src={systemConfig.documentLogo} alt="Logo" className="h-16 w-auto object-contain mr-auto mb-4" />
+              ) : (
+                <h2 className="text-3xl font-bold serif tracking-tighter">MEHEDI TAILORS</h2>
+              )}
               <p className="text-slate-400 text-[10px] uppercase tracking-[0.4em] mt-1">Bespoke Production Ledger</p>
             </div>
             <div className="text-right">

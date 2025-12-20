@@ -70,6 +70,7 @@ interface StoreContextType {
   markNotificationRead: (id: string) => void;
   clearNotifications: () => void;
   emailLogs: EmailLog[];
+  sendEmail: (to: string, subject: string, body: string) => Promise<void>;
   isHydrated: boolean;
   resetSystemData: () => void;
   exportDb: () => Promise<void>;
@@ -78,11 +79,44 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
+const DEFAULT_BANNERS: Banner[] = [
+  { 
+    id: 'b1', 
+    title: 'Precision in Every Stitch', 
+    subtitle: 'Where heritage craftsmanship meets surgical precision in our Ashulia atelier.', 
+    imageUrl: 'https://images.unsplash.com/photo-1594932224828-b4b059b6f6f9?q=80&w=2080&auto=format&fit=crop', 
+    linkUrl: '/shop', 
+    isActive: true 
+  },
+  { 
+    id: 'b2', 
+    title: 'Masterpiece Archive 2025', 
+    subtitle: 'Explore our latest curated silhouettes designed for the modern gentleman who seeks distinction.', 
+    imageUrl: 'https://images.unsplash.com/photo-1604176354204-926873ff7da9?q=80&w=2080&auto=format&fit=crop', 
+    linkUrl: '/shop', 
+    isActive: true 
+  },
+  { 
+    id: 'b3', 
+    title: 'Artisanal Italian Textiles', 
+    subtitle: 'Directly sourced from the finest mills of Biella and Milan to ensure unparalleled comfort and drape.', 
+    imageUrl: 'https://images.unsplash.com/photo-1558191053-8edcb01e1da3?q=80&w=2080&auto=format&fit=crop', 
+    linkUrl: '/fabrics', 
+    isActive: true 
+  }
+];
+
+const DEFAULT_PARTNERS: PartnerBrand[] = [
+  { id: 'pb1', name: 'Loro Piana', logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/0/07/Loro_Piana_logo.svg/1200px-Loro_Piana_logo.svg.png', isActive: true },
+  { id: 'pb2', name: 'Ermenegildo Zegna', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Ermenegildo_Zegna_Logo.svg/1280px-Ermenegildo_Zegna_Logo.svg.png', isActive: true },
+  { id: 'pb3', name: 'Vitale Barberis Canonico', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Vitale_Barberis_Canonico_Logo.svg/2560px-Vitale_Barberis_Canonico_Logo.svg.png', isActive: true },
+  { id: 'pb4', name: 'Scabal', logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/4/4b/Scabal_logo.png/250px-Scabal_logo.png', isActive: true }
+];
+
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isHydrated, setIsHydrated] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
-  // Core State
   const [cart, setCart] = useState<CartItem[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [adminUser, setAdminUser] = useState<User | null>(null);
@@ -103,15 +137,16 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>({
     smtpHost: 'smtp.gmail.com', smtpPort: 465, smtpUser: '', smtpPass: '', secure: true, 
-    senderName: 'Mehedi Tailors', senderEmail: 'orders@meheditailors.com', isEnabled: true, siteName: 'Mehedi Tailors & Fabrics',
-    dbVersion: '2.0.0-PRO'
+    senderName: 'Mehedi Tailors', senderEmail: 'orders@meheditailors.com', isEnabled: true, 
+    siteName: 'Mehedi Tailors & Fabrics',
+    siteLogo: 'https://via.placeholder.com/200x80?text=HEADER+LOGO',
+    documentLogo: 'https://via.placeholder.com/300x120?text=DOCUMENT+LOGO',
+    dbVersion: '3.0.0-BESPOKE'
   });
 
-  // INITIAL HYDRATION
   useEffect(() => {
     const hydrate = async () => {
       await dbService.init();
-      
       const [p, o, u, f, b, pt, r, req, m, c, e, n] = await Promise.all([
         dbService.getAll('products'),
         dbService.getAll('orders'),
@@ -138,8 +173,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         await dbService.save('users', defaults);
       }
       if (f.length > 0) setFabrics(f);
-      if (b.length > 0) setBanners(b);
-      if (pt.length > 0) setPartnerBrands(pt);
+      if (b.length > 0) setBanners(b); else {
+        setBanners(DEFAULT_BANNERS);
+        await dbService.save('banners', DEFAULT_BANNERS);
+      }
+      if (pt.length > 0) setPartnerBrands(pt); else {
+        setPartnerBrands(DEFAULT_PARTNERS);
+        await dbService.save('partners', DEFAULT_PARTNERS);
+      }
       if (r.length > 0) setReviews(r);
       if (req.length > 0) setProductRequests(req);
       if (m.length > 0) setMaterialRequests(m);
@@ -154,31 +195,30 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     hydrate();
   }, []);
 
-  // AUTO-SYNC TO INDEXEDDB (Guarded by isImporting)
-  useEffect(() => {
-    if (!isHydrated || isImporting) return;
-    dbService.save('products', products);
-  }, [products, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('products', products); }, [products, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('orders', orders); }, [orders, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('users', allUsers); }, [allUsers, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('emails', emailLogs); }, [emailLogs, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('config', [{ ...systemConfig, id: 'global' }]); }, [systemConfig, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('notifications', notifications); }, [notifications, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('banners', banners); }, [banners, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('partners', partnerBrands); }, [partnerBrands, isHydrated, isImporting]);
 
-  useEffect(() => {
-    if (!isHydrated || isImporting) return;
-    dbService.save('orders', orders);
-  }, [orders, isHydrated, isImporting]);
-
-  useEffect(() => {
-    if (!isHydrated || isImporting) return;
-    dbService.save('users', allUsers);
-  }, [allUsers, isHydrated, isImporting]);
-
-  useEffect(() => {
-    if (!isHydrated || isImporting) return;
-    dbService.save('emails', emailLogs);
-  }, [emailLogs, isHydrated, isImporting]);
-
-  useEffect(() => {
-    if (!isHydrated || isImporting) return;
-    dbService.save('config', [{ ...systemConfig, id: 'global' }]);
-  }, [systemConfig, isHydrated, isImporting]);
+  const sendEmail = async (to: string, subject: string, body: string) => {
+    // Uses Document Logo explicitly as document header
+    const brandedBody = `[DOCUMENT HEADER: ${systemConfig.documentLogo || systemConfig.siteLogo}]\n\n${body}\n\n---\n${systemConfig.siteName} • Bespoke Excellence\nAshulia, Savar, Dhaka`;
+    
+    const log: EmailLog = {
+      id: 'ML-' + Date.now(),
+      to,
+      subject,
+      body: brandedBody,
+      timestamp: new Date().toISOString(),
+      status: 'sent',
+      templateId: 'industrial-gen'
+    };
+    setEmailLogs(prev => [log, ...prev]);
+  };
 
   const exportDb = async () => {
     const data = await dbService.exportBackup();
@@ -191,10 +231,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const importDb = async (json: string) => {
-    setIsImporting(true); // Lock auto-sync
+    setIsImporting(true);
     try {
       await dbService.importBackup(json);
-      // Wait a moment for IndexedDB OS handles to settle
       setTimeout(() => window.location.reload(), 500);
     } catch (err) {
       setIsImporting(false);
@@ -207,10 +246,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     window.location.reload();
   };
 
-  // Actions... (Remainder unchanged)
   const placeOrder = async (order: Order) => {
     setOrders(prev => [order, ...prev]);
     setCart([]);
+    await sendEmail(
+      order.customerEmail || '',
+      `Order Confirmed: #${order.id} - Mehedi Tailors`,
+      `Salaam ${order.customerName},\n\nYour bespoke order #${order.id} has been established and is now in our assembly queue.`
+    );
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
@@ -255,7 +298,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const removeBanner = async (id: string) => setBanners(prev => prev.filter(b => b.id !== id));
   const addProductRequest = async (req: ProductRequest) => setProductRequests(prev => [req, ...prev]);
   const addMaterialRequest = async (req: MaterialRequest) => setMaterialRequests(prev => [req, ...prev]);
-  const updateMaterialRequestStatus = async (id: string, status: 'approved' | 'rejected') => setMaterialRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+  const updateMaterialRequestStatus = async (id: string, status: 'approved' | 'rejected') => {
+    setMaterialRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+  };
   const addReview = async (review: Review) => setReviews(prev => [review, ...prev]);
   const updateReviewStatus = async (reviewId: string, status: 'approved' | 'pending') => setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, status } : r));
   const removeReview = async (id: string) => setReviews(prev => prev.filter(r => r.id !== id));
@@ -282,13 +327,13 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       reviews, addReview, updateReviewStatus, removeReview,
       systemConfig, updateSystemConfig,
       notifications, addNotification, markNotificationRead, clearNotifications,
-      emailLogs, isHydrated, resetSystemData, exportDb, importDb
+      emailLogs, sendEmail, isHydrated, resetSystemData, exportDb, importDb
     }}>
       {isHydrated ? children : (
         <div className="min-h-screen bg-slate-900 flex items-center justify-center">
            <div className="text-center">
               <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-              <p className="text-slate-400 font-bold uppercase tracking-[0.6em] text-[10px] animate-pulse">Initializing Core DB</p>
+              <p className="text-slate-400 font-bold uppercase tracking-[0.6em] text-[10px] animate-pulse">Initializing Luxe Atelier DB</p>
            </div>
         </div>
       )}

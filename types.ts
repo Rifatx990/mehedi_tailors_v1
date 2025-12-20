@@ -21,6 +21,7 @@ export interface SystemConfig {
   senderEmail: string;
   isEnabled: boolean;
   siteLogo?: string;
+  documentLogo?: string; // Specific for Invoices/Emails
   siteName: string;
   dbVersion: string;
 }

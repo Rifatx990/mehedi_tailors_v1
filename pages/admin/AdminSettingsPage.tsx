@@ -14,7 +14,8 @@ import {
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
   TrashIcon,
-  CloudArrowUpIcon
+  CloudArrowUpIcon,
+  GlobeAltIcon
 } from '@heroicons/react/24/outline';
 
 const AdminSettingsPage: React.FC = () => {
@@ -69,7 +70,47 @@ const AdminSettingsPage: React.FC = () => {
 
         <div className="max-w-5xl space-y-12 pb-20">
           
-          {/* DATABASE MAINTENANCE - NEW */}
+          {/* BRANDING CONFIGURATION - NEW SECTION */}
+          <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
+             <div className="bg-amber-600 p-10 text-white">
+                <div className="flex items-center space-x-3 mb-1">
+                   <PhotoIcon className="w-6 h-6 text-white" />
+                   <h2 className="text-2xl font-bold serif">Document Branding</h2>
+                </div>
+                <p className="text-amber-100 text-xs uppercase tracking-widest mt-1 font-bold">Logo & Identity Persistence</p>
+             </div>
+             
+             <div className="p-10 md:p-12">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                   <div className="space-y-6">
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block ml-1">Official Site Title</label>
+                         <input value={form.siteName} onChange={e => setForm({...form, siteName: e.target.value})} className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none font-bold" />
+                      </div>
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block ml-1">Shop Logo URL (Document Header)</label>
+                         <div className="relative group">
+                            <GlobeAltIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-amber-600 transition-colors" />
+                            <input value={form.siteLogo} onChange={e => setForm({...form, siteLogo: e.target.value})} className="w-full bg-slate-50 border border-slate-100 pl-12 pr-6 py-4 rounded-2xl outline-none font-mono text-xs" placeholder="https://..." />
+                         </div>
+                         <p className="text-[9px] text-slate-400 mt-2 italic px-1">* This logo is automatically injected into all automated and manual email documents.</p>
+                      </div>
+                   </div>
+                   <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100">
+                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-6">Logo Header Preview</p>
+                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 max-w-full overflow-hidden">
+                         {form.siteLogo ? (
+                           <img src={form.siteLogo} alt="Logo" className="max-h-16 w-auto object-contain mx-auto" />
+                         ) : (
+                           <div className="h-16 w-40 flex items-center justify-center text-slate-300 italic text-xs font-bold uppercase">No Logo URL</div>
+                         )}
+                      </div>
+                   </div>
+                </div>
+             </div>
+          </div>
+
+          {/* DATABASE MAINTENANCE */}
           <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
              <div className="bg-teal-600 p-10 text-white">
                 <div className="flex items-center space-x-3 mb-1">
@@ -116,7 +157,7 @@ const AdminSettingsPage: React.FC = () => {
              </div>
           </div>
 
-          {/* SMTP NOTIFICATION ENGINE - REVISED FOR TSX */}
+          {/* SMTP NOTIFICATION ENGINE */}
           <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
              <div className="bg-slate-900 p-10 text-white">
                 <h2 className="text-2xl font-bold serif">TSX Notification Engine</h2>

@@ -44,6 +44,7 @@ import AdminLabelStudioPage from './pages/admin/AdminLabelStudioPage.tsx';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage.tsx';
 import AdminMaterialRequestsPage from './pages/admin/AdminMaterialRequestsPage.tsx';
 import AdminOutboxPage from './pages/admin/AdminOutboxPage.tsx';
+import AdminBrandingPage from './pages/admin/AdminBrandingPage.tsx';
 
 // Admin Management
 import AdminManagementStaffPage from './pages/admin/AdminManagementStaffPage.tsx';
@@ -88,6 +89,7 @@ const App: React.FC = () => {
                 <Route path="coupons" element={<AdminCouponsPage />} />
                 <Route path="banners" element={<AdminBannersPage />} />
                 <Route path="partners" element={<AdminPartnersPage />} />
+                <Route path="branding" element={<AdminBrandingPage />} />
                 <Route path="customers" element={<AdminCustomersPage />} />
                 <Route path="reviews" element={<AdminReviewsPage />} />
                 <Route path="appeals" element={<AdminAppealsPage />} />

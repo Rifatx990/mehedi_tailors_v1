@@ -10,20 +10,30 @@ import {
   MagnifyingGlassIcon,
   ShoppingBagIcon,
   MapPinIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  EnvelopeIcon,
+  PaperAirplaneIcon,
+  UserPlusIcon,
+  GlobeAltIcon
 } from '@heroicons/react/24/outline';
 import { User } from '../../types.ts';
 
 const AdminManagementCustomerPage: React.FC = () => {
-  const { allUsers, updateAnyUser, removeUser, orders } = useStore();
+  const { allUsers, updateAnyUser, removeUser, orders, sendEmail, systemConfig } = useStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [targetEmail, setTargetEmail] = useState('');
+  const [targetName, setTargetName] = useState('');
   const [search, setSearch] = useState('');
 
   const [form, setForm] = useState<Partial<User>>({
     name: '', email: '', phone: '', address: '', role: 'customer'
   });
+
+  const [emailForm, setEmailForm] = useState({ subject: '', body: '' });
+  const [isSending, setIsSending] = useState(false);
 
   const customers = allUsers.filter(u => u.role === 'customer' || !u.role);
   const filteredCustomers = customers.filter(u => 
@@ -53,10 +63,37 @@ const AdminManagementCustomerPage: React.FC = () => {
     setEditingUser(null);
   };
 
+  const handleSendManualEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetEmail) return;
+    setIsSending(true);
+    setTimeout(async () => {
+      await sendEmail(targetEmail, emailForm.subject, emailForm.body);
+      setIsSending(false);
+      setIsEmailModalOpen(false);
+      setEmailForm({ subject: '', body: '' });
+      setTargetEmail('');
+      setTargetName('');
+    }, 1000);
+  };
+
   const openEditModal = (u: User) => {
     setEditingUser(u);
     setForm(u);
     setIsModalOpen(true);
+  };
+
+  const openEmailModal = (u?: User) => {
+    if (u) {
+        setTargetEmail(u.email);
+        setTargetName(u.name);
+        setEmailForm({ subject: 'Update regarding your Bespoke Fit', body: `Salaam ${u.name.split(' ')[0]},\n\n` });
+    } else {
+        setTargetEmail('');
+        setTargetName('Guest Inquirer');
+        setEmailForm({ subject: 'Inquiry response from Mehedi Tailors', body: `Greetings,\n\n` });
+    }
+    setIsEmailModalOpen(true);
   };
 
   const handleDelete = async () => {
@@ -70,9 +107,18 @@ const AdminManagementCustomerPage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       <AdminSidebar />
       <main className="flex-grow p-8 md:p-16">
-        <header className="mb-12">
-          <h1 className="text-4xl font-bold serif text-slate-900">Patron Directory</h1>
-          <p className="text-slate-400 mt-1 text-sm uppercase tracking-widest">Manage customer relationships and profiles</p>
+        <header className="mb-12 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div>
+            <h1 className="text-4xl font-bold serif text-slate-900">Patron Directory</h1>
+            <p className="text-slate-400 mt-1 text-sm uppercase tracking-widest">Global relationship management</p>
+          </div>
+          <button 
+            onClick={() => openEmailModal()}
+            className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-bold uppercase tracking-widest text-[10px] flex items-center space-x-3 shadow-2xl hover:bg-amber-600 transition-all active:scale-95"
+          >
+            <PaperAirplaneIcon className="w-4 h-4" />
+            <span>Global Outreach</span>
+          </button>
         </header>
 
         <div className="mb-8 relative max-w-md">
@@ -80,13 +126,13 @@ const AdminManagementCustomerPage: React.FC = () => {
           <input 
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name or email..." 
-            className="w-full bg-white border border-slate-100 pl-12 pr-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition" 
+            placeholder="Search patron ledger..." 
+            className="w-full bg-white border border-slate-100 pl-12 pr-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition shadow-sm" 
           />
         </div>
 
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-          <table className="w-full text-left">
+        <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden overflow-x-auto">
+          <table className="w-full text-left min-w-[800px]">
             <thead>
               <tr className="text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b bg-slate-50/50">
                 <th className="px-10 py-6">Customer</th>
@@ -129,9 +175,10 @@ const AdminManagementCustomerPage: React.FC = () => {
                          <span className="text-xs font-medium truncate max-w-[150px]">{u.address}</span>
                       </div>
                     </td>
-                    <td className="px-10 py-8 text-right space-x-2">
-                      <button onClick={() => openEditModal(u)} className="p-2.5 text-slate-300 hover:text-amber-600 transition hover:bg-amber-50 rounded-xl"><PencilSquareIcon className="w-5 h-5" /></button>
-                      <button onClick={() => setDeleteConfirmId(u.id)} className="p-2.5 text-slate-300 hover:text-red-500 transition hover:bg-red-50 rounded-xl"><TrashIcon className="w-5 h-5" /></button>
+                    <td className="px-10 py-8 text-right space-x-1">
+                      <button onClick={() => openEmailModal(u)} title="Contact Patron" className="p-2.5 text-slate-300 hover:text-teal-600 transition hover:bg-teal-50 rounded-xl"><EnvelopeIcon className="w-5 h-5" /></button>
+                      <button onClick={() => openEditModal(u)} title="Edit Profile" className="p-2.5 text-slate-300 hover:text-amber-600 transition hover:bg-amber-50 rounded-xl"><PencilSquareIcon className="w-5 h-5" /></button>
+                      <button onClick={() => setDeleteConfirmId(u.id)} title="Remove" className="p-2.5 text-slate-300 hover:text-red-500 transition hover:bg-red-50 rounded-xl"><TrashIcon className="w-5 h-5" /></button>
                     </td>
                   </tr>
                 );
@@ -145,6 +192,80 @@ const AdminManagementCustomerPage: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Improved Communication Modal */}
+        {isEmailModalOpen && (
+          <div className="fixed inset-0 z-[120] bg-slate-900/70 backdrop-blur-xl flex items-center justify-center p-4">
+             <form onSubmit={handleSendManualEmail} className="bg-white rounded-[4rem] p-10 md:p-14 w-full max-w-2xl shadow-[0_60px_120px_-30px_rgba(0,0,0,0.5)] relative animate-in zoom-in duration-500">
+                <button type="button" onClick={() => setIsEmailModalOpen(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-950 transition-transform hover:rotate-90 duration-300"><XMarkIcon className="w-10 h-10" /></button>
+                
+                <div className="flex items-center space-x-4 mb-10 pb-10 border-b border-slate-100">
+                   <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-[1.5rem] flex items-center justify-center shadow-inner">
+                      <GlobeAltIcon className="w-8 h-8" />
+                   </div>
+                   <div>
+                      <h2 className="text-3xl font-bold serif text-slate-950 tracking-tight">Artisan Dispatch</h2>
+                      <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Communication Suite v4.0</p>
+                   </div>
+                </div>
+
+                <div className="space-y-8">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2 ml-2">Recipient Email</label>
+                            <input 
+                                required 
+                                type="email"
+                                value={targetEmail} 
+                                onChange={e => setTargetEmail(e.target.value)} 
+                                className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition font-bold text-sm"
+                                placeholder="name@patron.com"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2 ml-2">Recipient Name</label>
+                            <input 
+                                value={targetName} 
+                                onChange={e => setTargetName(e.target.value)} 
+                                className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition font-bold text-sm"
+                                placeholder="Arif Ahmed"
+                            />
+                        </div>
+                   </div>
+
+                   <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2 ml-2">Official Subject</label>
+                      <input required value={emailForm.subject} onChange={e => setEmailForm({...emailForm, subject: e.target.value})} className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition font-bold text-lg" />
+                   </div>
+
+                   <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2 ml-2">Message Body</label>
+                      <textarea required rows={8} value={emailForm.body} onChange={e => setEmailForm({...emailForm, body: e.target.value})} className="w-full bg-slate-50 border border-slate-100 px-6 py-5 rounded-[2.5rem] outline-none focus:ring-4 focus:ring-amber-600/5 transition resize-none font-medium text-base leading-relaxed" />
+                   </div>
+
+                   <div className="bg-slate-950 p-6 rounded-[2rem] flex items-center justify-between border border-white/5">
+                        <div className="flex items-center space-x-3">
+                            <img src={systemConfig.documentLogo || systemConfig.siteLogo} className="h-8 w-auto grayscale opacity-40 brightness-200" alt="Logo Header" />
+                            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Shop Logo Injected</span>
+                        </div>
+                        <button 
+                            disabled={isSending}
+                            className="bg-amber-600 text-white px-10 py-4 rounded-[1.2rem] font-black uppercase tracking-[0.3em] text-[10px] shadow-2xl hover:bg-amber-700 flex items-center space-x-3 active:scale-95 transition-all disabled:opacity-50"
+                        >
+                            {isSending ? (
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            ) : (
+                                <>
+                                <PaperAirplaneIcon className="w-4 h-4" />
+                                <span>Lodge Dispatch</span>
+                                </>
+                            )}
+                        </button>
+                   </div>
+                </div>
+             </form>
+          </div>
+        )}
 
         {/* Delete Confirmation Modal */}
         {deleteConfirmId && (

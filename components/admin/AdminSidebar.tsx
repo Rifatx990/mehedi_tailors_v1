@@ -23,7 +23,8 @@ import {
   BriefcaseIcon,
   IdentificationIcon,
   PaperAirplaneIcon,
-  Bars3Icon
+  Bars3Icon,
+  PaintBrushIcon
 } from '@heroicons/react/24/outline';
 
 const AdminSidebar: React.FC = () => {
@@ -50,6 +51,7 @@ const AdminSidebar: React.FC = () => {
     { to: '/admin/fabrics', label: 'Fabric Vault', icon: SwatchIcon },
     { to: '/admin/categories', label: 'Categories', icon: Squares2X2Icon },
     { type: 'separator', label: 'Marketing' },
+    { to: '/admin/branding', label: 'Branding Studio', icon: PaintBrushIcon },
     { to: '/admin/partners', label: 'Partner Brands', icon: BriefcaseIcon },
     { to: '/admin/banners', label: 'Hero Pictures', icon: PhotoIcon },
     { to: '/admin/coupons', label: 'Coupons', icon: TicketIcon },
