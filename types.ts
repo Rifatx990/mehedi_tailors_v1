@@ -20,8 +20,19 @@ export interface SystemConfig {
   senderName: string;
   senderEmail: string;
   isEnabled: boolean;
-  siteLogo?: string; // Base64 Branding Logo
+  siteLogo?: string;
   siteName: string;
+  dbVersion: string;
+}
+
+export interface EmailLog {
+  id: string;
+  to: string;
+  subject: string;
+  body: string;
+  timestamp: string;
+  status: 'sent' | 'failed' | 'queued';
+  templateId: string;
 }
 
 export interface Fabric {
@@ -130,7 +141,7 @@ export interface User {
   specialization?: string;
   experience?: string;
   joinDate?: string;
-  password?: string; // For simulation auth
+  password?: string;
 }
 
 export interface Coupon {

@@ -1,7 +1,12 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { CartItem, Product, User, Order, OrderStatus, Fabric, Coupon, ProductRequest, Banner, Review, ProductionStep, MaterialRequest, SystemConfig, Notification, PartnerBrand } from '../types.ts';
+import { 
+  CartItem, Product, User, Order, OrderStatus, Fabric, Coupon, 
+  ProductRequest, Banner, Review, ProductionStep, MaterialRequest, 
+  SystemConfig, Notification, PartnerBrand, EmailLog 
+} from '../types.ts';
 import { PRODUCTS as INITIAL_PRODUCTS } from '../constants.tsx';
+import { dbService } from '../services/DatabaseService.ts';
 
 interface StoreContextType {
   cart: CartItem[];
@@ -64,134 +69,180 @@ interface StoreContextType {
   addNotification: (notification: Notification) => void;
   markNotificationRead: (id: string) => void;
   clearNotifications: () => void;
-  isLoading: boolean;
+  emailLogs: EmailLog[];
+  isHydrated: boolean;
   resetSystemData: () => void;
+  exportDb: () => Promise<void>;
+  importDb: (json: string) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-const KEYS = {
-  CART: 'mt_cart',
-  WISHLIST: 'mt_wishlist',
-  USER: 'mt_user',
-  ADMIN: 'mt_admin',
-  WORKER: 'mt_worker',
-  PRODUCTS: 'mt_db_products',
-  ORDERS: 'mt_db_orders',
-  USERS: 'mt_db_users',
-  FABRICS: 'mt_db_fabrics',
-  COUPONS: 'mt_db_coupons',
-  BANNERS: 'mt_db_banners',
-  PARTNERS: 'mt_db_partners',
-  REQUESTS: 'mt_db_requests',
-  REVIEWS: 'mt_db_reviews',
-  CATEGORIES: 'mt_db_categories',
-  MATERIALS: 'mt_db_materials',
-  SYSTEM_CONFIG: 'mt_system_config',
-  NOTIFICATIONS: 'mt_notifications'
-};
-
-const DEFAULT_ADMIN: User = {
-  id: 'admin-001', name: 'Mehedi Admin', email: 'admin@meheditailors.com', phone: '+8801720267213', address: 'Dhonaid, Ashulia', measurements: [], role: 'admin', password: 'admin123'
-};
-
-const DEFAULT_WORKER: User = {
-  id: 'worker-001', name: 'Kabir Artisan', email: 'worker@meheditailors.com', phone: '+8801711122233', address: 'Staff Quarters, Savar', measurements: [], role: 'worker', specialization: 'Master Stitcher', password: 'worker123'
-};
-
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const getStored = (key: string, fallback: any) => {
-    const item = localStorage.getItem(key);
-    try {
-      const parsed = item ? JSON.parse(item) : null;
-      if (Array.isArray(fallback) && (!parsed || !Array.isArray(parsed))) return fallback;
-      return parsed || fallback;
-    } catch { return fallback; }
-  };
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  const [cart, setCart] = useState<CartItem[]>(() => getStored(KEYS.CART, []));
-  const [user, setUser] = useState<User | null>(() => getStored(KEYS.USER, null));
-  const [adminUser, setAdminUser] = useState<User | null>(() => getStored(KEYS.ADMIN, null));
-  const [workerUser, setWorkerUser] = useState<User | null>(() => getStored(KEYS.WORKER, null));
-  const [allUsers, setAllUsers] = useState<User[]>(() => {
-    const stored = getStored(KEYS.USERS, []);
-    if (stored.length === 0) return [DEFAULT_ADMIN, DEFAULT_WORKER];
-    return stored;
+  // Core State
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [adminUser, setAdminUser] = useState<User | null>(null);
+  const [workerUser, setWorkerUser] = useState<User | null>(null);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [wishlist, setWishlist] = useState<string[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [fabrics, setFabrics] = useState<Fabric[]>([]);
+  const [categories, setCategories] = useState<string[]>(['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
+  const [partnerBrands, setPartnerBrands] = useState<PartnerBrand[]>([]);
+  const [productRequests, setProductRequests] = useState<ProductRequest[]>([]);
+  const [materialRequests, setMaterialRequests] = useState<MaterialRequest[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>({
+    smtpHost: 'smtp.gmail.com', smtpPort: 465, smtpUser: '', smtpPass: '', secure: true, 
+    senderName: 'Mehedi Tailors', senderEmail: 'orders@meheditailors.com', isEnabled: true, siteName: 'Mehedi Tailors & Fabrics',
+    dbVersion: '2.0.0-PRO'
   });
-  const [wishlist, setWishlist] = useState<string[]>(() => getStored(KEYS.WISHLIST, []));
-  const [notifications, setNotifications] = useState<Notification[]>(() => getStored(KEYS.NOTIFICATIONS, []));
-  const [systemConfig, setSystemConfig] = useState<SystemConfig>(() => getStored(KEYS.SYSTEM_CONFIG, {
-    smtpHost: 'smtp.gmail.com', smtpPort: 465, smtpUser: '', smtpPass: '', secure: true, senderName: 'Mehedi Tailors', senderEmail: 'orders@meheditailors.com', isEnabled: true, siteName: 'Mehedi Tailors & Fabrics'
-  }));
 
-  const [orders, setOrders] = useState<Order[]>(() => getStored(KEYS.ORDERS, []));
-  const [products, setProducts] = useState<Product[]>(() => getStored(KEYS.PRODUCTS, INITIAL_PRODUCTS));
-  const [fabrics, setFabrics] = useState<Fabric[]>(() => getStored(KEYS.FABRICS, []));
-  const [categories, setCategories] = useState<string[]>(() => getStored(KEYS.CATEGORIES, ['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']));
-  const [coupons, setCoupons] = useState<Coupon[]>(() => getStored(KEYS.COUPONS, []));
-  const [banners, setBanners] = useState<Banner[]>(() => getStored(KEYS.BANNERS, []));
-  const [partnerBrands, setPartnerBrands] = useState<PartnerBrand[]>(() => getStored(KEYS.PARTNERS, []));
-  const [productRequests, setProductRequests] = useState<ProductRequest[]>(() => getStored(KEYS.REQUESTS, []));
-  const [materialRequests, setMaterialRequests] = useState<MaterialRequest[]>(() => getStored(KEYS.MATERIALS, []));
-  const [reviews, setReviews] = useState<Review[]>(() => getStored(KEYS.REVIEWS, []));
+  // INITIAL HYDRATION (Load from IndexedDB "Files")
+  useEffect(() => {
+    const hydrate = async () => {
+      await dbService.init();
+      
+      const [p, o, u, f, b, pt, r, req, m, c, e, n] = await Promise.all([
+        dbService.getAll('products'),
+        dbService.getAll('orders'),
+        dbService.getAll('users'),
+        dbService.getAll('fabrics'),
+        dbService.getAll('banners'),
+        dbService.getAll('partners'),
+        dbService.getAll('reviews'),
+        dbService.getAll('requests'),
+        dbService.getAll('materials'),
+        dbService.getAll('config'),
+        dbService.getAll('emails'),
+        dbService.getAll('notifications')
+      ]);
+
+      if (p.length > 0) setProducts(p);
+      if (o.length > 0) setOrders(o);
+      if (u.length > 0) setAllUsers(u); else {
+        const defaults = [
+          { id: 'admin-001', name: 'Mehedi Admin', email: 'admin@meheditailors.com', phone: '+8801720267213', address: 'Dhonaid, Ashulia', measurements: [], role: 'admin', password: 'admin123' },
+          { id: 'worker-001', name: 'Kabir Artisan', email: 'worker@meheditailors.com', phone: '+8801711122233', address: 'Staff Quarters, Savar', measurements: [], role: 'worker', specialization: 'Master Stitcher', password: 'worker123' }
+        ];
+        setAllUsers(defaults);
+        await dbService.save('users', defaults);
+      }
+      if (f.length > 0) setFabrics(f);
+      if (b.length > 0) setBanners(b);
+      if (pt.length > 0) setPartnerBrands(pt);
+      if (r.length > 0) setReviews(r);
+      if (req.length > 0) setProductRequests(req);
+      if (m.length > 0) setMaterialRequests(m);
+      if (e.length > 0) setEmailLogs(e);
+      if (n.length > 0) setNotifications(n);
+      
+      const config = c.find(x => x.id === 'global');
+      if (config) setSystemConfig(config);
+
+      setIsHydrated(true);
+    };
+    hydrate();
+  }, []);
+
+  // AUTO-SYNC TO INDEXEDDB
+  useEffect(() => {
+    if (!isHydrated) return;
+    dbService.save('products', products);
+  }, [products, isHydrated]);
 
   useEffect(() => {
-    const sync = (key: string, data: any) => localStorage.setItem(key, JSON.stringify(data));
-    sync(KEYS.CART, cart);
-    sync(KEYS.WISHLIST, wishlist);
-    sync(KEYS.PRODUCTS, products);
-    sync(KEYS.ORDERS, orders);
-    sync(KEYS.USERS, allUsers);
-    sync(KEYS.FABRICS, fabrics);
-    sync(KEYS.COUPONS, coupons);
-    sync(KEYS.BANNERS, banners);
-    sync(KEYS.PARTNERS, partnerBrands);
-    sync(KEYS.REQUESTS, productRequests);
-    sync(KEYS.MATERIALS, materialRequests);
-    sync(KEYS.REVIEWS, reviews);
-    sync(KEYS.CATEGORIES, categories);
-    sync(KEYS.SYSTEM_CONFIG, systemConfig);
-    sync(KEYS.NOTIFICATIONS, notifications);
-    if (user) sync(KEYS.USER, user); else localStorage.removeItem(KEYS.USER);
-    if (adminUser) sync(KEYS.ADMIN, adminUser); else localStorage.removeItem(KEYS.ADMIN);
-    if (workerUser) sync(KEYS.WORKER, workerUser); else localStorage.removeItem(KEYS.WORKER);
-  }, [cart, wishlist, products, orders, allUsers, fabrics, coupons, banners, partnerBrands, productRequests, materialRequests, reviews, categories, systemConfig, notifications, user, adminUser, workerUser]);
+    if (!isHydrated) return;
+    dbService.save('orders', orders);
+  }, [orders, isHydrated]);
 
-  const addNotification = (n: Notification) => setNotifications(prev => [n, ...prev]);
+  useEffect(() => {
+    if (!isHydrated) return;
+    dbService.save('users', allUsers);
+  }, [allUsers, isHydrated]);
 
-  const sendAtelierEmail = (to: string, subject: string, body: string) => {
-    console.log(`%c[Atelier SMTP Bridge] Dispatching to ${to}\nSubject: ${subject}\nBody: ${body}`, "color: #d97706; font-weight: bold; background: #fffbeb; padding: 10px; border: 1px solid #fde68a; border-radius: 5px;");
+  useEffect(() => {
+    if (!isHydrated) return;
+    dbService.save('emails', emailLogs);
+  }, [emailLogs, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    dbService.save('config', [{ ...systemConfig, id: 'global' }]);
+  }, [systemConfig, isHydrated]);
+
+  // PURE TSX MAILER LOGIC
+  const sendAtelierEmail = async (to: string, subject: string, body: string) => {
+    const newLog: EmailLog = {
+      id: 'ML-' + Date.now(),
+      to, subject, body,
+      timestamp: new Date().toISOString(),
+      status: 'sent',
+      templateId: 'bespoke-standard-v1'
+    };
+    setEmailLogs(prev => [newLog, ...prev]);
+    // Simulate real-world delay
+    console.log(`%c[Atelier TSX Mailer] Dispatched to ${to}`, "color: #3b82f6; font-weight: bold;");
   };
 
   const notifyUser = (orderId: string, email: string, title: string, message: string) => {
     const targetUser = allUsers.find(u => u.email === email);
     if (targetUser) {
-      addNotification({
-        id: 'notif-' + Date.now() + Math.random(),
+      const notif: Notification = {
+        id: 'notif-' + Date.now(),
         userId: targetUser.id,
-        title,
-        message,
+        title, message,
         date: new Date().toISOString(),
         isRead: false,
         type: 'order_update',
         link: `/invoice/${orderId}`
-      });
-      if (systemConfig.isEnabled) {
-        sendAtelierEmail(email, `Mehedi Tailors: ${title}`, `Order #${orderId}: ${message}. Visit your dashboard to view the full invoice.`);
-      }
+      };
+      setNotifications(prev => [notif, ...prev]);
+      dbService.save('notifications', [notif, ...notifications]);
+      sendAtelierEmail(email, `Update: ${title}`, `Order #${orderId}: ${message}. View details: ${window.location.origin}/#/invoice/${orderId}`);
     }
   };
 
+  // Database Management
+  const exportDb = async () => {
+    const data = await dbService.exportBackup();
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mehedi_atelier_db_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+  };
+
+  const importDb = async (json: string) => {
+    await dbService.importBackup(json);
+    window.location.reload();
+  };
+
+  const resetSystemData = async () => {
+    await dbService.clearAll();
+    window.location.reload();
+  };
+
+  // Actions
   const placeOrder = async (order: Order) => {
     setOrders(prev => [order, ...prev]);
     setCart([]);
-    notifyUser(order.id, order.customerEmail!, 'Order Successfully Received', `Your bespoke journey has begun. Our artisans are reviewing your requirements.`);
+    notifyUser(order.id, order.customerEmail!, 'Commission Received', 'Your bespoke order has been logged into the production queue.');
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
     setOrders(prev => {
       const order = prev.find(o => o.id === orderId);
-      if (order) notifyUser(orderId, order.customerEmail!, 'Order Status Update', `Your order is now marked as ${status}.`);
+      if (order) notifyUser(orderId, order.customerEmail!, 'Status Transition', `Your order is now ${status}.`);
       return prev.map(o => o.id === orderId ? { ...o, status } : o);
     });
   };
@@ -199,7 +250,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const updateProductionStep = async (orderId: string, productionStep: ProductionStep) => {
     setOrders(prev => {
       const order = prev.find(o => o.id === orderId);
-      if (order) notifyUser(orderId, order.customerEmail!, 'Production Milestone', `Great news! Your garment has moved to the ${productionStep} phase.`);
+      if (order) notifyUser(orderId, order.customerEmail!, 'Workshop Update', `Craftsmanship phase: ${productionStep}.`);
       return prev.map(o => o.id === orderId ? { ...o, productionStep } : o);
     });
   };
@@ -208,51 +259,30 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setOrders(prev => {
       const worker = allUsers.find(u => u.id === assignedWorkerId);
       const order = prev.find(o => o.id === orderId);
-      if (order && worker) notifyUser(orderId, order.customerEmail!, 'Master Artisan Assigned', `Your order is now being crafted by ${worker.name}.`);
+      if (order && worker) notifyUser(orderId, order.customerEmail!, 'Artisan Assigned', `Your garment is now being crafted by ${worker.name}.`);
       return prev.map(o => o.id === orderId ? { ...o, assignedWorkerId, status: 'In Progress' } : o);
     });
   };
 
-  const resetSystemData = () => {
-    setProducts(INITIAL_PRODUCTS);
-    setCategories(['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']);
-    setFabrics([]); setReviews([]); setOrders([]); setMaterialRequests([]); setNotifications([]);
-    setAllUsers([DEFAULT_ADMIN, DEFAULT_WORKER]);
-    setAdminUser(null); setWorkerUser(null); setUser(null); setPartnerBrands([]);
-  };
-
-  const addToCart = (item: CartItem) => {
-    setCart(prev => {
-      const exists = prev.find(i => i.productId === item.productId && i.selectedSize === item.selectedSize && i.selectedColor === item.selectedColor && !i.isCustomOrder && !item.isCustomOrder);
-      if (exists) return prev.map(i => i.id === exists.id ? { ...i, quantity: i.quantity + item.quantity } : i);
-      return [...prev, item];
-    });
-  };
-
+  // CRUD Handlers
+  const addToCart = (item: CartItem) => setCart(prev => [...prev, item]);
   const removeFromCart = (itemId: string) => setCart(prev => prev.filter(i => i.id !== itemId));
-  const updateQuantity = (itemId: string, qty: number) => setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: Math.max(1, qty) } : i));
+  const updateQuantity = (itemId: string, qty: number) => setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: qty } : i));
   const toggleWishlist = (id: string) => setWishlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   const updateOrder = async (order: Order) => setOrders(prev => prev.map(o => o.id === order.id ? order : o));
   const removeOrder = async (id: string) => setOrders(prev => prev.filter(o => o.id !== id));
   const addProduct = async (product: Product) => setProducts(prev => [product, ...prev]);
   const updateProduct = async (product: Product) => setProducts(prev => prev.map(p => p.id === product.id ? product : p));
   const removeProduct = async (id: string) => setProducts(prev => prev.filter(p => p.id !== id));
-  
   const addPartnerBrand = async (brand: PartnerBrand) => setPartnerBrands(prev => [...prev, brand]);
   const updatePartnerBrand = async (brand: PartnerBrand) => setPartnerBrands(prev => prev.map(b => b.id === brand.id ? brand : b));
   const removePartnerBrand = async (id: string) => setPartnerBrands(prev => prev.filter(b => b.id !== id));
-
   const registerNewUser = async (u: User) => setAllUsers(prev => [...prev, u]);
-  const updateAnyUser = async (u: User) => { 
-    setAllUsers(prev => prev.map(x => x.id === u.id ? u : x)); 
+  const updateAnyUser = async (u: User) => {
+    setAllUsers(prev => prev.map(x => x.id === u.id ? u : x));
     if (user?.id === u.id) setUser(u);
-    if (adminUser?.id === u.id) setAdminUser(u);
-    if (workerUser?.id === u.id) setWorkerUser(u);
   };
-  const removeUser = async (id: string) => {
-    setAllUsers(prev => prev.filter(u => u.id !== id));
-    if (user?.id === id) setUser(null);
-  };
+  const removeUser = async (id: string) => setAllUsers(prev => prev.filter(u => u.id !== id));
   const addFabric = async (f: Fabric) => setFabrics(prev => [...prev, f]);
   const removeFabric = async (id: string) => setFabrics(prev => prev.filter(f => f.id !== id));
   const addCategory = (cat: string) => setCategories(prev => [...prev, cat]);
@@ -265,13 +295,12 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const removeBanner = async (id: string) => setBanners(prev => prev.filter(b => b.id !== id));
   const addProductRequest = async (req: ProductRequest) => setProductRequests(prev => [req, ...prev]);
   const addMaterialRequest = async (req: MaterialRequest) => setMaterialRequests(prev => [req, ...prev]);
-  const updateMaterialRequestStatus = async (id: string, status: 'approved' | 'rejected') => {
-    setMaterialRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
-  };
+  const updateMaterialRequestStatus = async (id: string, status: 'approved' | 'rejected') => setMaterialRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
   const addReview = async (review: Review) => setReviews(prev => [review, ...prev]);
   const updateReviewStatus = async (reviewId: string, status: 'approved' | 'pending') => setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, status } : r));
   const removeReview = async (id: string) => setReviews(prev => prev.filter(r => r.id !== id));
   const updateSystemConfig = (config: SystemConfig) => setSystemConfig(config);
+  const addNotification = (notif: Notification) => setNotifications(prev => [notif, ...prev]);
   const markNotificationRead = (id: string) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
   const clearNotifications = () => setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
 
@@ -293,9 +322,16 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       reviews, addReview, updateReviewStatus, removeReview,
       systemConfig, updateSystemConfig,
       notifications, addNotification, markNotificationRead, clearNotifications,
-      isLoading: false, resetSystemData
+      emailLogs, isHydrated, resetSystemData, exportDb, importDb
     }}>
-      {children}
+      {isHydrated ? children : (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+           <div className="text-center">
+              <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+              <p className="text-slate-400 font-bold uppercase tracking-[0.6em] text-[10px] animate-pulse">Initializing Core DB</p>
+           </div>
+        </div>
+      )}
     </StoreContext.Provider>
   );
 };
