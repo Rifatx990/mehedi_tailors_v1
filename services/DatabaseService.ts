@@ -25,6 +25,7 @@ export class DatabaseService {
   private db: IDBDatabase | null = null;
 
   async init(): Promise<void> {
+    if (this.db) return;
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -52,35 +53,44 @@ export class DatabaseService {
       const transaction = this.db!.transaction([store], 'readwrite');
       const objectStore = transaction.objectStore(store);
       
-      // If array, save each
-      if (Array.isArray(data)) {
-        // Clear old first for full sync
-        objectStore.clear().onsuccess = () => {
+      const clearRequest = objectStore.clear();
+      
+      clearRequest.onsuccess = () => {
+        if (Array.isArray(data)) {
+          if (data.length === 0) {
+            transaction.commit();
+            return;
+          }
           data.forEach(item => objectStore.put(item));
-        };
-      } else {
-        objectStore.put(data);
-      }
+        } else if (data) {
+          objectStore.put(data);
+        }
+      };
 
       transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject();
+      transaction.onerror = (err) => {
+        console.error(`Save failed for store ${store}:`, err);
+        reject(err);
+      };
     });
   }
 
   async getAll(store: string): Promise<any[]> {
     if (!this.db) await this.init();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([store], 'readonly');
       const objectStore = transaction.objectStore(store);
       const request = objectStore.getAll();
       request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject([]);
     });
   }
 
   async clearAll(): Promise<void> {
     if (!this.db) await this.init();
-    const transaction = this.db!.transaction(Object.values(STORES), 'readwrite');
-    Object.values(STORES).forEach(store => transaction.objectStore(store).clear());
+    const storeNames = Object.values(STORES);
+    const transaction = this.db!.transaction(storeNames, 'readwrite');
+    storeNames.forEach(store => transaction.objectStore(store).clear());
     return new Promise((resolve) => transaction.oncomplete = () => resolve());
   }
 
@@ -94,6 +104,7 @@ export class DatabaseService {
 
   async importBackup(json: string): Promise<void> {
     const data = JSON.parse(json);
+    // Process sequentially to ensure no transaction collisions
     for (const store of Object.values(STORES)) {
       if (data[store]) {
         await this.save(store, data[store]);

@@ -2,17 +2,27 @@
 import React, { useState, useRef } from 'react';
 import { useStore } from '../../context/StoreContext.tsx';
 import AdminSidebar from '../../components/admin/AdminSidebar.tsx';
-import { PlusIcon, TrashIcon, PencilSquareIcon, PhotoIcon, XMarkIcon, ArchiveBoxIcon, CheckCircleIcon, EllipsisVerticalIcon } from '@heroicons/react/24/outline';
+import { 
+  PlusIcon, 
+  TrashIcon, 
+  PencilSquareIcon, 
+  PhotoIcon, 
+  XMarkIcon, 
+  ArchiveBoxIcon, 
+  LinkIcon,
+  CloudArrowUpIcon
+} from '@heroicons/react/24/outline';
 import { Product } from '../../types.ts';
 
 const AdminProductsPage: React.FC = () => {
   const { products, categories, updateProduct, addProduct, removeProduct } = useStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [imageSource, setImageSource] = useState<'upload' | 'url'>('upload');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<Partial<Product>>({
-    name: '', category: categories[0] || 'Uncategorized', price: 0, image: '', description: '', availableSizes: [], colors: [], inStock: true
+    name: '', category: categories[0] || 'Uncategorized', price: 0, image: '', description: '', availableSizes: [], colors: [], inStock: true, fabricType: 'Premium'
   });
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,6 +64,7 @@ const AdminProductsPage: React.FC = () => {
 
   const openAddModal = () => {
     setEditingProduct(null);
+    setImageSource('upload');
     setForm({ 
       name: '', category: categories[0] || 'General', price: 0, image: '', description: '', availableSizes: [], colors: [], fabricType: 'Premium', inStock: true
     });
@@ -62,6 +73,8 @@ const AdminProductsPage: React.FC = () => {
 
   const openEditModal = (p: Product) => {
     setEditingProduct(p);
+    // Detect if current image is a URL or Base64
+    setImageSource(p.image.startsWith('data:') ? 'upload' : 'url');
     setForm({
       ...p,
       availableSizes: Array.isArray(p.availableSizes) ? p.availableSizes.join(', ') : p.availableSizes as any,
@@ -166,9 +179,10 @@ const AdminProductsPage: React.FC = () => {
 
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-            <form onSubmit={handleSubmit} className="bg-white rounded-[3rem] p-8 md:p-12 w-full max-w-4xl shadow-2xl relative max-h-[90vh] overflow-y-auto no-scrollbar">
+            <form onSubmit={handleSubmit} className="bg-white rounded-[3rem] p-8 md:p-12 w-full max-w-5xl shadow-2xl relative max-h-[90vh] overflow-y-auto no-scrollbar">
               <button type="button" onClick={() => setIsModalOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 transition-transform hover:rotate-90"><XMarkIcon className="w-8 h-8" /></button>
               <h2 className="text-2xl md:text-3xl font-bold serif mb-8 text-slate-900">{editingProduct ? 'Modify' : 'Archive'} Product</h2>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
                 <div className="space-y-6">
                   <div>
@@ -206,18 +220,65 @@ const AdminProductsPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
+
                 <div className="space-y-6">
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block ml-1">Primary Display Asset</label>
-                    <div onClick={() => fileInputRef.current?.click()} className="w-full aspect-square md:aspect-auto md:h-64 bg-slate-50 border-2 border-dashed border-slate-200 p-8 rounded-[2rem] text-center cursor-pointer hover:border-amber-600 transition-all flex flex-col items-center justify-center">
-                       {form.image ? (
-                        <div className="relative group/img">
-                           <img src={form.image} className="w-32 h-44 object-cover rounded-xl shadow-2xl" alt="" />
-                           <div className="absolute inset-0 bg-black/10 rounded-xl opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center"><span className="text-[8px] bg-white px-2 py-1 rounded font-bold">REPLACE</span></div>
-                        </div>
-                       ) : <PhotoIcon className="w-12 h-12 text-slate-200" />}
-                       <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                    <div className="flex items-center justify-between mb-2">
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block ml-1">Photo Asset</label>
+                       <div className="flex bg-slate-100 p-1 rounded-lg">
+                          <button 
+                            type="button"
+                            onClick={() => setImageSource('upload')}
+                            className={`p-2 rounded-md transition-all ${imageSource === 'upload' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
+                          >
+                             <CloudArrowUpIcon className="w-4 h-4" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => setImageSource('url')}
+                            className={`p-2 rounded-md transition-all ${imageSource === 'url' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
+                          >
+                             <LinkIcon className="w-4 h-4" />
+                          </button>
+                       </div>
                     </div>
+
+                    {imageSource === 'upload' ? (
+                       <div onClick={() => fileInputRef.current?.click()} className="w-full aspect-square md:aspect-auto md:h-64 bg-slate-50 border-2 border-dashed border-slate-200 p-8 rounded-[2rem] text-center cursor-pointer hover:border-amber-600 transition-all flex flex-col items-center justify-center relative overflow-hidden group">
+                          {form.image ? (
+                             <>
+                                <img src={form.image} className="w-full h-full object-cover absolute inset-0 opacity-20" alt="" />
+                                <div className="relative z-10 flex flex-col items-center">
+                                   <img src={form.image} className="w-24 h-32 object-cover rounded-xl shadow-2xl mb-4" alt="" />
+                                   <span className="text-[8px] bg-slate-900 text-white px-3 py-1.5 rounded-full font-bold uppercase tracking-widest shadow-xl">Change Asset</span>
+                                </div>
+                             </>
+                          ) : (
+                             <>
+                                <PhotoIcon className="w-12 h-12 text-slate-200 mb-2" />
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select Image File</span>
+                             </>
+                          )}
+                          <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" />
+                       </div>
+                    ) : (
+                       <div className="space-y-4">
+                          <div className="relative">
+                             <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                             <input 
+                               value={form.image} 
+                               onChange={e => setForm({...form, image: e.target.value})}
+                               className="w-full bg-slate-50 border border-slate-100 pl-12 pr-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition font-mono text-xs" 
+                               placeholder="https://images.unsplash.com/photo..." 
+                             />
+                          </div>
+                          {form.image && (
+                             <div className="w-full h-44 rounded-2xl border border-slate-100 bg-slate-50 overflow-hidden">
+                                <img src={form.image} className="w-full h-full object-cover" alt="URL Preview" onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/600x800?text=Invalid+Image+URL')} />
+                             </div>
+                          )}
+                       </div>
+                    )}
                   </div>
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block ml-1">Variant Sizes (CSV)</label>
