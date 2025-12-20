@@ -113,6 +113,8 @@ const DEFAULT_PARTNERS: PartnerBrand[] = [
   { id: 'pb4', name: 'Scabal', logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/4/4b/Scabal_logo.png/250px-Scabal_logo.png', isActive: true }
 ];
 
+const DEFAULT_CATEGORIES = ['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring'];
+
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isHydrated, setIsHydrated] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -127,7 +129,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [fabrics, setFabrics] = useState<Fabric[]>([]);
-  const [categories, setCategories] = useState<string[]>(['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']);
+  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
   const [partnerBrands, setPartnerBrands] = useState<PartnerBrand[]>([]);
@@ -141,13 +143,13 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     siteName: 'Mehedi Tailors & Fabrics',
     siteLogo: 'https://via.placeholder.com/200x80?text=HEADER+LOGO',
     documentLogo: 'https://via.placeholder.com/300x120?text=DOCUMENT+LOGO',
-    dbVersion: '3.0.0-BESPOKE'
+    dbVersion: '4.5.0-BESPOKE'
   });
 
   useEffect(() => {
     const hydrate = async () => {
       await dbService.init();
-      const [p, o, u, f, b, pt, r, req, m, c, e, n] = await Promise.all([
+      const [p, o, u, f, b, pt, r, req, m, c, e, n, coup, cats] = await Promise.all([
         dbService.getAll('products'),
         dbService.getAll('orders'),
         dbService.getAll('users'),
@@ -159,7 +161,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         dbService.getAll('materials'),
         dbService.getAll('config'),
         dbService.getAll('emails'),
-        dbService.getAll('notifications')
+        dbService.getAll('notifications'),
+        dbService.getAll('coupons'),
+        dbService.getAll('categories')
       ]);
 
       if (p.length > 0) setProducts(p);
@@ -186,6 +190,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (m.length > 0) setMaterialRequests(m);
       if (e.length > 0) setEmailLogs(e);
       if (n.length > 0) setNotifications(n);
+      if (coup.length > 0) setCoupons(coup);
+      if (cats.length > 0) setCategories(cats.map(cat => cat.name));
       
       const config = c.find(x => x.id === 'global');
       if (config) setSystemConfig(config);
@@ -195,6 +201,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     hydrate();
   }, []);
 
+  // AUTO-PERSISTENCE ENGINE
   useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('products', products); }, [products, isHydrated, isImporting]);
   useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('orders', orders); }, [orders, isHydrated, isImporting]);
   useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('users', allUsers); }, [allUsers, isHydrated, isImporting]);
@@ -203,11 +210,18 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('notifications', notifications); }, [notifications, isHydrated, isImporting]);
   useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('banners', banners); }, [banners, isHydrated, isImporting]);
   useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('partners', partnerBrands); }, [partnerBrands, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('fabrics', fabrics); }, [fabrics, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('reviews', reviews); }, [reviews, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('requests', productRequests); }, [productRequests, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('materials', materialRequests); }, [materialRequests, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('coupons', coupons); }, [coupons, isHydrated, isImporting]);
+  useEffect(() => { 
+    if (!isHydrated || isImporting) return; 
+    dbService.save('categories', categories.map(cat => ({ id: cat, name: cat }))); 
+  }, [categories, isHydrated, isImporting]);
 
   const sendEmail = async (to: string, subject: string, body: string) => {
-    // Uses Document Logo explicitly as document header
     const brandedBody = `[DOCUMENT HEADER: ${systemConfig.documentLogo || systemConfig.siteLogo}]\n\n${body}\n\n---\n${systemConfig.siteName} • Bespoke Excellence\nAshulia, Savar, Dhaka`;
-    
     const log: EmailLog = {
       id: 'ML-' + Date.now(),
       to,
@@ -218,6 +232,32 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       templateId: 'industrial-gen'
     };
     setEmailLogs(prev => [log, ...prev]);
+  };
+
+  /**
+   * Helper to trigger automated customer notifications for order updates.
+   */
+  const notifyCustomerOfUpdate = async (orderId: string, type: 'status' | 'step', value: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order || !order.customerEmail) return;
+
+    const invoiceLink = `${window.location.origin}/#/invoice/${orderId}`;
+    const trackingLink = `${window.location.origin}/#/track-order?id=${orderId}`;
+    
+    let subject = '';
+    let intro = '';
+
+    if (type === 'status') {
+      subject = `Order Update: #${orderId} is now ${value}`;
+      intro = `Salaam ${order.customerName},\n\nYour bespoke commission #${orderId} has transitioned to the "${value}" status.`;
+    } else {
+      subject = `Atelier Progress: #${orderId} - ${value}`;
+      intro = `Salaam ${order.customerName},\n\nOur artisans have reached a new milestone. Your garment #${orderId} is now in the "${value}" phase of production.`;
+    }
+
+    const body = `${intro}\n\nYou can access your official artisan invoice and track real-time progress using the links below:\n\n📜 Digital Invoice:\n${invoiceLink}\n\n📍 Real-time Tracking:\n${trackingLink}\n\nThank you for choosing Mehedi Tailors for your bespoke journey.`;
+
+    await sendEmail(order.customerEmail, subject, body);
   };
 
   const exportDb = async () => {
@@ -249,23 +289,30 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const placeOrder = async (order: Order) => {
     setOrders(prev => [order, ...prev]);
     setCart([]);
+    
+    const invoiceLink = `${window.location.origin}/#/invoice/${order.id}`;
+    const trackingLink = `${window.location.origin}/#/track-order?id=${order.id}`;
+
     await sendEmail(
       order.customerEmail || '',
       `Order Confirmed: #${order.id} - Mehedi Tailors`,
-      `Salaam ${order.customerName},\n\nYour bespoke order #${order.id} has been established and is now in our assembly queue.`
+      `Salaam ${order.customerName},\n\nYour bespoke order #${order.id} has been established and is now in our assembly queue.\n\n📜 View Invoice: ${invoiceLink}\n📍 Track Progress: ${trackingLink}`
     );
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+    await notifyCustomerOfUpdate(orderId, 'status', status);
   };
 
   const updateProductionStep = async (orderId: string, productionStep: ProductionStep) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, productionStep } : o));
+    await notifyCustomerOfUpdate(orderId, 'step', productionStep);
   };
 
   const assignWorker = async (orderId: string, assignedWorkerId: string) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, assignedWorkerId, status: 'In Progress' } : o));
+    await notifyCustomerOfUpdate(orderId, 'status', 'In Progress (Assigned to Artisan)');
   };
 
   const addToCart = (item: CartItem) => setCart(prev => [...prev, item]);

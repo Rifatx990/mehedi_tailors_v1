@@ -11,7 +11,8 @@ import {
   BriefcaseIcon,
   CloudArrowUpIcon,
   CheckBadgeIcon,
-  GlobeAltIcon
+  GlobeAltIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 import { PartnerBrand } from '../../types.ts';
 
@@ -23,6 +24,19 @@ const AdminPartnersPage: React.FC = () => {
 
   const [form, setForm] = useState({ name: '', logo: '', isActive: true });
   const [useUrl, setUseUrl] = useState(false);
+
+  // Normalizes problematic URLs (specifically Imgur) to ensure they are direct image streams
+  const normalizeUrl = (url: string) => {
+    if (!url) return '';
+    let processed = url.trim();
+    if (processed.includes('imgur.com') && !processed.includes('i.imgur.com')) {
+      const match = processed.match(/imgur\.com\/(?:gallery\/|a\/|r\/[^\/]+\/)?([a-zA-Z0-9]+)/);
+      if (match && match[1]) {
+        return `https://i.imgur.com/${match[1]}.png`;
+      }
+    }
+    return processed;
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -36,7 +50,9 @@ const AdminPartnersPage: React.FC = () => {
     e.preventDefault();
     const brandData: PartnerBrand = {
       id: editingBrand ? editingBrand.id : 'PB-' + Date.now(),
-      ...form
+      name: form.name,
+      logo: useUrl ? normalizeUrl(form.logo) : form.logo,
+      isActive: form.isActive
     };
     if (editingBrand) await updatePartnerBrand(brandData);
     else await addPartnerBrand(brandData);
@@ -67,14 +83,14 @@ const AdminPartnersPage: React.FC = () => {
           <div>
             <div className="flex items-center space-x-3 text-emerald-600 mb-2">
               <span className="w-8 h-px bg-emerald-600"></span>
-              <span className="text-[10px] font-bold uppercase tracking-widest">Global Alliances</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">Artisan Alliances</span>
             </div>
             <h1 className="text-4xl font-bold serif text-slate-900 tracking-tight">Partner Directory</h1>
-            <p className="text-slate-400 mt-1 text-sm uppercase tracking-widest font-medium">{partnerBrands.length} Millers & Textile Clothiers</p>
+            <p className="text-slate-400 mt-1 text-sm uppercase tracking-widest font-medium">{partnerBrands.length} Prestigious Mills & Textile Clothiers</p>
           </div>
           <button 
             onClick={openAddModal}
-            className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-bold uppercase tracking-widest text-[10px] flex items-center space-x-2 shadow-2xl shadow-slate-900/10 hover:bg-emerald-600 transition-all active:scale-95"
+            className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-bold uppercase tracking-widest text-[10px] flex items-center space-x-2 shadow-2xl shadow-slate-900/10 hover:bg-emerald-600 transition-all active:scale-95"
           >
             <PlusIcon className="w-4 h-4" />
             <span>Onboard Artisan Brand</span>
@@ -85,17 +101,23 @@ const AdminPartnersPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             {partnerBrands.map(brand => (
               <div key={brand.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm group hover:shadow-2xl transition-all duration-500 flex flex-col items-center relative overflow-hidden">
-                 <div className={`absolute top-0 right-0 p-3 rounded-bl-3xl ${brand.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-300'}`}>
+                 <div className={`absolute top-0 right-0 p-4 rounded-bl-[2rem] ${brand.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-300'}`}>
                     {brand.isActive ? <CheckBadgeIcon className="w-5 h-5" /> : <XMarkIcon className="w-5 h-5" />}
                  </div>
                  
-                 <div className="w-32 h-32 bg-slate-50 rounded-[2.5rem] mb-6 flex items-center justify-center p-6 overflow-hidden border border-slate-100 group-hover:bg-white transition-colors">
-                    <img src={brand.logo} className="w-full h-full object-contain filter group-hover:grayscale-0 grayscale transition-all duration-700" alt={brand.name} />
+                 <div className="w-32 h-32 bg-slate-50 rounded-[2.5rem] mb-6 flex items-center justify-center p-6 overflow-hidden border border-slate-100 group-hover:bg-white transition-colors shadow-inner">
+                    <img 
+                      src={brand.logo} 
+                      className="w-full h-full object-contain filter group-hover:grayscale-0 grayscale transition-all duration-700" 
+                      alt={brand.name} 
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
+                    />
                  </div>
                  
                  <h3 className="text-lg font-bold text-slate-900 mb-1">{brand.name}</h3>
                  <span className={`text-[9px] font-black uppercase tracking-[0.2em] mb-8 ${brand.isActive ? 'text-emerald-500' : 'text-slate-300'}`}>
-                   {brand.isActive ? 'Live Showcase' : 'Inactive'}
+                   {brand.isActive ? 'Active Collaboration' : 'Archived'}
                  </span>
                  
                  <div className="flex space-x-3 w-full border-t border-slate-50 pt-6">
@@ -107,8 +129,8 @@ const AdminPartnersPage: React.FC = () => {
                       <span>Refine</span>
                     </button>
                     <button 
-                      onClick={() => { if(window.confirm('Detach this partner?')) removePartnerBrand(brand.id) }} 
-                      className="p-3 bg-slate-50 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                      onClick={() => { if(window.confirm('Detach this partner from the archive?')) removePartnerBrand(brand.id) }} 
+                      className="p-3 bg-red-50 text-red-300 hover:text-red-600 rounded-xl transition-all"
                     >
                       <TrashIcon className="w-4 h-4" />
                     </button>
@@ -126,34 +148,34 @@ const AdminPartnersPage: React.FC = () => {
 
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-            <form onSubmit={handleSubmit} className="bg-white rounded-[3.5rem] p-10 md:p-12 w-full max-w-xl shadow-2xl relative animate-in zoom-in duration-300">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-950 transition-transform hover:rotate-90 duration-300"><XMarkIcon className="w-8 h-8" /></button>
+            <form onSubmit={handleSubmit} className="bg-white rounded-[3.5rem] p-10 md:p-14 w-full max-w-2xl shadow-2xl relative animate-in zoom-in duration-300">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="absolute top-10 right-10 text-slate-400 hover:text-slate-950 transition-transform hover:rotate-90 duration-300"><XMarkIcon className="w-8 h-8" /></button>
               
-              <div className="flex items-center space-x-4 mb-10">
-                <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center">
-                    <CheckBadgeIcon className="w-6 h-6 text-teal-600" />
+              <div className="flex items-center space-x-4 mb-10 pb-6 border-b border-slate-50">
+                <div className="w-14 h-14 bg-teal-50 rounded-2xl flex items-center justify-center shadow-inner">
+                    <SparklesIcon className="w-8 h-8 text-teal-600" />
                 </div>
                 <div>
-                    <h2 className="text-3xl font-bold serif text-slate-900">{editingBrand ? 'Modify Alliance' : 'Onboard Partner'}</h2>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Global Textile Authority</p>
+                    <h2 className="text-3xl font-bold serif text-slate-900 tracking-tight">{editingBrand ? 'Refine Alliance' : 'Onboard Partner'}</h2>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Global Textile Authority Console</p>
                 </div>
               </div>
 
               <div className="space-y-8">
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-2 ml-1">Official Brand Designation</label>
-                  <input required value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-600/5 transition font-bold" placeholder="e.g. Scabal Brussels" />
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-2 ml-2">Official Brand Designation</label>
+                  <input required value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full bg-slate-50 border border-slate-100 px-6 py-5 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-600/5 transition font-bold text-lg" placeholder="e.g. Scabal Brussels" />
                 </div>
 
                 <div>
-                  <div className="flex justify-between items-center mb-4 px-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Corporate Asset (Logo)</label>
+                  <div className="flex justify-between items-center mb-4 px-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Corporate Identity (Logo)</label>
                     <button 
                       type="button" 
                       onClick={() => setUseUrl(!useUrl)}
-                      className="text-[9px] font-black uppercase text-teal-600 hover:underline"
+                      className="text-[9px] font-black uppercase text-teal-600 hover:text-teal-700 transition-colors"
                     >
-                      {useUrl ? 'Switch to Upload' : 'Use External URL'}
+                      {useUrl ? 'Switch to Local Upload' : 'Use Remote URL'}
                     </button>
                   </div>
 
@@ -164,21 +186,21 @@ const AdminPartnersPage: React.FC = () => {
                         required 
                         value={form.logo} 
                         onChange={e => setForm({...form, logo: e.target.value})} 
-                        className="w-full bg-slate-50 border border-slate-100 pl-12 pr-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-teal-600/5 transition font-mono text-[10px]" 
-                        placeholder="https://brand.com/logo.svg" 
+                        className="w-full bg-slate-50 border border-slate-100 pl-12 pr-6 py-5 rounded-2xl outline-none focus:ring-4 focus:ring-teal-600/5 transition font-mono text-[10px]" 
+                        placeholder="https://i.imgur.com/..." 
                        />
                     </div>
                   ) : (
                     <div 
                       onClick={() => fileInputRef.current?.click()} 
-                      className={`w-full aspect-video border-2 border-dashed rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer transition-all duration-500 p-8 ${form.logo ? 'border-teal-500 bg-teal-50/10' : 'border-slate-200 bg-slate-50 hover:border-teal-600'}`}
+                      className={`w-full aspect-[21/9] border-2 border-dashed rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer transition-all duration-500 p-10 ${form.logo ? 'border-teal-500 bg-teal-50/5' : 'border-slate-200 bg-slate-50 hover:border-teal-600'}`}
                     >
                       {form.logo ? (
-                        <img src={form.logo} className="h-full object-contain mx-auto" alt="Preview" />
+                        <img src={form.logo} className="h-full object-contain mx-auto drop-shadow-xl" alt="Preview" />
                       ) : (
                         <>
-                          <CloudArrowUpIcon className="w-12 h-12 text-slate-200 mb-3" />
-                          <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Select High-Res Logo</p>
+                          <CloudArrowUpIcon className="w-12 h-12 text-slate-200 mb-4" />
+                          <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Select High-Resolution SVG/PNG</p>
                         </>
                       )}
                       <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" />
@@ -186,10 +208,10 @@ const AdminPartnersPage: React.FC = () => {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between p-6 bg-slate-900 rounded-[2rem] shadow-2xl">
+                <div className="flex items-center justify-between p-8 bg-slate-950 rounded-[2.5rem] shadow-2xl border border-white/5">
                    <div className="pl-2">
-                      <h4 className="text-xs font-bold uppercase tracking-widest text-white">Visibility</h4>
-                      <p className="text-[9px] text-slate-500 uppercase font-black mt-1">Show on Artisan Collaborations grid</p>
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-white">Public Showcase</h4>
+                      <p className="text-[9px] text-slate-500 uppercase font-black mt-1">Render on artisan collaboration slider</p>
                    </div>
                    <button 
                       type="button"
@@ -200,8 +222,8 @@ const AdminPartnersPage: React.FC = () => {
                     </button>
                 </div>
 
-                <button type="submit" className="w-full bg-slate-950 text-white py-6 rounded-[2rem] font-bold uppercase tracking-[0.2em] text-xs shadow-2xl hover:bg-teal-700 active:scale-[0.98] transition-all">
-                  Commit Partner Credentials
+                <button type="submit" className="w-full bg-slate-900 text-white py-7 rounded-[2rem] font-bold uppercase tracking-[0.2em] text-xs shadow-3xl hover:bg-teal-700 active:scale-[0.98] transition-all">
+                  Synchronize Alliance Credentials
                 </button>
               </div>
             </form>

@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'MehediAtelierDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented version for new stores
 const STORES = {
   PRODUCTS: 'products',
   ORDERS: 'orders',
@@ -18,7 +18,9 @@ const STORES = {
   MATERIALS: 'materials',
   CONFIG: 'config',
   EMAILS: 'emails',
-  NOTIFICATIONS: 'notifications'
+  NOTIFICATIONS: 'notifications',
+  COUPONS: 'coupons',
+  CATEGORIES: 'categories'
 };
 
 export class DatabaseService {
@@ -33,6 +35,7 @@ export class DatabaseService {
         const db = (event.target as IDBOpenDBRequest).result;
         Object.values(STORES).forEach(store => {
           if (!db.objectStoreNames.contains(store)) {
+            // Categories is a special case: we'll store them as objects {id: string, name: string}
             db.createObjectStore(store, { keyPath: 'id' });
           }
         });
