@@ -11,7 +11,7 @@ export type OrderStatus = 'Pending' | 'In Progress' | 'Shipped' | 'Delivered' | 
 export type PaymentStatus = 'Fully Paid' | 'Partially Paid' | 'Due' | 'Refunded';
 export type ProductionStep = 'Queue' | 'Cutting' | 'Stitching' | 'Finishing' | 'Ready';
 
-export interface EmailConfig {
+export interface SystemConfig {
   smtpHost: string;
   smtpPort: number;
   smtpUser: string;
@@ -20,6 +20,8 @@ export interface EmailConfig {
   senderName: string;
   senderEmail: string;
   isEnabled: boolean;
+  siteLogo?: string; // Base64 Branding Logo
+  siteName: string;
 }
 
 export interface Fabric {
@@ -36,6 +38,13 @@ export interface Banner {
   subtitle: string;
   imageUrl: string;
   linkUrl: string;
+  isActive: boolean;
+}
+
+export interface PartnerBrand {
+  id: string;
+  name: string;
+  logo: string;
   isActive: boolean;
 }
 

@@ -19,7 +19,10 @@ import {
   UserGroupIcon,
   QrCodeIcon,
   Cog6ToothIcon,
-  BeakerIcon
+  BeakerIcon,
+  DocumentChartBarIcon,
+  BriefcaseIcon,
+  IdentificationIcon
 } from '@heroicons/react/24/outline';
 
 const AdminSidebar: React.FC = () => {
@@ -36,13 +39,18 @@ const AdminSidebar: React.FC = () => {
 
   const navItems = [
     { to: '/admin/dashboard', label: 'Overview', icon: ChartBarIcon },
+    { to: '/admin/reports', label: 'Sales Reports', icon: DocumentChartBarIcon },
     { to: '/admin/orders', label: 'Order Pipeline', icon: ShoppingBagIcon },
-    { to: '/admin/products', label: 'Inventory', icon: TagIcon },
+    { type: 'separator', label: 'Inventory' },
+    { to: '/admin/products', label: 'Inventory (CRUD)', icon: TagIcon },
+    { to: '/admin/catalog', label: 'Product Catalog', icon: IdentificationIcon },
     { to: '/admin/labels', label: 'Label Studio', icon: QrCodeIcon },
     { to: '/admin/fabrics', label: 'Fabric Vault', icon: SwatchIcon },
     { to: '/admin/categories', label: 'Categories', icon: Squares2X2Icon },
+    { type: 'separator', label: 'Marketing' },
+    { to: '/admin/partners', label: 'Partner Brands', icon: BriefcaseIcon },
+    { to: '/admin/banners', label: 'Hero Pictures', icon: PhotoIcon },
     { to: '/admin/coupons', label: 'Coupons', icon: TicketIcon },
-    { to: '/admin/banners', label: 'Marketing Banners', icon: PhotoIcon },
     { type: 'separator', label: 'Management' },
     { to: '/admin/requisitions', label: 'Material Requests', icon: BeakerIcon, badge: pendingRequisitions },
     { to: '/admin/management/admins', label: 'Admin Staff', icon: ShieldCheckIcon },

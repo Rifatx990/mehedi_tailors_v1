@@ -23,6 +23,7 @@ import TrackOrderPage from './pages/TrackOrderPage.tsx';
 import GiftCardPage from './pages/GiftCardPage.tsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.tsx';
 import TermsPage from './pages/TermsPage.tsx';
+import InvoicePage from './pages/InvoicePage.tsx';
 
 // Admin Pages
 import AdminLoginPage from './pages/admin/AdminLoginPage.tsx';
@@ -33,6 +34,9 @@ import AdminFabricsPage from './pages/admin/AdminFabricsPage.tsx';
 import AdminCategoriesPage from './pages/admin/AdminCategoriesPage.tsx';
 import AdminCouponsPage from './pages/admin/AdminCouponsPage.tsx';
 import AdminBannersPage from './pages/admin/AdminBannersPage.tsx';
+import AdminPartnersPage from './pages/admin/AdminPartnersPage.tsx';
+import AdminReportsPage from './pages/admin/AdminReportsPage.tsx';
+import AdminCatalogPage from './pages/admin/AdminCatalogPage.tsx';
 import AdminCustomersPage from './pages/admin/AdminCustomersPage.tsx';
 import AdminReviewsPage from './pages/admin/AdminReviewsPage.tsx';
 import AdminAppealsPage from './pages/admin/AdminAppealsPage.tsx';
@@ -64,7 +68,8 @@ const App: React.FC = () => {
     <StoreProvider>
       <Router>
         <Routes>
-          {/* Admin Login */}
+          {/* Public & Global Invoice */}
+          <Route path="/invoice/:orderId" element={<InvoicePage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
 
           {/* Protected Admin Routes */}
@@ -72,13 +77,16 @@ const App: React.FC = () => {
             <ProtectedRoute role="admin">
               <Routes>
                 <Route path="dashboard" element={<AdminDashboardPage />} />
+                <Route path="reports" element={<AdminReportsPage />} />
                 <Route path="products" element={<AdminProductsPage />} />
+                <Route path="catalog" element={<AdminCatalogPage />} />
                 <Route path="labels" element={<AdminLabelStudioPage />} />
                 <Route path="orders" element={<AdminOrdersPage />} />
                 <Route path="fabrics" element={<AdminFabricsPage />} />
                 <Route path="categories" element={<AdminCategoriesPage />} />
                 <Route path="coupons" element={<AdminCouponsPage />} />
                 <Route path="banners" element={<AdminBannersPage />} />
+                <Route path="partners" element={<AdminPartnersPage />} />
                 <Route path="customers" element={<AdminCustomersPage />} />
                 <Route path="reviews" element={<AdminReviewsPage />} />
                 <Route path="appeals" element={<AdminAppealsPage />} />

@@ -1,14 +1,14 @@
 
 import React from 'react';
 import { useStore } from '../../context/StoreContext.tsx';
+import { Link } from 'react-router-dom';
 import WorkerSidebar from '../../components/worker/WorkerSidebar.tsx';
-import { ScissorsIcon, ArchiveBoxIcon, CheckIcon, RocketLaunchIcon } from '@heroicons/react/24/outline';
+import { ScissorsIcon, ArchiveBoxIcon, CheckIcon, RocketLaunchIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { ProductionStep } from '../../types.ts';
 
 const WorkerTasksPage: React.FC = () => {
-  const { orders, updateProductionStep, updateOrderStatus, workerUser } = useStore();
+  const { orders, updateProductionStep, workerUser } = useStore();
   
-  // Filter for orders specifically assigned to this worker
   const assignedOrders = orders.filter(o => 
     o.assignedWorkerId === workerUser?.id && 
     (o.status === 'In Progress' || o.status === 'Pending')
@@ -42,7 +42,10 @@ const WorkerTasksPage: React.FC = () => {
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-widest text-teal-600 mb-1 block">Order #{order.id}</span>
                     <h3 className="text-xl font-bold serif">{order.customerName}</h3>
-                    <p className="text-xs text-slate-400 mt-1">{order.items.length} artisan items assigned</p>
+                    <Link to={`/invoice/${order.id}`} className="text-[9px] font-bold uppercase text-amber-600 hover:underline mt-2 inline-flex items-center space-x-1">
+                       <DocumentTextIcon className="w-3 h-3" />
+                       <span>View Precise Specs</span>
+                    </Link>
                   </div>
                 </div>
 
@@ -75,17 +78,8 @@ const WorkerTasksPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center space-x-4">
-                   <div className="text-right">
-                      <p className="text-[9px] font-bold uppercase text-slate-400">Current Phase</p>
-                      <p className="text-sm font-bold text-slate-900">{order.productionStep || 'Queue'}</p>
-                   </div>
-                   
                    {order.productionStep === 'Finishing' ? (
-                      <button 
-                        onClick={() => handleHandover(order.id)}
-                        className="p-4 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition shadow-xl animate-bounce"
-                        title="Submit for Handover"
-                      >
+                      <button onClick={() => handleHandover(order.id)} className="p-4 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition shadow-xl animate-bounce">
                          <RocketLaunchIcon className="w-5 h-5" />
                       </button>
                    ) : (
@@ -101,7 +95,6 @@ const WorkerTasksPage: React.FC = () => {
           <div className="py-24 text-center bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
              <ArchiveBoxIcon className="w-16 h-16 text-slate-200 mx-auto mb-6" />
              <h3 className="text-xl font-bold serif text-slate-400">Queue Clear</h3>
-             <p className="text-slate-400 max-w-xs mx-auto mt-2">Enjoy your break, artisan. No jobs are currently assigned to your station.</p>
           </div>
         )}
       </main>

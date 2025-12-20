@@ -6,10 +6,11 @@ import { ArrowRightIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, ChatBubble
 import { Review } from '../types';
 
 const HomePage: React.FC = () => {
-  const { products, banners, reviews, addReview, user } = useStore();
+  const { products, banners, reviews, addReview, user, partnerBrands } = useStore();
   const featured = products.filter(p => p.isFeatured);
   const activeBanners = banners.filter(b => b.isActive);
   const approvedReviews = reviews.filter(r => r.status === 'approved');
+  const activePartners = partnerBrands.filter(b => b.isActive);
   
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
@@ -149,8 +150,27 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
+      {/* Partner Brands */}
+      {activePartners.length > 0 && (
+        <section className="py-24 bg-slate-50 border-y border-slate-100">
+           <div className="container mx-auto px-4 text-center mb-16">
+              <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-slate-400 mb-2">Artisan Collaborations</p>
+              <h2 className="text-3xl font-bold serif">Millers & Clothiers</h2>
+           </div>
+           <div className="container mx-auto px-4">
+              <div className="flex flex-wrap justify-center items-center gap-16 md:gap-24 opacity-50 hover:opacity-100 transition-opacity">
+                 {activePartners.map(brand => (
+                    <div key={brand.id} className="h-12 md:h-16 w-32 md:w-44 flex items-center justify-center grayscale hover:grayscale-0 transition-all hover:scale-110" title={brand.name}>
+                       <img src={brand.logo} alt={brand.name} className="max-w-full max-h-full object-contain" />
+                    </div>
+                 ))}
+              </div>
+           </div>
+        </section>
+      )}
+
       {/* Testimonials */}
-      <section className="py-32 bg-slate-50 relative overflow-hidden">
+      <section className="py-32 bg-white relative overflow-hidden">
         <div className="container mx-auto px-4 text-center mb-20">
           <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-amber-600 mb-4 block">Testimonials</span>
           <h2 className="text-5xl font-bold serif tracking-tight">Our Patron's Voice</h2>
@@ -164,7 +184,7 @@ const HomePage: React.FC = () => {
 
         {isReviewFormOpen && (
           <div className="container mx-auto px-4 max-w-2xl mb-24 animate-in fade-in slide-in-from-top-4 duration-500">
-            <div className="bg-white p-12 rounded-[2.5rem] shadow-2xl border border-slate-100">
+            <div className="bg-slate-50 p-12 rounded-[2.5rem] shadow-2xl border border-slate-100">
               {reviewSubmitted ? (
                 <div className="text-center py-10">
                   <CheckCircleIcon className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
@@ -191,7 +211,7 @@ const HomePage: React.FC = () => {
                       required
                       value={reviewForm.name}
                       onChange={e => setReviewForm({...reviewForm, name: e.target.value})}
-                      className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition"
+                      className="w-full bg-white border border-slate-100 px-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition"
                       placeholder="e.g. Arif Ahmed"
                     />
                   </div>
@@ -202,7 +222,7 @@ const HomePage: React.FC = () => {
                       rows={4}
                       value={reviewForm.comment}
                       onChange={e => setReviewForm({...reviewForm, comment: e.target.value})}
-                      className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition resize-none"
+                      className="w-full bg-white border border-slate-100 px-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-amber-600/5 transition resize-none"
                       placeholder="Describe your bespoke journey..."
                     />
                   </div>
@@ -218,7 +238,7 @@ const HomePage: React.FC = () => {
         <div className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-10 relative z-10">
           {approvedReviews.length > 0 ? (
             approvedReviews.map(review => (
-              <div key={review.id} className="bg-white p-12 rounded-[2.5rem] shadow-sm border border-slate-100 hover:shadow-xl transition-all duration-500 group">
+              <div key={review.id} className="bg-slate-50 p-12 rounded-[2.5rem] shadow-sm border border-slate-100 hover:shadow-xl transition-all duration-500 group">
                 <div className="flex space-x-1 mb-6">
                   {[...Array(review.rating)].map((_, i) => (
                     <StarIcon key={i} className="w-4 h-4 text-amber-500" />
@@ -237,7 +257,7 @@ const HomePage: React.FC = () => {
               </div>
             ))
           ) : (
-            <div className="col-span-3 text-center py-20 bg-white/50 rounded-[3rem] border border-dashed border-slate-200">
+            <div className="col-span-3 text-center py-20 bg-slate-50/50 rounded-[3rem] border border-dashed border-slate-200">
                <ChatBubbleBottomCenterTextIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No patron reviews published yet.</p>
             </div>

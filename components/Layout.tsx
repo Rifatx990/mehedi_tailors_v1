@@ -17,7 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { cart, user, wishlist, adminUser, workerUser, notifications, markNotificationRead } = useStore();
+  const { cart, user, wishlist, adminUser, workerUser, notifications, markNotificationRead, systemConfig } = useStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
@@ -63,9 +63,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 shadow-sm">
         <div className="container mx-auto px-4 h-20 flex items-center justify-between">
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
-            <span className="text-2xl font-bold tracking-tighter serif text-slate-900">MEHEDI</span>
+          {/* Logo - Dynamic Branding */}
+          <Link to="/" className="flex items-center space-x-3">
+            {systemConfig.siteLogo ? (
+              <img src={systemConfig.siteLogo} alt="Logo" className="h-10 w-auto object-contain" />
+            ) : (
+              <span className="text-2xl font-bold tracking-tighter serif text-slate-900">MEHEDI</span>
+            )}
             <span className="text-xs uppercase tracking-widest text-slate-500 hidden sm:block">Tailors & Fabrics</span>
           </Link>
 
@@ -193,7 +197,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <footer className="bg-slate-900 text-slate-300 py-16">
         <div className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-12 text-center md:text-left">
           <div className="col-span-1 md:col-span-1">
-            <h3 className="text-white text-xl font-bold mb-6 serif tracking-tighter">MEHEDI TAILORS</h3>
+             <div className="mb-6 flex justify-center md:justify-start items-center space-x-3">
+                {systemConfig.siteLogo ? (
+                  <img src={systemConfig.siteLogo} alt="Logo" className="h-10 w-auto brightness-0 invert" />
+                ) : (
+                  <h3 className="text-white text-xl font-bold serif tracking-tighter uppercase">MEHEDI TAILORS</h3>
+                )}
+             </div>
             <p className="text-sm leading-relaxed mb-6 opacity-70">
               Dhonaid, Ashulia, Savar, Dhaka, Bangladesh<br />
               +8801720267213<br />
@@ -245,8 +255,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             )}
           </div>
         </div>
-        <div className="container mx-auto px-4 mt-16 pt-8 border-t border-white/5 text-center text-[10px] tracking-[0.3em] opacity-30">
-          &copy; {new Date().getFullYear()} MEHEDI TAILORS AND FABRICS. BESPOKE EXCELLENCE.
+        <div className="container mx-auto px-4 mt-16 pt-8 border-t border-white/5 text-center text-[10px] tracking-[0.3em] opacity-30 uppercase">
+          &copy; {new Date().getFullYear()} {systemConfig.siteName}. BESPOKE EXCELLENCE.
         </div>
       </footer>
     </div>

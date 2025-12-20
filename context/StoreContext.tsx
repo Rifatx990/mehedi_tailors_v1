@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { CartItem, Product, User, Order, OrderStatus, Fabric, Coupon, ProductRequest, Banner, Review, ProductionStep, MaterialRequest, EmailConfig, Notification } from '../types.ts';
+import { CartItem, Product, User, Order, OrderStatus, Fabric, Coupon, ProductRequest, Banner, Review, ProductionStep, MaterialRequest, SystemConfig, Notification, PartnerBrand } from '../types.ts';
 import { PRODUCTS as INITIAL_PRODUCTS } from '../constants.tsx';
 
 interface StoreContextType {
@@ -42,6 +42,10 @@ interface StoreContextType {
   addBanner: (banner: Banner) => Promise<void>;
   updateBanner: (banner: Banner) => Promise<void>;
   removeBanner: (id: string) => Promise<void>;
+  partnerBrands: PartnerBrand[];
+  addPartnerBrand: (brand: PartnerBrand) => Promise<void>;
+  updatePartnerBrand: (brand: PartnerBrand) => Promise<void>;
+  removePartnerBrand: (id: string) => Promise<void>;
   registerNewUser: (user: User) => Promise<void>;
   updateAnyUser: (user: User) => Promise<void>;
   removeUser: (id: string) => Promise<void>;
@@ -54,8 +58,8 @@ interface StoreContextType {
   addReview: (review: Review) => Promise<void>;
   updateReviewStatus: (reviewId: string, status: 'approved' | 'pending') => Promise<void>;
   removeReview: (id: string) => Promise<void>;
-  emailConfig: EmailConfig;
-  updateEmailConfig: (config: EmailConfig) => void;
+  systemConfig: SystemConfig;
+  updateSystemConfig: (config: SystemConfig) => void;
   notifications: Notification[];
   addNotification: (notification: Notification) => void;
   markNotificationRead: (id: string) => void;
@@ -78,35 +82,21 @@ const KEYS = {
   FABRICS: 'mt_db_fabrics',
   COUPONS: 'mt_db_coupons',
   BANNERS: 'mt_db_banners',
+  PARTNERS: 'mt_db_partners',
   REQUESTS: 'mt_db_requests',
   REVIEWS: 'mt_db_reviews',
   CATEGORIES: 'mt_db_categories',
   MATERIALS: 'mt_db_materials',
-  EMAIL_CONFIG: 'mt_email_config',
+  SYSTEM_CONFIG: 'mt_system_config',
   NOTIFICATIONS: 'mt_notifications'
 };
 
 const DEFAULT_ADMIN: User = {
-  id: 'admin-001',
-  name: 'Mehedi Admin',
-  email: 'admin@meheditailors.com',
-  phone: '+8801720267213',
-  address: 'Dhonaid, Ashulia',
-  measurements: [],
-  role: 'admin',
-  password: 'admin123'
+  id: 'admin-001', name: 'Mehedi Admin', email: 'admin@meheditailors.com', phone: '+8801720267213', address: 'Dhonaid, Ashulia', measurements: [], role: 'admin', password: 'admin123'
 };
 
 const DEFAULT_WORKER: User = {
-  id: 'worker-001',
-  name: 'Kabir Artisan',
-  email: 'worker@meheditailors.com',
-  phone: '+8801711122233',
-  address: 'Staff Quarters, Savar',
-  measurements: [],
-  role: 'worker',
-  specialization: 'Master Stitcher',
-  password: 'worker123'
+  id: 'worker-001', name: 'Kabir Artisan', email: 'worker@meheditailors.com', phone: '+8801711122233', address: 'Staff Quarters, Savar', measurements: [], role: 'worker', specialization: 'Master Stitcher', password: 'worker123'
 };
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -116,9 +106,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const parsed = item ? JSON.parse(item) : null;
       if (Array.isArray(fallback) && (!parsed || !Array.isArray(parsed))) return fallback;
       return parsed || fallback;
-    } catch {
-      return fallback;
-    }
+    } catch { return fallback; }
   };
 
   const [cart, setCart] = useState<CartItem[]>(() => getStored(KEYS.CART, []));
@@ -132,8 +120,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   });
   const [wishlist, setWishlist] = useState<string[]>(() => getStored(KEYS.WISHLIST, []));
   const [notifications, setNotifications] = useState<Notification[]>(() => getStored(KEYS.NOTIFICATIONS, []));
-  const [emailConfig, setEmailConfig] = useState<EmailConfig>(() => getStored(KEYS.EMAIL_CONFIG, {
-    smtpHost: 'smtp.gmail.com', smtpPort: 465, smtpUser: '', smtpPass: '', secure: true, senderName: 'Mehedi Tailors', senderEmail: 'orders@meheditailors.com', isEnabled: false
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>(() => getStored(KEYS.SYSTEM_CONFIG, {
+    smtpHost: 'smtp.gmail.com', smtpPort: 465, smtpUser: '', smtpPass: '', secure: true, senderName: 'Mehedi Tailors', senderEmail: 'orders@meheditailors.com', isEnabled: true, siteName: 'Mehedi Tailors & Fabrics'
   }));
 
   const [orders, setOrders] = useState<Order[]>(() => getStored(KEYS.ORDERS, []));
@@ -142,6 +130,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [categories, setCategories] = useState<string[]>(() => getStored(KEYS.CATEGORIES, ['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']));
   const [coupons, setCoupons] = useState<Coupon[]>(() => getStored(KEYS.COUPONS, []));
   const [banners, setBanners] = useState<Banner[]>(() => getStored(KEYS.BANNERS, []));
+  const [partnerBrands, setPartnerBrands] = useState<PartnerBrand[]>(() => getStored(KEYS.PARTNERS, []));
   const [productRequests, setProductRequests] = useState<ProductRequest[]>(() => getStored(KEYS.REQUESTS, []));
   const [materialRequests, setMaterialRequests] = useState<MaterialRequest[]>(() => getStored(KEYS.MATERIALS, []));
   const [reviews, setReviews] = useState<Review[]>(() => getStored(KEYS.REVIEWS, []));
@@ -156,29 +145,80 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     sync(KEYS.FABRICS, fabrics);
     sync(KEYS.COUPONS, coupons);
     sync(KEYS.BANNERS, banners);
+    sync(KEYS.PARTNERS, partnerBrands);
     sync(KEYS.REQUESTS, productRequests);
     sync(KEYS.MATERIALS, materialRequests);
     sync(KEYS.REVIEWS, reviews);
     sync(KEYS.CATEGORIES, categories);
-    sync(KEYS.EMAIL_CONFIG, emailConfig);
+    sync(KEYS.SYSTEM_CONFIG, systemConfig);
     sync(KEYS.NOTIFICATIONS, notifications);
     if (user) sync(KEYS.USER, user); else localStorage.removeItem(KEYS.USER);
     if (adminUser) sync(KEYS.ADMIN, adminUser); else localStorage.removeItem(KEYS.ADMIN);
     if (workerUser) sync(KEYS.WORKER, workerUser); else localStorage.removeItem(KEYS.WORKER);
-  }, [cart, wishlist, products, orders, allUsers, fabrics, coupons, banners, productRequests, materialRequests, reviews, categories, emailConfig, notifications, user, adminUser, workerUser]);
+  }, [cart, wishlist, products, orders, allUsers, fabrics, coupons, banners, partnerBrands, productRequests, materialRequests, reviews, categories, systemConfig, notifications, user, adminUser, workerUser]);
+
+  const addNotification = (n: Notification) => setNotifications(prev => [n, ...prev]);
+
+  const sendAtelierEmail = (to: string, subject: string, body: string) => {
+    console.log(`%c[Atelier SMTP Bridge] Dispatching to ${to}\nSubject: ${subject}\nBody: ${body}`, "color: #d97706; font-weight: bold; background: #fffbeb; padding: 10px; border: 1px solid #fde68a; border-radius: 5px;");
+  };
+
+  const notifyUser = (orderId: string, email: string, title: string, message: string) => {
+    const targetUser = allUsers.find(u => u.email === email);
+    if (targetUser) {
+      addNotification({
+        id: 'notif-' + Date.now() + Math.random(),
+        userId: targetUser.id,
+        title,
+        message,
+        date: new Date().toISOString(),
+        isRead: false,
+        type: 'order_update',
+        link: `/invoice/${orderId}`
+      });
+      if (systemConfig.isEnabled) {
+        sendAtelierEmail(email, `Mehedi Tailors: ${title}`, `Order #${orderId}: ${message}. Visit your dashboard to view the full invoice.`);
+      }
+    }
+  };
+
+  const placeOrder = async (order: Order) => {
+    setOrders(prev => [order, ...prev]);
+    setCart([]);
+    notifyUser(order.id, order.customerEmail!, 'Order Successfully Received', `Your bespoke journey has begun. Our artisans are reviewing your requirements.`);
+  };
+
+  const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
+    setOrders(prev => {
+      const order = prev.find(o => o.id === orderId);
+      if (order) notifyUser(orderId, order.customerEmail!, 'Order Status Update', `Your order is now marked as ${status}.`);
+      return prev.map(o => o.id === orderId ? { ...o, status } : o);
+    });
+  };
+
+  const updateProductionStep = async (orderId: string, productionStep: ProductionStep) => {
+    setOrders(prev => {
+      const order = prev.find(o => o.id === orderId);
+      if (order) notifyUser(orderId, order.customerEmail!, 'Production Milestone', `Great news! Your garment has moved to the ${productionStep} phase.`);
+      return prev.map(o => o.id === orderId ? { ...o, productionStep } : o);
+    });
+  };
+
+  const assignWorker = async (orderId: string, assignedWorkerId: string) => {
+    setOrders(prev => {
+      const worker = allUsers.find(u => u.id === assignedWorkerId);
+      const order = prev.find(o => o.id === orderId);
+      if (order && worker) notifyUser(orderId, order.customerEmail!, 'Master Artisan Assigned', `Your order is now being crafted by ${worker.name}.`);
+      return prev.map(o => o.id === orderId ? { ...o, assignedWorkerId, status: 'In Progress' } : o);
+    });
+  };
 
   const resetSystemData = () => {
     setProducts(INITIAL_PRODUCTS);
     setCategories(['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']);
-    setFabrics([]);
-    setReviews([]);
-    setOrders([]);
-    setMaterialRequests([]);
-    setNotifications([]);
+    setFabrics([]); setReviews([]); setOrders([]); setMaterialRequests([]); setNotifications([]);
     setAllUsers([DEFAULT_ADMIN, DEFAULT_WORKER]);
-    setAdminUser(null);
-    setWorkerUser(null);
-    setUser(null);
+    setAdminUser(null); setWorkerUser(null); setUser(null); setPartnerBrands([]);
   };
 
   const addToCart = (item: CartItem) => {
@@ -192,45 +232,27 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const removeFromCart = (itemId: string) => setCart(prev => prev.filter(i => i.id !== itemId));
   const updateQuantity = (itemId: string, qty: number) => setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: Math.max(1, qty) } : i));
   const toggleWishlist = (id: string) => setWishlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-
-  const placeOrder = async (order: Order) => setOrders(prev => [order, ...prev]);
   const updateOrder = async (order: Order) => setOrders(prev => prev.map(o => o.id === order.id ? order : o));
-  
-  const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
-  };
-
-  const updateProductionStep = async (orderId: string, productionStep: ProductionStep) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, productionStep } : o));
-  };
-
-  const assignWorker = async (orderId: string, assignedWorkerId: string) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, assignedWorkerId, status: 'In Progress' } : o));
-  };
-
   const removeOrder = async (id: string) => setOrders(prev => prev.filter(o => o.id !== id));
   const addProduct = async (product: Product) => setProducts(prev => [product, ...prev]);
-  
-  const updateProduct = async (product: Product) => {
-    setProducts(prev => prev.map(p => p.id === product.id ? product : p));
-  };
-
+  const updateProduct = async (product: Product) => setProducts(prev => prev.map(p => p.id === product.id ? product : p));
   const removeProduct = async (id: string) => setProducts(prev => prev.filter(p => p.id !== id));
+  
+  const addPartnerBrand = async (brand: PartnerBrand) => setPartnerBrands(prev => [...prev, brand]);
+  const updatePartnerBrand = async (brand: PartnerBrand) => setPartnerBrands(prev => prev.map(b => b.id === brand.id ? brand : b));
+  const removePartnerBrand = async (id: string) => setPartnerBrands(prev => prev.filter(b => b.id !== id));
 
   const registerNewUser = async (u: User) => setAllUsers(prev => [...prev, u]);
-  
   const updateAnyUser = async (u: User) => { 
     setAllUsers(prev => prev.map(x => x.id === u.id ? u : x)); 
     if (user?.id === u.id) setUser(u);
     if (adminUser?.id === u.id) setAdminUser(u);
     if (workerUser?.id === u.id) setWorkerUser(u);
   };
-
   const removeUser = async (id: string) => {
     setAllUsers(prev => prev.filter(u => u.id !== id));
     if (user?.id === id) setUser(null);
   };
-
   const addFabric = async (f: Fabric) => setFabrics(prev => [...prev, f]);
   const removeFabric = async (id: string) => setFabrics(prev => prev.filter(f => f.id !== id));
   const addCategory = (cat: string) => setCategories(prev => [...prev, cat]);
@@ -249,8 +271,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const addReview = async (review: Review) => setReviews(prev => [review, ...prev]);
   const updateReviewStatus = async (reviewId: string, status: 'approved' | 'pending') => setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, status } : r));
   const removeReview = async (id: string) => setReviews(prev => prev.filter(r => r.id !== id));
-  const updateEmailConfig = (config: EmailConfig) => setEmailConfig(config);
-  const addNotification = (n: Notification) => setNotifications(prev => [n, ...prev]);
+  const updateSystemConfig = (config: SystemConfig) => setSystemConfig(config);
   const markNotificationRead = (id: string) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
   const clearNotifications = () => setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
 
@@ -265,11 +286,12 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       categories, addCategory, removeCategory,
       coupons, addCoupon, removeCoupon, updateCoupon,
       banners, addBanner, removeBanner, updateBanner,
+      partnerBrands, addPartnerBrand, updatePartnerBrand, removePartnerBrand,
       registerNewUser, updateAnyUser, removeUser,
       productRequests, addProductRequest,
       materialRequests, addMaterialRequest, updateMaterialRequestStatus,
       reviews, addReview, updateReviewStatus, removeReview,
-      emailConfig, updateEmailConfig,
+      systemConfig, updateSystemConfig,
       notifications, addNotification, markNotificationRead, clearNotifications,
       isLoading: false, resetSystemData
     }}>
