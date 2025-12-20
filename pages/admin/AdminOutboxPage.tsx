@@ -139,7 +139,12 @@ const AdminOutboxPage: React.FC = () => {
                    <div className="bg-white p-8 rounded-[2rem] border border-slate-100 min-h-[250px] shadow-inner overflow-y-auto no-scrollbar">
                       {/* Logo Preview in Log */}
                       <div className="mb-8 pb-8 border-b border-slate-50">
-                         <img src={systemConfig.siteLogo} alt="Logo" className="h-10 w-auto opacity-40 grayscale" />
+                         <img 
+                          src={systemConfig.siteLogo} 
+                          alt="Logo" 
+                          className="h-10 w-auto opacity-40 grayscale" 
+                          referrerPolicy="no-referrer"
+                        />
                       </div>
                       <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line font-medium italic">
                         {selectedLog.body.replace(`[DOCUMENT HEADER: ${systemConfig.siteLogo}]\n\n`, '')}

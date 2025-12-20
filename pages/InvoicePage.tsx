@@ -53,7 +53,13 @@ const InvoicePage: React.FC = () => {
           <div className="bg-slate-900 p-12 text-white flex flex-col md:flex-row justify-between items-start md:items-center space-y-6 md:space-y-0 invoice-header">
             <div className="flex flex-col">
               {systemConfig.documentLogo ? (
-                <img src={systemConfig.documentLogo} alt="Logo" className="h-16 w-auto object-contain mr-auto mb-4" />
+                <img 
+                  src={systemConfig.documentLogo} 
+                  alt="Logo" 
+                  className="h-16 w-auto object-contain mr-auto mb-4" 
+                  referrerPolicy="no-referrer"
+                  crossOrigin="anonymous"
+                />
               ) : (
                 <h2 className="text-3xl font-bold serif tracking-tighter">MEHEDI TAILORS</h2>
               )}
@@ -108,7 +114,7 @@ const InvoicePage: React.FC = () => {
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100">
                             <div>
                                <h5 className="flex items-center space-x-2 text-[10px] font-bold uppercase tracking-widest text-amber-700 mb-6">
-                                  <ScissorsIcon className="w-4 h-4" />
+                                  <span className="w-5 h-5 flex items-center justify-center">✂️</span>
                                   <span>Measurement Silhouette</span>
                                </h5>
                                <div className="grid grid-cols-2 gap-4">

@@ -21,11 +21,12 @@ const HomePage: React.FC = () => {
   const activePartners = partnerBrands.filter(b => b.isActive);
   
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [currentPartnerIndex, setCurrentPartnerIndex] = useState(0);
   const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '', name: user?.name || '' });
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
-  // Auto-play slider logic
+  // Auto-play hero slider logic
   useEffect(() => {
     if (activeBanners.length > 1) {
       const interval = setInterval(() => {
@@ -34,6 +35,16 @@ const HomePage: React.FC = () => {
       return () => clearInterval(interval);
     }
   }, [activeBanners]);
+
+  // Auto-play partner slider logic
+  useEffect(() => {
+    if (activePartners.length > 1) {
+      const interval = setInterval(() => {
+        setCurrentPartnerIndex(prev => (prev + 1) % activePartners.length);
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [activePartners]);
 
   const nextBanner = () => setCurrentBannerIndex(prev => (prev + 1) % activeBanners.length);
   const prevBanner = () => setCurrentBannerIndex(prev => (prev - 1 + activeBanners.length) % activeBanners.length);
@@ -75,6 +86,7 @@ const HomePage: React.FC = () => {
                   src={banner.imageUrl} 
                   alt={banner.title} 
                   className="w-full h-full object-cover brightness-[0.45]" 
+                  referrerPolicy="no-referrer"
                 />
               </div>
               
@@ -180,7 +192,7 @@ const HomePage: React.FC = () => {
           {featured.map(product => (
             <div key={product.id} className="group cursor-pointer">
               <div className="relative aspect-[3/4] overflow-hidden bg-slate-100 mb-10 rounded-[2.5rem] transition-all duration-700 group-hover:shadow-[0_60px_100px_-30px_rgba(0,0,0,0.2)]">
-                <img src={product.image} className="w-full h-full object-cover transition-all duration-1000 group-hover:scale-110" alt={product.name} />
+                <img src={product.image} className="w-full h-full object-cover transition-all duration-1000 group-hover:scale-110" alt={product.name} referrerPolicy="no-referrer" />
                 <div className="absolute inset-0 bg-slate-950/0 group-hover:bg-slate-950/20 transition-all duration-700"></div>
                 
                 <Link 
@@ -195,7 +207,7 @@ const HomePage: React.FC = () => {
                   <p className="text-[10px] text-amber-600 uppercase tracking-[0.3em] font-black">{product.category}</p>
                   <div className="w-1 h-1 rounded-full bg-slate-200"></div>
                 </div>
-                <h4 className="text-2xl font-bold serif text-slate-950 group-hover:text-amber-700 transition-colors mb-4 leading-tight">{product.name}</h4>
+                <h4 className="text-2xl font-bold serif text-slate-900 group-hover:text-amber-700 transition-colors mb-4 leading-tight">{product.name}</h4>
                 <div className="flex items-center space-x-4 font-black text-sm">
                   {product.discountPrice ? (
                     <>
@@ -212,31 +224,68 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* 3. Textile Partners (Artisan Collaborations) */}
+      {/* 3. Textile Partners (Artisan Collaborations) - SLIDER VERSION */}
       {activePartners.length > 0 && (
-        <section className="py-32 bg-slate-950 relative">
+        <section className="py-40 bg-slate-950 relative overflow-hidden">
            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
-           <div className="container mx-auto px-6">
-              <div className="text-center mb-24">
-                 <div className="flex items-center justify-center space-x-3 text-amber-500 mb-4">
-                    <SparklesIcon className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.5em]">Global Textile Authority</span>
+           
+           {/* Geometric background elements */}
+           <div className="absolute -top-24 -left-24 w-96 h-96 bg-amber-600/5 rounded-full blur-[120px]"></div>
+           <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-teal-600/5 rounded-full blur-[120px]"></div>
+
+           <div className="container mx-auto px-6 relative z-10">
+              <div className="text-center mb-32">
+                 <div className="flex items-center justify-center space-x-3 text-amber-500 mb-6">
+                    <SparklesIcon className="w-5 h-5" />
+                    <span className="text-[11px] font-black uppercase tracking-[0.6em]">Global Textile Authority</span>
                  </div>
-                 <h2 className="text-4xl font-bold serif text-white">Artisan Collaborations</h2>
-                 <p className="text-slate-500 mt-4 max-w-lg mx-auto font-light leading-relaxed">Partnering with the world's most prestigious mills to bring you unparalleled fabric quality.</p>
+                 <h2 className="text-5xl md:text-6xl font-bold serif text-white tracking-tight">Artisan Collaborations</h2>
+                 <p className="text-slate-500 mt-6 max-w-xl mx-auto font-light text-lg leading-relaxed italic">"Directly sourcing unparalleled textiles from the world's most prestigious mills to define our bespoke legacy."</p>
               </div>
               
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-12 md:gap-20 items-center">
-                 {activePartners.map(brand => (
+              <div className="relative h-[250px] md:h-[400px] flex items-center justify-center">
+                 {activePartners.map((brand, idx) => (
                     <div 
                       key={brand.id} 
-                      className="h-20 md:h-32 flex items-center justify-center p-8 grayscale opacity-30 hover:grayscale-0 hover:opacity-100 transition-all duration-[1500ms] hover:scale-105 cursor-crosshair bg-white/5 rounded-[2.5rem] border border-white/5 hover:border-white/20 hover:bg-white shadow-2xl" 
-                      title={brand.name}
+                      className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-[1500ms] ease-in-out ${
+                        idx === currentPartnerIndex 
+                          ? 'opacity-100 scale-100 translate-y-0' 
+                          : 'opacity-0 scale-90 translate-y-12 pointer-events-none'
+                      }`}
                     >
-                       <img src={brand.logo} alt={brand.name} className="max-w-full max-h-full object-contain filter drop-shadow-2xl" />
+                       <div className="bg-white/5 backdrop-blur-3xl rounded-[4rem] p-12 md:p-24 border border-white/5 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] group hover:border-white/10 transition-colors">
+                          <img 
+                            src={brand.logo} 
+                            alt={brand.name} 
+                            className="max-h-[120px] md:max-h-[220px] w-auto object-contain filter brightness-200 contrast-125 grayscale-[0.5] hover:grayscale-0 transition-all duration-1000" 
+                            referrerPolicy="no-referrer"
+                          />
+                       </div>
+                       <div className="mt-12 text-center">
+                          <p className="text-white font-bold serif text-3xl md:text-4xl tracking-tight mb-2">{brand.name}</p>
+                          <div className="flex items-center justify-center space-x-3">
+                             <div className="h-px w-8 bg-amber-600"></div>
+                             <span className="text-[10px] font-black uppercase tracking-[0.4em] text-amber-600">Official Partner</span>
+                             <div className="h-px w-8 bg-amber-600"></div>
+                          </div>
+                       </div>
                     </div>
                  ))}
               </div>
+
+              {/* Slider Navigation Dots */}
+              {activePartners.length > 1 && (
+                <div className="mt-24 flex justify-center space-x-3">
+                  {activePartners.map((_, idx) => (
+                    <button 
+                      key={idx}
+                      onClick={() => setCurrentPartnerIndex(idx)}
+                      className={`h-1.5 transition-all duration-700 rounded-full ${idx === currentPartnerIndex ? 'w-12 bg-amber-600' : 'w-3 bg-white/20 hover:bg-white/40'}`}
+                      aria-label={`Go to partner ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
            </div>
         </section>
       )}

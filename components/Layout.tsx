@@ -66,7 +66,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           {/* Logo - Dynamic Branding */}
           <Link to="/" className="flex items-center space-x-3">
             {systemConfig.siteLogo ? (
-              <img src={systemConfig.siteLogo} alt="Logo" className="h-10 w-auto object-contain" />
+              <img 
+                src={systemConfig.siteLogo} 
+                alt="Logo" 
+                className="h-10 w-auto object-contain" 
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+              />
             ) : (
               <span className="text-2xl font-bold tracking-tighter serif text-slate-900">MEHEDI</span>
             )}
@@ -199,7 +205,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <div className="col-span-1 md:col-span-1">
              <div className="mb-6 flex justify-center md:justify-start items-center space-x-3">
                 {systemConfig.siteLogo ? (
-                  <img src={systemConfig.siteLogo} alt="Logo" className="h-10 w-auto brightness-0 invert" />
+                  <img 
+                    src={systemConfig.siteLogo} 
+                    alt="Logo" 
+                    className="h-10 w-auto brightness-0 invert" 
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
+                  />
                 ) : (
                   <h3 className="text-white text-xl font-bold serif tracking-tighter uppercase">MEHEDI TAILORS</h3>
                 )}
