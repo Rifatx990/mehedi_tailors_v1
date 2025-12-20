@@ -1,0 +1,119 @@
+
+{
+  "users": [
+    {
+      "id": "adm-001",
+      "name": "System Admin",
+      "email": "admin@meheditailors.com",
+      "phone": "+8801720267213",
+      "address": "Atelier Savar",
+      "measurements": [],
+      "role": "admin",
+      "password": "admin123"
+    },
+    {
+      "id": "wrk-001",
+      "name": "Kabir Artisan",
+      "email": "worker@meheditailors.com",
+      "phone": "+8801720267214",
+      "address": "Staff Quarters, Savar",
+      "measurements": [],
+      "role": "worker",
+      "password": "worker123",
+      "specialization": "Master Stitcher",
+      "experience": "12+ Years",
+      "joinDate": "Jan 2024"
+    }
+  ],
+  "products": [
+    {
+      "id": "p1",
+      "name": "Premium Silk Panjabi",
+      "category": "Men",
+      "price": 4500,
+      "discountPrice": 3800,
+      "image": "https://picsum.photos/seed/panjabi/600/800",
+      "images": [
+        "https://picsum.photos/seed/panjabi/600/800",
+        "https://picsum.photos/seed/panjabi2/600/800"
+      ],
+      "description": "Exquisite silk panjabi with hand-crafted embroidery.",
+      "fabricType": "Silk",
+      "availableSizes": ["S", "M", "L", "XL"],
+      "colors": ["Cream", "Deep Blue"],
+      "inStock": true,
+      "stockCount": 15,
+      "isFeatured": true
+    },
+    {
+      "id": "p2",
+      "name": "Italian Cotton Fabric",
+      "category": "Fabrics",
+      "price": 1200,
+      "image": "https://picsum.photos/seed/fabric1/600/800",
+      "description": "High-quality breathable Italian cotton.",
+      "fabricType": "Cotton",
+      "availableSizes": ["Per Meter"],
+      "colors": ["Navy"],
+      "inStock": true,
+      "stockCount": 50,
+      "isFeatured": true
+    }
+  ],
+  "categories": ["Men", "Women", "Kids", "Fabrics", "Custom Tailoring"],
+  "config": {
+    "siteName": "Mehedi Tailors & Fabrics",
+    "siteLogo": "https://i.imgur.com/8H9IeM5.png",
+    "documentLogo": "https://i.imgur.com/8H9IeM5.png",
+    "dbVersion": "8.0.0-PERSISTENT",
+    "giftCardDenominations": [2000, 5000, 10000, 25000],
+    "giftCardsEnabled": true,
+    "smtpHost": "smtp.gmail.com",
+    "smtpPort": 465,
+    "isEnabled": true
+  },
+  "coupons": [
+    {
+      "id": "c1",
+      "code": "EID2025",
+      "discountPercent": 15,
+      "isActive": true,
+      "usageLimit": 100,
+      "usageCount": 0
+    }
+  ],
+  "notices": [
+    {
+      "id": "n1",
+      "content": "Welcome to the artisan portal. Eid commissions are now open with guaranteed delivery.",
+      "type": "info",
+      "isActive": true,
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ],
+  "offers": [
+    {
+      "id": "o1",
+      "title": "Bespoke Suiting Package",
+      "description": "20% off on all formal business suits throughout this month.",
+      "discountTag": "20% OFF",
+      "imageUrl": "https://images.unsplash.com/photo-1594932224828-b4b059b6f6f9?q=80&w=2080&auto=format&fit=crop",
+      "linkUrl": "/shop",
+      "isActive": true
+    }
+  ],
+  "orders": [],
+  "emails": [],
+  "notifications": [],
+  "banners": [],
+  "fabrics": [],
+  "requests": [],
+  "materials": [],
+  "giftCards": [],
+  "dues": [],
+  "bespokeServices": [
+    { "id": "s1", "name": "Shirt", "icon": "👔", "basePrice": 1200, "description": "Precision fitted formal/casual shirts.", "isActive": true },
+    { "id": "s2", "name": "Suit", "icon": "🧥", "basePrice": 15000, "description": "Full three-piece bespoke experience.", "isActive": true },
+    { "id": "s3", "name": "Panjabi", "icon": "🕌", "basePrice": 2500, "description": "Traditional craftsmanship meet modern fit.", "isActive": true }
+  ]
+}

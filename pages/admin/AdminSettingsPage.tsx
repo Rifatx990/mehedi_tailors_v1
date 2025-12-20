@@ -19,7 +19,10 @@ import {
   ExclamationTriangleIcon,
   ArrowPathIcon,
   LockClosedIcon,
-  CircleStackIcon
+  CircleStackIcon,
+  GiftIcon,
+  /* Fixed error: Added missing InformationCircleIcon import */
+  InformationCircleIcon
 } from '@heroicons/react/24/outline';
 
 const AdminSettingsPage: React.FC = () => {
@@ -37,7 +40,6 @@ const AdminSettingsPage: React.FC = () => {
     e.preventDefault();
     setSaveStatus('saving');
     
-    // Artificial delay to simulate industrial persistence handshake
     setTimeout(() => {
       updateSystemConfig(form);
       setSaveStatus('success');
@@ -86,12 +88,77 @@ const AdminSettingsPage: React.FC = () => {
           </div>
           <h1 className="text-5xl font-bold serif text-slate-900 tracking-tight">Atelier Parameters</h1>
           <p className="text-slate-400 mt-2 text-sm max-w-lg font-medium leading-relaxed">
-             Directly modifying these values updates the root-level configuration inside the virtual database.json file.
+             Directly modifying these values updates the root-level configuration inside the **database.json** file system.
           </p>
         </header>
 
         <div className="max-w-6xl space-y-12 pb-20">
           
+          {/* BUY GIFT CARD SYSTEM MANAGEMENT */}
+          <div className="bg-white rounded-[3.5rem] shadow-sm border border-slate-100 overflow-hidden group">
+             <div className="bg-indigo-700 p-10 text-white flex justify-between items-center transition-all">
+                <div className="flex items-center space-x-6">
+                   <div className="w-16 h-16 bg-white/10 backdrop-blur rounded-3xl flex items-center justify-center shadow-2xl">
+                      <GiftIcon className="w-9 h-9 text-white" />
+                   </div>
+                   <div>
+                      <h2 className="text-2xl font-bold serif">Buy GiftCard System</h2>
+                      <p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest mt-1">Consumer Interface Configuration</p>
+                   </div>
+                </div>
+                <div className="flex items-center space-x-4">
+                   <div className={`w-3 h-3 rounded-full ${form.giftCardsEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></div>
+                   <span className="text-[10px] font-black uppercase text-white">{form.giftCardsEnabled ? 'Live on Index' : 'Offline'}</span>
+                </div>
+             </div>
+             
+             <div className="p-10 md:p-14">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                   <div className="space-y-6">
+                      <div className="flex items-center justify-between p-6 bg-slate-900 rounded-[2rem] border border-white/5 shadow-2xl">
+                         <div>
+                            <h4 className="text-white font-bold text-sm uppercase tracking-widest">Enable Buy System</h4>
+                            <p className="text-[9px] text-slate-500 font-black uppercase mt-1">Render on consumer homepage</p>
+                         </div>
+                         <button 
+                            type="button"
+                            onClick={() => setForm({...form, giftCardsEnabled: !form.giftCardsEnabled})}
+                            className={`w-14 h-8 rounded-full transition-all relative shrink-0 ${form.giftCardsEnabled ? 'bg-amber-600' : 'bg-slate-700'}`}
+                          >
+                            <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-xl ${form.giftCardsEnabled ? 'left-7' : 'left-1'}`}></div>
+                          </button>
+                      </div>
+                      <div className="p-6 bg-blue-50 rounded-[2rem] border border-blue-100 flex items-start space-x-4">
+                         <InformationCircleIcon className="w-6 h-6 text-blue-600 mt-1 flex-shrink-0" />
+                         <p className="text-[10px] text-blue-700 leading-relaxed font-bold italic">
+                            Toggling this switch will instantly render or hide the cinematic "The Gift of a Perfect Fit" section on the atelier's index page.
+                         </p>
+                      </div>
+                   </div>
+                   
+                   <div className="space-y-6">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block ml-2">Available Denominations (CSV)</label>
+                      <input 
+                        value={form.giftCardDenominations?.join(', ')} 
+                        onChange={e => setForm({...form, giftCardDenominations: e.target.value.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v))})}
+                        className="w-full bg-slate-50 border border-slate-100 px-6 py-5 rounded-2xl outline-none font-bold text-lg text-indigo-600 shadow-inner" 
+                        placeholder="2000, 5000, 10000" 
+                      />
+                      <p className="text-[9px] text-slate-400 italic">These values populate the selection buttons on the Gift Card provisioning page.</p>
+                   </div>
+                </div>
+                
+                <div className="mt-12 pt-8 border-t border-slate-50 flex justify-end">
+                   <button 
+                     onClick={handleSave}
+                     className="bg-slate-900 text-white px-12 py-4 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:bg-indigo-600 transition-all active:scale-95"
+                   >
+                      Commit Buy System Updates
+                   </button>
+                </div>
+             </div>
+          </div>
+
           {/* SMTP BRIDGE CONTROL */}
           <div className="bg-white rounded-[3.5rem] shadow-sm border border-slate-100 overflow-hidden group">
              <div className="bg-slate-900 p-10 text-white flex justify-between items-center transition-all group-hover:bg-slate-950">
@@ -167,15 +234,7 @@ const AdminSettingsPage: React.FC = () => {
                         className="flex-grow bg-slate-900 text-white py-6 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl hover:bg-amber-600 transition-all flex items-center justify-center space-x-3 active:scale-[0.98] disabled:opacity-50"
                       >
                          {saveStatus === 'saving' ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <ShieldCheckIcon className="w-5 h-5" />}
-                         <span>{saveStatus === 'success' ? 'Database Synchronized' : 'Commit Bridge Update'}</span>
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={removeSmtp}
-                        className="px-10 py-6 bg-red-50 text-red-500 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-red-600 hover:text-white transition-all shadow-sm flex items-center justify-center space-x-3"
-                      >
-                         <TrashIcon className="w-5 h-5" />
-                         <span className="hidden sm:inline">Flush Credentials</span>
+                         <span>{saveStatus === 'success' ? 'Database Synchronized' : 'Commit Global Parameters'}</span>
                       </button>
                    </div>
                 </form>
@@ -183,9 +242,9 @@ const AdminSettingsPage: React.FC = () => {
                 <div className="mt-12 p-8 bg-amber-50 rounded-[2.5rem] border border-amber-100 flex items-start space-x-6 shadow-sm">
                    <ExclamationTriangleIcon className="w-8 h-8 text-amber-600 flex-shrink-0 mt-1" />
                    <div>
-                      <h4 className="text-base font-black text-slate-900 uppercase tracking-widest">Digital Sovereignty Protocol</h4>
+                      <h4 className="text-base font-black text-slate-900 uppercase tracking-widest">Database Integrity Protocol</h4>
                       <p className="text-xs text-slate-600 leading-relaxed mt-2 font-medium italic">
-                        "Changes to the SMTP gateway are written directly to the virtual file system. If using third-party relays like Gmail, ensure an App Password is generated. Standard logins will be intercepted by global security headers."
+                        "Changes to global configuration—including gift card visibility and SMTP bridges—are written directly to the root **database.json** virtual file system. These parameters are globally respected across all user modules."
                       </p>
                    </div>
                 </div>
@@ -214,7 +273,7 @@ const AdminSettingsPage: React.FC = () => {
                             <ArrowDownTrayIcon className="w-6 h-6" />
                          </div>
                          <h4 className="text-lg font-black text-slate-900 uppercase tracking-widest mb-3">Snapshot Payload</h4>
-                         <p className="text-xs text-slate-500 leading-relaxed font-medium">Download the entire atelier state—orders, artisan scales, and SMTP bridges—as a structured JSON payload.</p>
+                         <p className="text-xs text-slate-500 leading-relaxed font-medium">Download the entire atelier state—orders, coupons, artisan scales, and SMTP bridges—as a structured JSON payload.</p>
                       </div>
                       <button onClick={exportDb} className="w-full py-5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-emerald-600 transition shadow-2xl active:scale-95">Fetch Backup .JSON</button>
                    </div>
@@ -225,7 +284,7 @@ const AdminSettingsPage: React.FC = () => {
                             <ArrowUpTrayIcon className="w-6 h-6" />
                          </div>
                          <h4 className="text-lg font-black text-slate-900 uppercase tracking-widest mb-3">Override Registry</h4>
-                         <p className="text-xs text-slate-500 leading-relaxed font-medium">Replace the current virtual disk with an external JSON payload. This will instantly refresh the atelier's live memory.</p>
+                         <p className="text-xs text-slate-500 leading-relaxed font-medium">Replace the current virtual disk with an external JSON payload. This will instantly refresh the atelier's live memory from the provided file.</p>
                       </div>
                       <input type="file" ref={importInputRef} onChange={handleImport} className="hidden" accept=".json" />
                       <button onClick={() => importInputRef.current?.click()} className="w-full py-5 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-slate-900 transition shadow-2xl active:scale-95">Stream JSON Payload</button>

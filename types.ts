@@ -92,7 +92,8 @@ export interface SystemConfig {
   documentLogo?: string; 
   siteName: string;
   dbVersion: string;
-  giftCardDenominations: number[]; // Added to manage buy system
+  giftCardDenominations: number[]; 
+  giftCardsEnabled: boolean; // Managed by admin
 }
 
 export interface EmailLog {
@@ -104,6 +105,14 @@ export interface EmailLog {
   status: 'sent' | 'failed' | 'queued';
   templateId: string;
   smtpRef?: string;
+}
+
+export interface Fabric {
+  id: string;
+  name: string;
+  image: string;
+  description: string;
+  colors?: string[];
 }
 
 export interface Fabric {
@@ -143,7 +152,7 @@ export interface Product {
   availableSizes: string[];
   colors: string[];
   inStock: boolean;
-  stockCount: number; // Added for inventory tracking
+  stockCount: number; 
   isFeatured?: boolean;
 }
 
@@ -221,7 +230,7 @@ export interface Coupon {
   code: string;
   discountPercent: number;
   isActive: boolean;
-  usageLimit: number | null; // null means unlimited
+  usageLimit: number | null; 
   usageCount: number;
   expiryDate?: string;
 }

@@ -15,12 +15,13 @@ import {
   ArchiveBoxIcon,
   TagIcon,
   ExclamationCircleIcon,
-  XMarkIcon
+  XMarkIcon,
+  GiftIcon
 } from '@heroicons/react/24/solid';
 import { Review, Offer, Notice } from '../types.ts';
 
 const HomePage: React.FC = () => {
-  const { products, banners, reviews, addReview, user, partnerBrands, upcomingProducts, offers, notices } = useStore();
+  const { products, banners, reviews, addReview, user, partnerBrands, upcomingProducts, offers, notices, systemConfig } = useStore();
   const navigate = useNavigate();
   
   const featured = products.filter(p => p.isFeatured).slice(0, 4);
@@ -28,7 +29,6 @@ const HomePage: React.FC = () => {
   const approvedReviews = reviews.filter(r => r.status === 'approved').slice(0, 3);
   const activeOffers = offers.filter(o => o.isActive);
   const activeNotices = notices.filter(n => n.isActive);
-  // Fixed: Defined activeUpcoming by filtering upcomingProducts from the store context
   const activeUpcoming = upcomingProducts.filter(p => p.isActive);
 
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
@@ -173,7 +173,7 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* 3. Artisan Offers: The Vault of Deals */}
+      {/* 3. Artisan Offers */}
       {activeOffers.length > 0 && (
         <section className="py-20 md:py-32 bg-slate-950 relative overflow-hidden">
            <div className="absolute top-0 right-0 w-96 h-96 bg-amber-600/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
@@ -208,6 +208,46 @@ const HomePage: React.FC = () => {
                        </div>
                     </Link>
                  ))}
+              </div>
+           </div>
+        </section>
+      )}
+
+      {/* Buy Gift Card System Integration */}
+      {systemConfig.giftCardsEnabled && (
+        <section className="py-20 md:py-40 bg-white">
+           <div className="container mx-auto px-6">
+              <div className="bg-slate-900 rounded-[3rem] p-10 md:p-24 text-white flex flex-col lg:flex-row items-center justify-between gap-16 relative overflow-hidden group shadow-3xl">
+                 <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_30%_30%,rgba(217,119,6,0.1),transparent)] z-0"></div>
+                 <div className="max-w-xl relative z-10">
+                    <div className="flex items-center space-x-3 text-amber-500 mb-8">
+                       <GiftIcon className="w-6 h-6" />
+                       <span className="text-[10px] font-black uppercase tracking-[0.4em]">Artisan Credits</span>
+                    </div>
+                    <h2 className="text-4xl md:text-6xl font-bold serif mb-8 leading-tight">The Gift of a <br/><span className="text-amber-500">Perfect Fit.</span></h2>
+                    <p className="text-slate-400 text-lg leading-relaxed mb-12 font-light">Share the Mehedi bespoke experience with our digital gift vouchers. Managed centrally, issued instantly, cherished forever.</p>
+                    <Link to="/gift-cards" className="inline-flex items-center space-x-4 bg-white text-slate-900 px-10 py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:bg-amber-600 hover:text-white transition-all shadow-2xl">
+                       <span>Purchase Credits</span>
+                       <ArrowRightIcon className="w-4 h-4" />
+                    </Link>
+                 </div>
+                 <div className="relative z-10 w-full lg:w-1/2 max-w-md">
+                    <div className="aspect-video bg-white/5 backdrop-blur-3xl rounded-3xl border border-white/10 p-10 shadow-3xl transform hover:rotate-2 hover:scale-105 transition-all duration-700">
+                       <div className="flex justify-between items-start mb-12">
+                          <div>
+                            <p className="text-[9px] font-black uppercase text-amber-500 tracking-widest">Bespoke Voucher</p>
+                            <h3 className="text-xl font-bold serif mt-1">Mehedi Atelier</h3>
+                          </div>
+                          <SparklesIcon className="w-10 h-10 text-amber-600/30" />
+                       </div>
+                       <p className="text-3xl font-bold font-mono tracking-tighter">BDT 5,000</p>
+                       <div className="mt-12 flex justify-between items-end border-t border-white/5 pt-8">
+                          <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Savar • Ashulia • Dhaka</p>
+                          <div className="w-8 h-8 rounded-full bg-amber-600"></div>
+                       </div>
+                    </div>
+                    <div className="absolute -bottom-6 -right-6 -z-10 w-full h-full bg-amber-600/10 rounded-3xl blur-3xl group-hover:bg-amber-600/20 transition-all"></div>
+                 </div>
               </div>
            </div>
         </section>

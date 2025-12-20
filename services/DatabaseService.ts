@@ -1,10 +1,11 @@
+
 /**
  * ATELIER CORE DATABASE SERVICE (Virtual File System)
- * Mimics a root-level 'database.json' file accessible only by code.
+ * Mimics a root-level 'database.json' file.
  */
 
 const DB_NAME = 'MehediAtelierDB';
-const DB_VERSION = 10; 
+const DB_VERSION = 11; 
 const STORE_NAME = 'filesystem';
 const DB_FILE_KEY = 'database.json';
 
@@ -40,7 +41,8 @@ export class DatabaseService {
   }
 
   /**
-   * Reads the entire 'database.json' file
+   * Reads the entire 'database.json' file.
+   * If local storage is empty, it attempts to fetch the physical /database.json seed.
    */
   async readFile(): Promise<any> {
     if (!this.db) await this.init();
@@ -50,9 +52,26 @@ export class DatabaseService {
         const store = transaction.objectStore(STORE_NAME);
         const request = store.get(DB_FILE_KEY);
 
-        request.onsuccess = () => {
+        request.onsuccess = async () => {
           const data = request.result;
-          resolve(data ? JSON.parse(data) : {});
+          if (data) {
+            resolve(JSON.parse(data));
+          } else {
+            // Seed from physical file if first run
+            try {
+              const response = await fetch('./database.json');
+              if (response.ok) {
+                const seedData = await response.json();
+                await this.writeFile(seedData);
+                resolve(seedData);
+              } else {
+                resolve({});
+              }
+            } catch (err) {
+              console.warn("Could not find database.json seed file, starting fresh.");
+              resolve({});
+            }
+          }
         };
         request.onerror = () => reject('Failed to read database.json');
       } catch (e) {
@@ -62,7 +81,7 @@ export class DatabaseService {
   }
 
   /**
-   * Overwrites the 'database.json' file
+   * Overwrites the 'database.json' virtual file.
    */
   async writeFile(data: any): Promise<void> {
     if (!this.db) await this.init();
@@ -70,7 +89,7 @@ export class DatabaseService {
       try {
         const transaction = this.db!.transaction([STORE_NAME], 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
-        const jsonString = JSON.stringify(data);
+        const jsonString = JSON.stringify(data, null, 2); // Prettify for possible future disk writes
         const request = store.put(jsonString, DB_FILE_KEY);
 
         request.onsuccess = () => resolve();
@@ -79,17 +98,6 @@ export class DatabaseService {
         reject(e);
       }
     });
-  }
-
-  async getAll(key: string): Promise<any[]> {
-    const fullDb = await this.readFile();
-    return Array.isArray(fullDb[key]) ? fullDb[key] : [];
-  }
-
-  async save(key: string, data: any): Promise<void> {
-    const fullDb = await this.readFile();
-    fullDb[key] = data;
-    await this.writeFile(fullDb);
   }
 
   async clearAll(): Promise<void> {
