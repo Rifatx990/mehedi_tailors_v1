@@ -2,12 +2,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { 
   CartItem, Product, User, Order, OrderStatus, Fabric, Coupon, 
-  ProductRequest, Banner, Review, ProductionStep, MaterialRequest, 
-  SystemConfig, Notification, PartnerBrand, EmailLog, DueRecord, BespokeService, UpcomingProduct, GiftCard,
-  Offer, Notice, NewsletterSubscriber
+  Banner, ProductionStep, SystemConfig, Notice, Offer, PartnerBrand, BespokeService, 
+  Notification, GiftCard, DueRecord, EmailLog, MaterialRequest, ProductRequest, Review, UpcomingProduct
 } from '../types.ts';
 import { PRODUCTS as INITIAL_PRODUCTS } from '../constants.tsx';
-import { dbService, GlobalState } from '../services/DatabaseService.ts';
+import { dbService } from '../services/DatabaseService.ts';
 
 interface StoreContextType {
   cart: CartItem[];
@@ -48,10 +47,6 @@ interface StoreContextType {
   addBanner: (banner: Banner) => Promise<void>;
   updateBanner: (banner: Banner) => Promise<void>;
   removeBanner: (id: string) => Promise<void>;
-  upcomingProducts: UpcomingProduct[];
-  addUpcomingProduct: (p: UpcomingProduct) => Promise<void>;
-  updateUpcomingProduct: (p: UpcomingProduct) => Promise<void>;
-  removeUpcomingProduct: (id: string) => Promise<void>;
   registerNewUser: (user: User) => Promise<void>;
   updateAnyUser: (user: User, notify?: boolean) => Promise<void>;
   removeUser: (id: string) => Promise<void>;
@@ -88,6 +83,10 @@ interface StoreContextType {
   addPartnerBrand: (brand: PartnerBrand) => Promise<void>;
   updatePartnerBrand: (brand: PartnerBrand) => Promise<void>;
   removePartnerBrand: (id: string) => Promise<void>;
+  upcomingProducts: UpcomingProduct[];
+  addUpcomingProduct: (item: UpcomingProduct) => Promise<void>;
+  updateUpcomingProduct: (item: UpcomingProduct) => Promise<void>;
+  removeUpcomingProduct: (id: string) => Promise<void>;
   systemConfig: SystemConfig;
   updateSystemConfig: (config: SystemConfig) => Promise<void>;
   notifications: Notification[];
@@ -115,157 +114,178 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [products, setProducts] = useState<Product[]>([]);
   const [fabrics, setFabrics] = useState<Fabric[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
-  const [upcomingProducts, setUpcomingProducts] = useState<UpcomingProduct[]>([]);
-  const [productRequests, setProductRequests] = useState<ProductRequest[]>([]);
-  const [materialRequests, setMaterialRequests] = useState<MaterialRequest[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [partnerBrands, setPartnerBrands] = useState<PartnerBrand[]>([]);
+  const [bespokeServices, setBespokeServices] = useState<BespokeService[]>([]);
+  const [upcomingProducts, setUpcomingProducts] = useState<UpcomingProduct[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [giftCards, setGiftCards] = useState<GiftCard[]>([]);
   const [dues, setDues] = useState<DueRecord[]>([]);
-  const [bespokeServices, setBespokeServices] = useState<BespokeService[]>([]);
-  const [partnerBrands, setPartnerBrands] = useState<PartnerBrand[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [materialRequests, setMaterialRequests] = useState<MaterialRequest[]>([]);
+  const [productRequests, setProductRequests] = useState<ProductRequest[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
-  const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>({
-    smtpHost: 'smtp.gmail.com', smtpPort: 465, smtpUser: '', smtpPass: '', secure: true, 
-    senderName: 'Mehedi Tailors', senderEmail: 'orders@meheditailors.com', isEnabled: true, 
-    siteName: 'Mehedi Tailors & Fabrics', dbVersion: '12.0.0-WORLD-SYNC', giftCardDenominations: [2000, 5000, 10000], giftCardsEnabled: true
+    smtpHost: '', smtpPort: 465, smtpUser: '', smtpPass: '', secure: true, 
+    senderName: 'Mehedi Tailors', senderEmail: '', isEnabled: false, 
+    siteName: 'Mehedi Tailors & Fabrics', dbVersion: '15.0.0-POSTGRES', giftCardDenominations: [2000, 5000, 10000], giftCardsEnabled: true
   });
 
-  const getFullState = useCallback((): GlobalState => {
-    return {
-      users: allUsers, products, categories, config: systemConfig, coupons, notices, 
-      offers, orders, banners, fabrics, requests: productRequests, 
-      materials: materialRequests, reviews, giftCards, dues, bespokeServices, 
-      upcomingProducts, subscribers, partners: partnerBrands, notifications, emails: emailLogs
-    };
-  }, [allUsers, products, categories, systemConfig, coupons, notices, offers, orders, banners, fabrics, productRequests, materialRequests, reviews, giftCards, dues, bespokeServices, upcomingProducts, subscribers, partnerBrands, notifications, emailLogs]);
+  const bootstrap = useCallback(async () => {
+    try {
+      const results = await Promise.allSettled([
+        dbService.getUsers(),
+        dbService.getProducts(),
+        dbService.getOrders(),
+        dbService.getConfig(),
+        dbService.getBanners(),
+        dbService.getFabrics(),
+        dbService.getPartners(),
+        dbService.getOffers(),
+        dbService.getNotices(),
+        dbService.getBespokeServices(),
+        dbService.getGiftCards(),
+        dbService.getDues(),
+        dbService.getMaterialRequests(),
+        dbService.getProductRequests(),
+        dbService.getReviews(),
+        dbService.getEmailLogs(),
+        dbService.getCoupons()
+      ]);
 
-  const commitGlobalSync = useCallback(async (overrides?: Partial<GlobalState>) => {
-    const data = { ...getFullState(), ...overrides };
-    await dbService.writeFile(data);
-  }, [getFullState]);
+      const mapVal = (idx: number, fallback: any) => 
+        results[idx].status === 'fulfilled' ? (results[idx] as any).value : fallback;
 
-  useEffect(() => {
-    const hydrate = async () => {
-      const db = await dbService.readFile();
-      if (db) {
-        setAllUsers(db.users || []);
-        setProducts(db.products || INITIAL_PRODUCTS);
-        setCategories(db.categories || []);
-        setSystemConfig(db.config || systemConfig);
-        setCoupons(db.coupons || []);
-        setNotices(db.notices || []);
-        setOffers(db.offers || []);
-        setOrders(db.orders || []);
-        setBanners(db.banners || []);
-        setFabrics(db.fabrics || []);
-        setProductRequests(db.requests || []);
-        setMaterialRequests(db.materials || []);
-        setReviews(db.reviews || []);
-        setGiftCards(db.giftCards || []);
-        setDues(db.dues || []);
-        setBespokeServices(db.bespokeServices || []);
-        setUpcomingProducts(db.upcomingProducts || []);
-        setSubscribers(db.subscribers || []);
-        setPartnerBrands(db.partners || []);
-        setNotifications(db.notifications || []);
-        setEmailLogs(db.emails || []);
-      } else {
-        setProducts(INITIAL_PRODUCTS);
-        setCategories(['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']);
-      }
+      setAllUsers(mapVal(0, []));
+      setProducts(mapVal(1, INITIAL_PRODUCTS));
+      setOrders(mapVal(2, []));
+      setSystemConfig(mapVal(3, systemConfig));
+      setBanners(mapVal(4, []));
+      setFabrics(mapVal(5, []));
+      setPartnerBrands(mapVal(6, []));
+      setOffers(mapVal(7, []));
+      setNotices(mapVal(8, []));
+      setBespokeServices(mapVal(9, []));
+      setGiftCards(mapVal(10, []));
+      setDues(mapVal(11, []));
+      setMaterialRequests(mapVal(12, []));
+      setProductRequests(mapVal(13, []));
+      setReviews(mapVal(14, []));
+      setEmailLogs(mapVal(15, []));
+      setCoupons(mapVal(16, []));
+
+      const cats = Array.from(new Set(mapVal(1, INITIAL_PRODUCTS).map((p: any) => p.category)));
+      setCategories(cats.length ? (cats as string[]) : ['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']);
+      
+    } catch (err) {
+      console.error("Relational Handshake Failure:", err);
+    } finally {
       setIsHydrated(true);
-    };
-    hydrate();
-  }, []);
+    }
+  }, [systemConfig]);
 
-  // CRUD WRAPPERS
-  const updateSystemConfig = async (config: SystemConfig) => { setSystemConfig(config); await commitGlobalSync({ config }); };
-  const addCategory = (cat: string) => { const updated = [...categories, cat]; setCategories(updated); commitGlobalSync({ categories: updated }); };
-  const removeCategory = (cat: string) => { const updated = categories.filter(c => c !== cat); setCategories(updated); commitGlobalSync({ categories: updated }); };
-  
-  const registerNewUser = async (u: User) => { const updated = [...allUsers, u]; setAllUsers(updated); await commitGlobalSync({ users: updated }); };
-  const updateAnyUser = async (u: User) => { const updated = allUsers.map(x => x.id === u.id ? u : x); setAllUsers(updated); await commitGlobalSync({ users: updated }); };
-  const removeUser = async (id: string) => { const updated = allUsers.filter(u => u.id !== id); setAllUsers(updated); await commitGlobalSync({ users: updated }); };
+  useEffect(() => { bootstrap(); }, []);
 
-  const addProduct = async (p: Product) => { const updated = [p, ...products]; setProducts(updated); await commitGlobalSync({ products: updated }); };
-  const updateProduct = async (p: Product) => { const updated = products.map(curr => curr.id === p.id ? p : curr); setProducts(updated); await commitGlobalSync({ products: updated }); };
-  const removeProduct = async (id: string) => { const updated = products.filter(p => p.id !== id); setProducts(updated); await commitGlobalSync({ products: updated }); };
+  // --- ATOMIC DATABASE MUTATIONS ---
+  const updateSystemConfig = async (config: SystemConfig) => { await dbService.updateConfig(config); setSystemConfig(config); };
+  const addProduct = async (p: Product) => { const s = await dbService.saveProduct(p); setProducts(prev => [s, ...prev]); };
+  const updateProduct = async (p: Product) => { await dbService.saveProduct(p); setProducts(prev => prev.map(c => c.id === p.id ? p : c)); };
+  const removeProduct = async (id: string) => { await dbService.deleteProduct(id); setProducts(prev => prev.filter(p => p.id !== id)); };
 
-  const addFabric = async (f: Fabric) => { const updated = [...fabrics, f]; setFabrics(updated); await commitGlobalSync({ fabrics: updated }); };
-  const removeFabric = async (id: string) => { const updated = fabrics.filter(f => f.id !== id); setFabrics(updated); await commitGlobalSync({ fabrics: updated }); };
+  const placeOrder = async (order: Order) => { const s = await dbService.saveOrder(order); setOrders(prev => [s, ...prev]); setCart([]); };
+  const updateOrder = async (order: Order) => { await dbService.saveOrder(order); setOrders(prev => prev.map(o => o.id === order.id ? order : o)); };
+  const updateOrderStatus = async (id: string, status: OrderStatus) => {
+    const o = orders.find(x => x.id === id);
+    if (o) await updateOrder({ ...o, status });
+  };
+  const updateProductionStep = async (id: string, productionStep: ProductionStep) => {
+    const o = orders.find(x => x.id === id);
+    if (o) await updateOrder({ ...o, productionStep });
+  };
+  const assignWorker = async (id: string, workerId: string) => {
+    const o = orders.find(x => x.id === id);
+    if (o) await updateOrder({ ...o, assignedWorkerId: workerId, status: o.status === 'Pending' ? 'In Progress' : o.status });
+  };
+  const removeOrder = async (id: string) => { await dbService.deleteOrder(id); setOrders(prev => prev.filter(o => o.id !== id)); };
 
-  const placeOrder = async (order: Order) => { const updated = [order, ...orders]; setOrders(updated); setCart([]); await commitGlobalSync({ orders: updated }); };
-  const updateOrder = async (order: Order) => { const updated = orders.map(o => o.id === order.id ? order : o); setOrders(updated); await commitGlobalSync({ orders: updated }); };
-  const updateOrderStatus = async (id: string, status: OrderStatus) => { const updated = orders.map(o => o.id === id ? { ...o, status } : o); setOrders(updated); await commitGlobalSync({ orders: updated }); };
-  const updateProductionStep = async (id: string, step: ProductionStep) => { const updated = orders.map(o => o.id === id ? { ...o, productionStep: step } : o); setOrders(updated); await commitGlobalSync({ orders: updated }); };
-  const assignWorker = async (id: string, workerId: string) => { const updated = orders.map(o => o.id === id ? { ...o, assignedWorkerId: workerId } : o); setOrders(updated); await commitGlobalSync({ orders: updated }); };
-  const removeOrder = async (id: string) => { const updated = orders.filter(o => o.id !== id); setOrders(updated); await commitGlobalSync({ orders: updated }); };
+  const addFabric = async (f: Fabric) => { const s = await dbService.saveFabric(f); setFabrics(prev => [s, ...prev]); };
+  const removeFabric = async (id: string) => { await dbService.deleteFabric(id); setFabrics(prev => prev.filter(f => f.id !== id)); };
 
-  const addCoupon = async (c: Coupon) => { const updated = [...coupons, c]; setCoupons(updated); await commitGlobalSync({ coupons: updated }); };
-  const updateCoupon = async (c: Coupon) => { const updated = coupons.map(curr => curr.id === c.id ? c : curr); setCoupons(updated); await commitGlobalSync({ coupons: updated }); };
-  const removeCoupon = async (id: string) => { const updated = coupons.filter(c => c.id !== id); setCoupons(updated); await commitGlobalSync({ coupons: updated }); };
+  const registerNewUser = async (u: User) => { const s = await dbService.saveUser(u); setAllUsers(prev => [...prev, s]); setUser(s); };
+  const updateAnyUser = async (u: User) => { await dbService.saveUser(u); setAllUsers(prev => prev.map(x => x.id === u.id ? u : x)); if (user?.id === u.id) setUser(u); };
+  const removeUser = async (id: string) => { await dbService.deleteUser(id); setAllUsers(prev => prev.filter(u => u.id !== id)); };
 
-  const addBanner = async (b: Banner) => { const updated = [...banners, b]; setBanners(updated); await commitGlobalSync({ banners: updated }); };
-  const updateBanner = async (b: Banner) => { const updated = banners.map(curr => curr.id === b.id ? b : curr); setBanners(updated); await commitGlobalSync({ banners: updated }); };
-  const removeBanner = async (id: string) => { const updated = banners.filter(b => b.id !== id); setBanners(updated); await commitGlobalSync({ banners: updated }); };
+  const addNotice = async (n: Notice) => { const s = await dbService.saveNotice(n); setNotices(prev => [s, ...prev]); };
+  const updateNotice = async (n: Notice) => { await dbService.saveNotice(n); setNotices(prev => prev.map(c => c.id === n.id ? n : c)); };
+  const removeNotice = async (id: string) => { await dbService.deleteNotice(id); setNotices(prev => prev.filter(x => x.id !== id)); };
 
-  const addOffer = async (o: Offer) => { const updated = [...offers, o]; setOffers(updated); await commitGlobalSync({ offers: updated }); };
-  const updateOffer = async (o: Offer) => { const updated = offers.map(curr => curr.id === o.id ? o : curr); setOffers(updated); await commitGlobalSync({ offers: updated }); };
-  const removeOffer = async (id: string) => { const updated = offers.filter(o => o.id !== id); setOffers(updated); await commitGlobalSync({ offers: updated }); };
+  const addOffer = async (o: Offer) => { const s = await dbService.saveOffer(o); setOffers(prev => [s, ...prev]); };
+  const updateOffer = async (o: Offer) => { await dbService.saveOffer(o); setOffers(prev => prev.map(c => c.id === o.id ? o : c)); };
+  const removeOffer = async (id: string) => { await dbService.deleteOffer(id); setOffers(prev => prev.filter(x => x.id !== id)); };
 
-  const addNotice = async (n: Notice) => { const updated = [...notices, n]; setNotices(updated); await commitGlobalSync({ notices: updated }); };
-  const updateNotice = async (n: Notice) => { const updated = notices.map(curr => curr.id === n.id ? n : curr); setNotices(updated); await commitGlobalSync({ notices: updated }); };
-  const removeNotice = async (id: string) => { const updated = notices.filter(n => n.id !== id); setNotices(updated); await commitGlobalSync({ notices: updated }); };
+  // --- ATOMIC COUPON MUTATIONS ---
+  /* Fix: Added missing addCoupon function */
+  const addCoupon = async (c: Coupon) => { const s = await dbService.saveCoupon(c); setCoupons(prev => [s, ...prev]); };
+  /* Fix: Added missing updateCoupon function */
+  const updateCoupon = async (c: Coupon) => { await dbService.saveCoupon(c); setCoupons(prev => prev.map(curr => curr.id === c.id ? c : curr)); };
+  /* Fix: Added missing removeCoupon function */
+  const removeCoupon = async (id: string) => { await dbService.deleteCoupon(id); setCoupons(prev => prev.filter(c => c.id !== id)); };
 
-  const addDue = async (d: DueRecord) => { const updated = [...dues, d]; setDues(updated); await commitGlobalSync({ dues: updated }); };
-  const updateDue = async (d: DueRecord) => { const updated = dues.map(curr => curr.id === d.id ? d : curr); setDues(updated); await commitGlobalSync({ dues: updated }); };
-  const removeDue = async (id: string) => { const updated = dues.filter(d => d.id !== id); setDues(updated); await commitGlobalSync({ dues: updated }); };
+  const addGiftCard = async (gc: GiftCard) => { const s = await dbService.saveGiftCard(gc); setGiftCards(prev => [s, ...prev]); };
+  const updateGiftCard = async (gc: GiftCard) => { await dbService.saveGiftCard(gc); setGiftCards(prev => prev.map(c => c.id === gc.id ? gc : c)); };
+  const removeGiftCard = async (id: string) => { await dbService.deleteGiftCard(id); setGiftCards(prev => prev.filter(x => x.id !== id)); };
 
-  const addGiftCard = async (gc: GiftCard) => { const updated = [...giftCards, gc]; setGiftCards(updated); await commitGlobalSync({ giftCards: updated }); };
-  const updateGiftCard = async (gc: GiftCard) => { const updated = giftCards.map(curr => curr.id === gc.id ? gc : curr); setGiftCards(updated); await commitGlobalSync({ giftCards: updated }); };
-  const removeGiftCard = async (id: string) => { const updated = giftCards.filter(gc => gc.id !== id); setGiftCards(updated); await commitGlobalSync({ giftCards: updated }); };
+  const addDue = async (d: DueRecord) => { const s = await dbService.saveDue(d); setDues(prev => [s, ...prev]); };
+  const updateDue = async (d: DueRecord) => { await dbService.saveDue(d); setDues(prev => prev.map(c => c.id === d.id ? d : c)); };
+  const removeDue = async (id: string) => { await dbService.deleteDue(id); setDues(prev => prev.filter(x => x.id !== id)); };
 
-  const addReview = async (r: Review) => { const updated = [...reviews, r]; setReviews(updated); await commitGlobalSync({ reviews: updated }); };
-  const updateReviewStatus = async (id: string, status: any) => { const updated = reviews.map(r => r.id === id ? { ...r, status } : r); setReviews(updated); await commitGlobalSync({ reviews: updated }); };
-  const removeReview = async (id: string) => { const updated = reviews.filter(r => r.id !== id); setReviews(updated); await commitGlobalSync({ reviews: updated }); };
+  const addBespokeService = async (s: BespokeService) => { const res = await dbService.saveBespokeService(s); setBespokeServices(prev => [res, ...prev]); };
+  const updateBespokeService = async (s: BespokeService) => { await dbService.saveBespokeService(s); setBespokeServices(prev => prev.map(c => c.id === s.id ? s : c)); };
+  const removeBespokeService = async (id: string) => { await dbService.deleteBespokeService(id); setBespokeServices(prev => prev.filter(x => x.id !== id)); };
 
-  const addMaterialRequest = async (r: MaterialRequest) => { const updated = [...materialRequests, r]; setMaterialRequests(updated); await commitGlobalSync({ materials: updated }); };
-  const updateMaterialRequestStatus = async (id: string, status: any) => { const updated = materialRequests.map(r => r.id === id ? { ...r, status } : r); setMaterialRequests(updated); await commitGlobalSync({ materials: updated }); };
+  const addPartnerBrand = async (p: PartnerBrand) => { const s = await dbService.savePartner(p); setPartnerBrands(prev => [s, ...prev]); };
+  const updatePartnerBrand = async (p: PartnerBrand) => { await dbService.savePartner(p); setPartnerBrands(prev => prev.map(c => c.id === p.id ? p : c)); };
+  const removePartnerBrand = async (id: string) => { await dbService.deletePartner(id); setPartnerBrands(prev => prev.filter(x => x.id !== id)); };
 
-  const addUpcomingProduct = async (p: UpcomingProduct) => { const updated = [...upcomingProducts, p]; setUpcomingProducts(updated); await commitGlobalSync({ upcomingProducts: updated }); };
-  const updateUpcomingProduct = async (p: UpcomingProduct) => { const updated = upcomingProducts.map(curr => curr.id === p.id ? p : curr); setUpcomingProducts(updated); await commitGlobalSync({ upcomingProducts: updated }); };
-  const removeUpcomingProduct = async (id: string) => { const updated = upcomingProducts.filter(p => p.id !== id); setUpcomingProducts(updated); await commitGlobalSync({ upcomingProducts: updated }); };
+  const addUpcomingProduct = async (p: UpcomingProduct) => { const s = await dbService.saveUpcomingProduct(p); setUpcomingProducts(prev => [s, ...prev]); };
+  const updateUpcomingProduct = async (p: UpcomingProduct) => { await dbService.saveUpcomingProduct(p); setUpcomingProducts(prev => prev.map(c => c.id === p.id ? p : c)); };
+  const removeUpcomingProduct = async (id: string) => { await dbService.deleteUpcomingProduct(id); setUpcomingProducts(prev => prev.filter(x => x.id !== id)); };
 
-  const addBespokeService = async (s: BespokeService) => { const updated = [...bespokeServices, s]; setBespokeServices(updated); await commitGlobalSync({ bespokeServices: updated }); };
-  const updateBespokeService = async (s: BespokeService) => { const updated = bespokeServices.map(curr => curr.id === s.id ? s : curr); setBespokeServices(updated); await commitGlobalSync({ bespokeServices: updated }); };
-  const removeBespokeService = async (id: string) => { const updated = bespokeServices.filter(s => s.id !== id); setBespokeServices(updated); await commitGlobalSync({ bespokeServices: updated }); };
+  const addBanner = async (b: Banner) => { const s = await dbService.saveBanner(b); setBanners(prev => [s, ...prev]); };
+  const updateBanner = async (b: Banner) => { await dbService.saveBanner(b); setBanners(prev => prev.map(c => c.id === b.id ? b : c)); };
+  const removeBanner = async (id: string) => { await dbService.deleteBanner(id); setBanners(prev => prev.filter(x => x.id !== id)); };
 
-  const addPartnerBrand = async (p: PartnerBrand) => { const updated = [...partnerBrands, p]; setPartnerBrands(updated); await commitGlobalSync({ partners: updated }); };
-  const updatePartnerBrand = async (p: PartnerBrand) => { const updated = partnerBrands.map(curr => curr.id === p.id ? p : curr); setPartnerBrands(updated); await commitGlobalSync({ partners: updated }); };
-  const removePartnerBrand = async (id: string) => { const updated = partnerBrands.filter(p => p.id !== id); setPartnerBrands(updated); await commitGlobalSync({ partners: updated }); };
+  const addReview = async (r: Review) => { const s = await dbService.saveReview(r); setReviews(prev => [s, ...prev]); };
+  const updateReviewStatus = async (id: string, status: any) => {
+    const r = reviews.find(x => x.id === id);
+    if (r) await addReview({ ...r, status });
+  };
+  const removeReview = async (id: string) => { await dbService.deleteReview(id); setReviews(prev => prev.filter(x => x.id !== id)); };
 
-  const addProductRequest = async (r: ProductRequest) => { const updated = [...productRequests, r]; setProductRequests(updated); await commitGlobalSync({ requests: updated }); };
+  const addMaterialRequest = async (r: MaterialRequest) => { const s = await dbService.saveMaterialRequest(r); setMaterialRequests(prev => [s, ...prev]); };
+  const updateMaterialRequestStatus = async (id: string, status: any) => {
+    const r = materialRequests.find(x => x.id === id);
+    if (r) await addMaterialRequest({ ...r, status });
+  };
+
+  const addProductRequest = async (r: ProductRequest) => { await dbService.saveProductRequest(r); setProductRequests(prev => [r, ...prev]); };
 
   return (
     <StoreContext.Provider value={{
-      cart, addToCart: (item: CartItem) => setCart(prev => [...prev, item]), 
-      removeFromCart: (id: string) => setCart(prev => prev.filter(i => i.id !== id)), 
-      updateQuantity: (id: string, q: number) => setCart(prev => prev.map(i => i.id === id ? {...i, quantity: Math.max(1, q)} : i)),
+      cart, addToCart: (i) => setCart(prev => [...prev, i]), 
+      removeFromCart: (id) => setCart(prev => prev.filter(i => i.id !== id)), 
+      updateQuantity: (id, q) => setCart(prev => prev.map(i => i.id === id ? {...i, quantity: Math.max(1, q)} : i)),
       user, setUser, adminUser, setAdminUser, workerUser, setWorkerUser,
-      allUsers, wishlist, toggleWishlist: (id: string) => setWishlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]),
+      allUsers, wishlist, toggleWishlist: (id) => setWishlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]),
       orders, placeOrder, updateOrder, updateOrderStatus, updateProductionStep, assignWorker, removeOrder,
       products, updateProduct, addProduct, removeProduct,
       fabrics, addFabric, removeFabric,
-      categories, addCategory, removeCategory,
+      categories, addCategory: (c) => setCategories(prev => [...prev, c]), removeCategory: (c) => setCategories(prev => prev.filter(x => x !== c)),
       coupons, addCoupon, updateCoupon, removeCoupon,
       banners, addBanner, updateBanner, removeBanner,
-      upcomingProducts, addUpcomingProduct, updateUpcomingProduct, removeUpcomingProduct,
       registerNewUser, updateAnyUser, removeUser,
       productRequests, addProductRequest,
       materialRequests, addMaterialRequest, updateMaterialRequestStatus,
@@ -276,18 +296,19 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       dues, addDue, updateDue, removeDue,
       bespokeServices, addBespokeService, updateBespokeService, removeBespokeService,
       partnerBrands, addPartnerBrand, updatePartnerBrand, removePartnerBrand,
+      upcomingProducts, addUpcomingProduct, updateUpcomingProduct, removeUpcomingProduct,
       systemConfig, updateSystemConfig,
-      notifications, markNotificationRead: (id: string) => setNotifications(prev => prev.map(n => n.id === id ? {...n, isRead: true} : n)),
+      notifications, markNotificationRead: async (id) => { await dbService.markNotificationRead(id); setNotifications(prev => prev.map(n => n.id === id ? {...n, isRead: true} : n)); },
       clearNotifications: () => setNotifications([]),
-      emailLogs, isHydrated, syncToServer: async () => { await commitGlobalSync(); },
+      emailLogs, isHydrated, syncToServer: async () => { console.info("Synchronizing Relational PostgreSQL Integrity..."); await bootstrap(); },
       resetSystemData: () => {}, roastMaliciousUser: async () => {}, subscribeToNewsletter: async () => {}
     }}>
       {isHydrated ? children : (
         <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-6">
            <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
            <div className="text-center">
-             <p className="text-amber-500 font-mono text-xs uppercase tracking-[0.5em] animate-pulse">Synchronizing Global Ledger</p>
-             <p className="text-slate-600 text-[8px] font-black uppercase tracking-widest mt-2">Bespoke World State Handshake...</p>
+             <p className="text-amber-500 font-mono text-xs uppercase tracking-[0.5em] animate-pulse">Relational Handshake...</p>
+             <p className="text-slate-600 text-[8px] font-black uppercase tracking-widest mt-2">Connecting to PostgreSQL Core</p>
            </div>
         </div>
       )}

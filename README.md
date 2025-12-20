@@ -1,69 +1,39 @@
-# Mehedi Tailors & Fabrics — Industrial Bespoke Suite
+# Mehedi Tailors & Fabrics — PostgreSQL Enterprise Suite
 
-A production-ready ERP and e-commerce ecosystem designed for high-end tailoring establishments. This suite manages the entire lifecycle of a garment from digital design to industrial tagging and artisan assembly.
+This application is architected for a **Relational PostgreSQL Backend**. This ensures ACID compliance, industrial-grade persistence, and multi-user concurrency for your artisan studio.
 
 ---
 
-## 🔐 Technical Architecture Mapping
+## 🐘 PostgreSQL Migration Guide
 
-For developers implementing custom modules or integrating third-party APIs, here is the file responsibility map:
+### 1. Database Provisioning
+You must have a PostgreSQL instance running (v14 or higher recommended).
+1. Create a new database: `CREATE DATABASE mehedi_atelier;`
+2. Apply the schema: `psql -d mehedi_atelier -f schema.sql`
+3. Load bootstrap data: `psql -d mehedi_atelier -f seeders.sql`
 
-| Module | Primary File | Responsibility |
+### 2. Backend Integration
+The frontend communicates via a standardized REST API (`/api/v1`). You must implement a backend (Node.js/Express, PHP/Laravel, or Python/FastAPI) that maps these endpoints to the Postgres tables defined in `schema.sql`.
+
+| Method | Endpoint | Responsibility |
 | :--- | :--- | :--- |
-| **Routing** | `App.tsx` | Controls all URL patterns and determines which layout to wrap around pages. |
-| **Global State** | `context/StoreContext.tsx` | Central logic for Cart, Orders, Users, and Database synchronization. |
-| **Auth Guards** | `components/ProtectedRoute.tsx` | Prevents unauthorized access to Admin/Worker/Customer dashboards. |
-| **Persistence** | `services/DatabaseService.ts` | Handles the IndexedDB "virtual file system" to mimic a `database.json`. |
-| **Checkout** | `pages/CheckoutPage.tsx` | Payment method selection and order object construction before placement. |
-| **Bespoke Logic** | `pages/CustomTailoringPage.tsx` | Multi-step configuration for tailored garments and Gemini AI integration. |
-| **Messaging** | `context/StoreContext.tsx` | The `sendEmail` function handles automated transactional dispatches. |
+| **GET** | `/users` | Returns normalized User records. |
+| **POST** | `/orders` | Atomically creates a new commission. |
+| **PUT** | `/products/:id` | Updates inventory and stock levels. |
+| **GET** | `/config` | Returns the `system_config` singleton (ID 1). |
+
+### 3. Data Structure Notes
+-   **JSONB Columns**: Fields like `measurements`, `items`, and `images` use the `JSONB` type. This allows for flexible NoSQL-like storage while remaining inside a rigid relational table.
+-   **Atomic Operations**: Unlike file-based sync, the UI now performs atomic updates per entity. This prevents race conditions in multi-admin environments.
 
 ---
 
-## 💳 SSLCommerz Integration Guide
-
-To transition from "Simulation Mode" to live digital payments via SSLCommerz, follow these architectural steps:
-
-### 1. Backend Endpoint (Required)
-SSLCommerz is a server-to-server protocol. You must create a PHP or Node.js endpoint to handle the `init` request.
-- **Route to Modify**: `pages/CheckoutPage.tsx`
-- **Action**: In `handleSubmit`, if `paymentMethod === 'sslcommerz'`, replace the `setTimeout` simulation with a `fetch()` call to your payment init endpoint.
-
-### 2. Implementation Workflow
-1.  **Initiate**: Send `total_amount`, `cus_email`, and `tran_id` to your backend.
-2.  **Redirect**: Your backend calls SSLCommerz API and returns a `GatewayPageURL`. Redirect the user in the frontend using `window.location.href = data.GatewayPageURL`.
-3.  **IPN (Instant Payment Notification)**: SSLCommerz will POST to your server. Your server must then update the order in the database.
-4.  **Handle Redirects**:
-    -   **Success**: Point to `/#/order-success/[orderId]`.
-    -   **Fail**: Point to a new `/#/payment-fail` route (to be created in `App.tsx`).
-    -   **Cancel**: Point to `/#/cart`.
-
-### 3. File Updates Required
--   **`types.ts`**: Update `PaymentStatus` to include `Pending Verification`.
--   **`context/StoreContext.tsx`**: Add an `updateOrderPayment` function that can be called after a successful IPN handshake.
-
----
-
-## 🏭 Industrial Modules
-
-### **1. Communication Engine (SMTP Bridge)**
-Located at `/#/admin/settings`, this module allows administrators to link the atelier's mail server.
--   **Management**: Admins can Add, Edit, or Remove SMTP credentials via the Dashboard.
--   **Security**: Supports SSL (Port 465) and TLS (Port 587) enforcement.
--   **Virtual Outbox**: All dispatches are logged in `pages/admin/AdminOutboxPage.tsx`.
-
-### **2. Label Studio & QR Automation**
-Navigate to `/#/admin/labels` for high-density physical inventory tagging.
--   **Industrial Metadata**: QR codes serialize compressed JSON including SKU and Retail Value.
--   **Thermal Calibration**: Optimized for 4x2 industrial thermal printers.
-
----
-
-## 🔐 System Credentials
+## 🔐 Default Access Credentials
+Use these identities to access the Administrative and Artisan consoles:
 
 | Role | Email | Password |
 | :--- | :--- | :--- |
-| **Master Admin** | `admin@meheditailors.com` | `admin123` |
-| **Head Artisan** | `worker@meheditailors.com` | `worker123` |
+| **Admin** | `admin@meheditailors.com` | `admin123` |
+| **Worker** | `worker@meheditailors.com` | `worker123` |
 
-*Heritage Precision. Digital Excellence. Crafted for Mehedi Tailors.*
+*Engineered for Sartorial Sovereignty. Persisted for Generations.*
