@@ -1,7 +1,7 @@
 {
+  "name": "Mehedi Tailors & Fabrics - Bespoke ERP",
+  "description": "High-end bespoke tailoring suite for Mehedi Tailors & Fabrics, Ashulia, Savar.",
   "requestFramePermissions": [
     "camera"
-  ],
-  "name": "Mehedi Tailors & Fabrics",
-  "description": ""
+  ]
 }

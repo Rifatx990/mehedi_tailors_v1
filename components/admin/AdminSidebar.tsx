@@ -25,7 +25,12 @@ import {
   PaperAirplaneIcon,
   Bars3Icon,
   PaintBrushIcon,
-  BanknotesIcon
+  BanknotesIcon,
+  SparklesIcon,
+  ClockIcon,
+  GiftIcon,
+  MegaphoneIcon,
+  CircleStackIcon
 } from '@heroicons/react/24/outline';
 
 const AdminSidebar: React.FC = () => {
@@ -47,14 +52,19 @@ const AdminSidebar: React.FC = () => {
     { to: '/admin/reports', label: 'Sales Reports', icon: DocumentChartBarIcon },
     { to: '/admin/orders', label: 'Order Pipeline', icon: ShoppingBagIcon },
     { to: '/admin/dues', label: 'Due Ledger', icon: BanknotesIcon, badge: activeDues },
+    { to: '/admin/gift-cards', label: 'Gift Credit Ledger', icon: GiftIcon },
     { type: 'separator', label: 'Inventory' },
     { to: '/admin/products', label: 'Inventory (CRUD)', icon: TagIcon },
+    { to: '/admin/upcoming', label: 'Upcoming Models', icon: ClockIcon },
+    { to: '/admin/bespoke-services', label: 'Customization CRUD', icon: SparklesIcon },
     { to: '/admin/catalog', label: 'Product Catalog', icon: IdentificationIcon },
     { to: '/admin/labels', label: 'Label Studio', icon: QrCodeIcon },
     { to: '/admin/fabrics', label: 'Fabric Vault', icon: SwatchIcon },
     { to: '/admin/categories', label: 'Categories', icon: Squares2X2Icon },
     { type: 'separator', label: 'Marketing' },
     { to: '/admin/branding', label: 'Branding Studio', icon: PaintBrushIcon },
+    { to: '/admin/offers', label: 'Promotion Offers', icon: TagIcon },
+    { to: '/admin/notices', label: 'Notices & Ticker', icon: MegaphoneIcon },
     { to: '/admin/partners', label: 'Partner Brands', icon: BriefcaseIcon },
     { to: '/admin/banners', label: 'Hero Pictures', icon: PhotoIcon },
     { to: '/admin/coupons', label: 'Coupons', icon: TicketIcon },
@@ -73,7 +83,6 @@ const AdminSidebar: React.FC = () => {
 
   return (
     <>
-      {/* Mobile Top Bar */}
       <div className="md:hidden flex items-center justify-between p-6 bg-slate-950 text-white sticky top-0 z-[60] shadow-xl no-print">
         <div className="flex items-center space-x-2">
           <h2 className="text-xl font-bold serif tracking-tighter">MEHEDI</h2>
@@ -84,46 +93,23 @@ const AdminSidebar: React.FC = () => {
         </button>
       </div>
 
-      {/* Sidebar Overlay */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] md:hidden"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+      {isOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] md:hidden" onClick={() => setIsOpen(false)} />}
 
-      {/* Sidebar Content */}
-      <aside className={`fixed top-0 left-0 h-full bg-slate-950 text-white flex flex-col p-8 shadow-2xl z-[80] overflow-y-auto no-scrollbar no-print transition-transform duration-500 ease-out md:translate-x-0 md:sticky md:w-72 ${isOpen ? 'translate-x-0 w-80' : '-translate-x-full'}`}>
+      <aside className={`fixed top-0 left-0 h-full bg-slate-950 text-white flex flex-col p-8 shadow-2xl z-[80] overflow-y-auto no-scrollbar border-r border-white/5 transition-transform duration-500 ease-out md:translate-x-0 md:sticky md:w-72 ${isOpen ? 'translate-x-0 w-80' : '-translate-x-full'}`}>
         <div className="flex justify-between items-center mb-12">
           <div className="text-center md:text-left">
             <h2 className="text-3xl font-bold serif tracking-tighter">MEHEDI</h2>
             <p className="text-[10px] uppercase tracking-[0.4em] text-amber-500 font-bold mt-1">Atelier Control</p>
           </div>
-          <button onClick={() => setIsOpen(false)} className="md:hidden p-2 hover:bg-white/10 rounded-full">
-            <XMarkIcon className="w-6 h-6" />
-          </button>
+          <button onClick={() => setIsOpen(false)} className="md:hidden p-2 hover:bg-white/10 rounded-full"><XMarkIcon className="w-6 h-6" /></button>
         </div>
 
         <nav className="flex-grow space-y-1">
           {navItems.map((item, idx) => {
-            if (item.type === 'separator') {
-              return (
-                <div key={idx} className="pt-6 pb-2">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-600 px-5">{item.label}</p>
-                </div>
-              );
-            }
+            if (item.type === 'separator') return <div key={idx} className="pt-6 pb-2"><p className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-600 px-5">{item.label}</p></div>;
             return (
-              <NavLink 
-                key={item.to} 
-                to={item.to!} 
-                onClick={() => setIsOpen(false)}
-                className={({ isActive }) => `w-full flex items-center justify-between px-5 py-3 rounded-2xl transition-all duration-300 ${isActive ? 'bg-amber-600 text-white shadow-xl shadow-amber-600/20 translate-x-1' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
-              >
-                <div className="flex items-center space-x-4">
-                  <item.icon className="w-4.5 h-4.5" />
-                  <span className="font-bold text-[9px] uppercase tracking-widest">{item.label}</span>
-                </div>
+              <NavLink key={item.to} to={item.to!} onClick={() => setIsOpen(false)} className={({ isActive }) => `w-full flex items-center justify-between px-5 py-3 rounded-2xl transition-all duration-300 ${isActive ? 'bg-amber-600 text-white shadow-xl shadow-amber-600/20 translate-x-1' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
+                <div className="flex items-center space-x-4"><item.icon className="w-4.5 h-4.5" /><span className="font-bold text-[9px] uppercase tracking-widest">{item.label}</span></div>
                 {item.badge ? <span className="bg-white text-amber-600 text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-lg">{item.badge}</span> : null}
               </NavLink>
             );

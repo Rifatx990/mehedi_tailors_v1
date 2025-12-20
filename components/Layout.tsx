@@ -17,21 +17,30 @@ import {
 } from '@heroicons/react/24/outline';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { cart, user, wishlist, adminUser, workerUser, notifications, markNotificationRead, systemConfig } = useStore();
+  const { cart, user, wishlist, adminUser, workerUser, notifications, markNotificationRead, systemConfig, subscribeToNewsletter } = useStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const navigate = useNavigate();
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  const handleNewsletter = (e: React.FormEvent) => {
+  const handleNewsletter = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newsletterEmail) {
+    if (!newsletterEmail || isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      await subscribeToNewsletter(newsletterEmail);
       setSubscribed(true);
       setNewsletterEmail('');
       setTimeout(() => setSubscribed(false), 5000);
+    } catch (err) {
+      alert("Subscription failed. Please check your connectivity.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -63,7 +72,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 shadow-sm">
         <div className="container mx-auto px-4 h-20 flex items-center justify-between">
-          {/* Logo - Dynamic Branding */}
           <Link to="/" className="flex items-center space-x-3">
             {systemConfig.siteLogo ? (
               <img 
@@ -79,7 +87,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <span className="text-xs uppercase tracking-widest text-slate-500 hidden sm:block">Tailors & Fabrics</span>
           </Link>
 
-          {/* Desktop Links */}
           <div className="hidden md:flex space-x-8 text-sm font-medium uppercase tracking-wider text-slate-600">
             <Link to="/shop" className="hover:text-amber-600 transition">Shop</Link>
             <Link to="/fabrics" className="hover:text-amber-600 transition">Fabrics</Link>
@@ -87,7 +94,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <Link to="/track-order" className="hover:text-amber-600 transition">Track Order</Link>
           </div>
 
-          {/* Icons */}
           <div className="flex items-center space-x-5">
             <button className="p-2 text-slate-600 hover:text-slate-900 transition">
               <MagnifyingGlassIcon className="w-5 h-5" />
@@ -101,7 +107,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               )}
             </Link>
             
-            {/* Notification Bell */}
             {user && (
               <div className="relative">
                 <button 
@@ -248,7 +253,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <h4 className="text-white font-medium mb-6 uppercase tracking-widest text-[10px]">Newsletter</h4>
             <p className="text-xs mb-6 leading-loose opacity-70">Early access to new fabrics and seasonal collections.</p>
             {subscribed ? (
-              <div className="flex items-center space-x-2 text-amber-600 animate-in zoom-in">
+              <div className="flex items-center space-x-2 text-emerald-500 animate-in zoom-in">
                 <CheckCircleIcon className="w-5 h-5" />
                 <span className="text-xs font-bold uppercase tracking-widest">You're on the list!</span>
               </div>
@@ -257,12 +262,19 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 <input 
                   required
                   type="email" 
+                  disabled={isSubmitting}
                   value={newsletterEmail}
                   onChange={(e) => setNewsletterEmail(e.target.value)}
                   placeholder="Your Email" 
                   className="bg-white/5 border-none px-4 py-3 text-xs w-full focus:ring-1 focus:ring-amber-600 text-white placeholder:text-slate-500 rounded-l-xl" 
                 />
-                <button type="submit" className="bg-amber-600 text-white px-6 py-3 text-xs font-bold uppercase tracking-widest hover:bg-amber-700 transition rounded-r-xl">Join</button>
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                  className="bg-amber-600 text-white px-6 py-3 text-xs font-bold uppercase tracking-widest hover:bg-amber-700 transition rounded-r-xl disabled:opacity-50"
+                >
+                  {isSubmitting ? '...' : 'Join'}
+                </button>
               </form>
             )}
           </div>

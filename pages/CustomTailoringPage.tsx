@@ -10,11 +10,12 @@ import {
   CheckCircleIcon,
   SwatchIcon,
   AdjustmentsHorizontalIcon,
-  ChatBubbleLeftRightIcon
+  ChatBubbleLeftRightIcon,
+  ScissorsIcon
 } from '@heroicons/react/24/outline';
 
 const CustomTailoringPage: React.FC = () => {
-  const { addToCart, fabrics } = useStore();
+  const { addToCart, fabrics, bespokeServices } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [step, setStep] = useState(1);
@@ -39,6 +40,9 @@ const CustomTailoringPage: React.FC = () => {
 
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+
+  // Filter only active services
+  const activeServices = bespokeServices.filter(s => s.isActive);
 
   useEffect(() => {
     if (location.state && (location.state as any).garmentType) {
@@ -68,6 +72,8 @@ const CustomTailoringPage: React.FC = () => {
 
   const handleComplete = () => {
     const currentFabric = fabrics.find(f => f.id === selectedFabric);
+    const service = activeServices.find(s => s.name === garmentType);
+    
     const customItem = {
       id: Math.random().toString(36).substr(2, 9),
       productId: 'custom-garment',
@@ -79,20 +85,11 @@ const CustomTailoringPage: React.FC = () => {
       designOptions: designOptions,
       selectedFabric: currentFabric?.name,
       selectedColor: selectedColor,
-      price: garmentType === 'Suit' ? 12000 : garmentType === 'Panjabi' ? 4500 : 2500
+      price: service?.basePrice || 2500
     };
     addToCart(customItem);
     navigate('/cart');
   };
-
-  const garmentOptions = [
-    { type: 'Shirt', icon: '👔', basePrice: 2500 },
-    { type: 'Pant', icon: '👖', basePrice: 2200 },
-    { type: 'Suit', icon: '🤵', basePrice: 12000 },
-    { type: 'Panjabi', icon: '🕌', basePrice: 4500 },
-    { type: 'Blouse', icon: '👗', basePrice: 1800 },
-    { type: 'Kamiz', icon: '👘', basePrice: 3200 },
-  ];
 
   return (
     <div className="py-20 bg-slate-50 min-h-screen">
@@ -139,16 +136,16 @@ const CustomTailoringPage: React.FC = () => {
                 <h2 className="text-3xl font-bold serif mb-2">Select Your Canvas</h2>
                 <p className="text-slate-400 text-sm mb-10">Choose the garment type you wish to customize.</p>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-                  {garmentOptions.map(opt => (
+                  {activeServices.map(service => (
                     <button
-                      key={opt.type}
-                      onClick={() => { setGarmentType(opt.type); handleNext(); }}
-                      className={`p-10 border-2 rounded-[2.5rem] transition flex flex-col items-center space-y-4 group ${garmentType === opt.type ? 'border-amber-600 bg-amber-50 shadow-xl shadow-amber-600/10 scale-[1.02]' : 'border-slate-50 hover:border-slate-200 bg-slate-50/50'}`}
+                      key={service.id}
+                      onClick={() => { setGarmentType(service.name); handleNext(); }}
+                      className={`p-10 border-2 rounded-[2.5rem] transition flex flex-col items-center space-y-4 group ${garmentType === service.name ? 'border-amber-600 bg-amber-50 shadow-xl shadow-amber-600/10 scale-[1.02]' : 'border-slate-50 hover:border-slate-200 bg-slate-50/50'}`}
                     >
-                      <div className="text-5xl group-hover:scale-110 transition-transform">{opt.icon}</div>
+                      <div className="text-5xl group-hover:scale-110 transition-transform">{service.icon}</div>
                       <div className="text-center">
-                        <span className="font-bold text-slate-900 block">{opt.type}</span>
-                        <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mt-1">From BDT {opt.basePrice}</span>
+                        <span className="font-bold text-slate-900 block">{service.name}</span>
+                        <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mt-1">From BDT {service.basePrice.toLocaleString()}</span>
                       </div>
                     </button>
                   ))}
@@ -356,7 +353,9 @@ const CustomTailoringPage: React.FC = () => {
                 <div className="mt-8 p-10 bg-slate-900 rounded-[3rem] text-white flex justify-between items-center shadow-2xl">
                    <div>
                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Contract Valuation</p>
-                     <p className="text-4xl font-bold tracking-tighter text-amber-500">BDT {(garmentType === 'Suit' ? 12000 : garmentType === 'Panjabi' ? 4500 : 2500).toLocaleString()}</p>
+                     <p className="text-4xl font-bold tracking-tighter text-amber-500">
+                        BDT {(activeServices.find(s => s.name === garmentType)?.basePrice || 2500).toLocaleString()}
+                     </p>
                    </div>
                    <CheckCircleIcon className="w-16 h-16 text-white/10" />
                 </div>

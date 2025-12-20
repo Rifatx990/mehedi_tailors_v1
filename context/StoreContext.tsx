@@ -1,12 +1,14 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { 
   CartItem, Product, User, Order, OrderStatus, Fabric, Coupon, 
   ProductRequest, Banner, Review, ProductionStep, MaterialRequest, 
-  SystemConfig, Notification, PartnerBrand, EmailLog, DueRecord 
+  SystemConfig, Notification, PartnerBrand, EmailLog, DueRecord, BespokeService, UpcomingProduct, GiftCard,
+  Offer, Notice, NewsletterSubscriber
 } from '../types.ts';
 import { PRODUCTS as INITIAL_PRODUCTS } from '../constants.tsx';
 import { dbService } from '../services/DatabaseService.ts';
+import { GoogleGenAI } from "@google/genai";
 
 interface StoreContextType {
   cart: CartItem[];
@@ -33,6 +35,10 @@ interface StoreContextType {
   updateProduct: (product: Product) => Promise<void>;
   addProduct: (product: Product) => Promise<void>;
   removeProduct: (id: string) => Promise<void>;
+  upcomingProducts: UpcomingProduct[];
+  addUpcomingProduct: (p: UpcomingProduct) => Promise<void>;
+  updateUpcomingProduct: (p: UpcomingProduct) => Promise<void>;
+  removeUpcomingProduct: (id: string) => Promise<void>;
   fabrics: Fabric[];
   addFabric: (fabric: Fabric) => Promise<void>;
   removeFabric: (id: string) => Promise<void>;
@@ -47,12 +53,26 @@ interface StoreContextType {
   addBanner: (banner: Banner) => Promise<void>;
   updateBanner: (banner: Banner) => Promise<void>;
   removeBanner: (id: string) => Promise<void>;
+  giftCards: GiftCard[];
+  addGiftCard: (gc: GiftCard) => Promise<void>;
+  updateGiftCard: (gc: GiftCard) => Promise<void>;
+  removeGiftCard: (id: string) => Promise<void>;
+  offers: Offer[];
+  addOffer: (offer: Offer) => Promise<void>;
+  updateOffer: (offer: Offer) => Promise<void>;
+  removeOffer: (id: string) => Promise<void>;
+  notices: Notice[];
+  addNotice: (notice: Notice) => Promise<void>;
+  updateNotice: (notice: Notice) => Promise<void>;
+  removeNotice: (id: string) => Promise<void>;
+  subscribers: NewsletterSubscriber[];
+  subscribeToNewsletter: (email: string) => Promise<void>;
   partnerBrands: PartnerBrand[];
   addPartnerBrand: (brand: PartnerBrand) => Promise<void>;
   updatePartnerBrand: (brand: PartnerBrand) => Promise<void>;
   removePartnerBrand: (id: string) => Promise<void>;
   registerNewUser: (user: User) => Promise<void>;
-  updateAnyUser: (user: User) => Promise<void>;
+  updateAnyUser: (user: User, notify?: boolean) => Promise<void>;
   removeUser: (id: string) => Promise<void>;
   productRequests: ProductRequest[];
   addProductRequest: (req: ProductRequest) => Promise<void>;
@@ -71,29 +91,26 @@ interface StoreContextType {
   clearNotifications: () => void;
   emailLogs: EmailLog[];
   sendEmail: (to: string, subject: string, body: string) => Promise<void>;
+  initiatePasswordReset: (email: string) => Promise<boolean>;
   dues: DueRecord[];
   addDue: (due: DueRecord) => Promise<void>;
   updateDue: (due: DueRecord) => Promise<void>;
   removeDue: (id: string) => Promise<void>;
+  bespokeServices: BespokeService[];
+  addBespokeService: (service: BespokeService) => Promise<void>;
+  updateBespokeService: (service: BespokeService) => Promise<void>;
+  removeBespokeService: (id: string) => Promise<void>;
   isHydrated: boolean;
   resetSystemData: () => void;
   exportDb: () => Promise<void>;
   importDb: (json: string) => Promise<void>;
+  roastMaliciousUser: (input: string) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-const DEFAULT_BANNERS: Banner[] = [
-  { id: 'b1', title: 'Precision in Every Stitch', subtitle: 'Where heritage craftsmanship meets surgical precision.', imageUrl: 'https://images.unsplash.com/photo-1594932224828-b4b059b6f6f9?q=80&w=2080&auto=format&fit=crop', linkUrl: '/shop', isActive: true },
-  { id: 'b2', title: 'Masterpiece Archive 2025', subtitle: 'Explore curated silhouettes for the modern gentleman.', imageUrl: 'https://images.unsplash.com/photo-1604176354204-926873ff7da9?q=80&w=2080&auto=format&fit=crop', linkUrl: '/shop', isActive: true }
-];
-
-const DEFAULT_CATEGORIES = ['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring'];
-
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isHydrated, setIsHydrated] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-
   const [cart, setCart] = useState<CartItem[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [adminUser, setAdminUser] = useState<User | null>(null);
@@ -103,10 +120,16 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [dues, setDues] = useState<DueRecord[]>([]);
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [upcomingProducts, setUpcomingProducts] = useState<UpcomingProduct[]>([]);
+  const [bespokeServices, setBespokeServices] = useState<BespokeService[]>([]);
   const [fabrics, setFabrics] = useState<Fabric[]>([]);
-  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState<string[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [giftCards, setGiftCards] = useState<GiftCard[]>([]);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
   const [partnerBrands, setPartnerBrands] = useState<PartnerBrand[]>([]);
   const [productRequests, setProductRequests] = useState<ProductRequest[]>([]);
@@ -117,186 +140,283 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     smtpHost: 'smtp.gmail.com', smtpPort: 465, smtpUser: '', smtpPass: '', secure: true, 
     senderName: 'Mehedi Tailors', senderEmail: 'orders@meheditailors.com', isEnabled: true, 
     siteName: 'Mehedi Tailors & Fabrics',
-    siteLogo: 'https://via.placeholder.com/200x80?text=HEADER+LOGO',
-    documentLogo: 'https://via.placeholder.com/300x120?text=DOCUMENT+LOGO',
-    dbVersion: '4.5.2-FISCAL-REPORTING'
+    siteLogo: 'https://i.imgur.com/8H9IeM5.png',
+    documentLogo: 'https://i.imgur.com/8H9IeM5.png',
+    dbVersion: '7.15.0-MASTER',
+    giftCardDenominations: [2000, 5000, 10000, 25000]
   });
 
-  useEffect(() => {
-    const hydrate = async () => {
-      await dbService.init();
-      const [p, o, u, f, b, pt, r, req, m, c, e, n, coup, cats, d] = await Promise.all([
-        dbService.getAll('products'), dbService.getAll('orders'), dbService.getAll('users'),
-        dbService.getAll('fabrics'), dbService.getAll('banners'), dbService.getAll('partners'),
-        dbService.getAll('reviews'), dbService.getAll('requests'), dbService.getAll('materials'),
-        dbService.getAll('config'), dbService.getAll('emails'), dbService.getAll('notifications'),
-        dbService.getAll('coupons'), dbService.getAll('categories'), dbService.getAll('dues')
-      ]);
-
-      if (p.length > 0) setProducts(p);
-      if (o.length > 0) setOrders(o);
-      if (u.length > 0) setAllUsers(u); else {
-        const defaults = [
-          { id: 'admin-001', name: 'Mehedi Admin', email: 'admin@meheditailors.com', phone: '+8801720267213', address: 'Dhonaid, Ashulia', measurements: [], role: 'admin', password: 'admin123' },
-          { id: 'worker-001', name: 'Kabir Artisan', email: 'worker@meheditailors.com', phone: '+8801711122233', address: 'Staff Quarters, Savar', measurements: [], role: 'worker', specialization: 'Master Stitcher', password: 'worker123' }
-        ];
-        setAllUsers(defaults); await dbService.save('users', defaults);
-      }
-      if (f.length > 0) setFabrics(f);
-      if (b.length > 0) setBanners(b); else { setBanners(DEFAULT_BANNERS); await dbService.save('banners', DEFAULT_BANNERS); }
-      if (pt.length > 0) setPartnerBrands(pt);
-      if (r.length > 0) setReviews(r);
-      if (req.length > 0) setProductRequests(req);
-      if (m.length > 0) setMaterialRequests(m);
-      if (e.length > 0) setEmailLogs(e);
-      if (n.length > 0) setNotifications(n);
-      if (coup.length > 0) setCoupons(coup);
-      if (cats.length > 0) setCategories(cats.map(cat => cat.name));
-      if (d.length > 0) setDues(d);
-
-      const config = c.find(x => x.id === 'global'); if (config) setSystemConfig(config);
-      setIsHydrated(true);
+  const hardSaveToDisk = useCallback(async (overrides?: any) => {
+    const data = {
+      products: overrides?.products ?? products,
+      upcomingProducts: overrides?.upcomingProducts ?? upcomingProducts,
+      orders: overrides?.orders ?? orders,
+      users: overrides?.allUsers ?? allUsers,
+      emails: overrides?.emailLogs ?? emailLogs, 
+      config: overrides?.systemConfig ?? systemConfig,
+      notifications: overrides?.notifications ?? notifications,
+      banners: overrides?.banners ?? banners,
+      partners: overrides?.partnerBrands ?? partnerBrands, 
+      fabrics: overrides?.fabrics ?? fabrics,
+      reviews: overrides?.reviews ?? reviews,
+      requests: overrides?.productRequests ?? productRequests,
+      materials: overrides?.materialRequests ?? materialRequests, 
+      coupons: overrides?.coupons ?? coupons,
+      giftCards: overrides?.giftCards ?? giftCards,
+      offers: overrides?.offers ?? offers,
+      notices: overrides?.notices ?? notices,
+      subscribers: overrides?.subscribers ?? subscribers,
+      dues: overrides?.dues ?? dues,
+      bespokeServices: overrides?.bespokeServices ?? bespokeServices,
+      categories: overrides?.categories ?? categories,
     };
-    hydrate();
+    try {
+      await dbService.writeFile(data);
+    } catch (e) {
+      console.warn("Soft write error (likely incognito):", e);
+    }
+  }, [
+    products, upcomingProducts, orders, allUsers, emailLogs, systemConfig, 
+    notifications, banners, partnerBrands, fabrics, reviews, 
+    productRequests, materialRequests, coupons, giftCards, offers, notices, subscribers, dues, bespokeServices, categories
+  ]);
+
+  useEffect(() => {
+    const hydrateAndSeed = async () => {
+      try {
+        await dbService.init();
+        const db = await dbService.readFile();
+        
+        if (!db.users) {
+          const defaultUsers: User[] = [
+            { id: 'adm-001', name: 'System Admin', email: 'admin@meheditailors.com', phone: '+8801720267213', address: 'Atelier Savar', measurements: [], role: 'admin', password: 'admin123' }
+          ];
+          const seedData = { 
+            users: defaultUsers, 
+            products: INITIAL_PRODUCTS, 
+            categories: ['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring'], 
+            config: systemConfig,
+            notices: [{ id: 'n1', content: 'Welcome to the artisan portal. Eid commissions are now open.', type: 'info', isActive: true, createdAt: new Date().toISOString() }],
+            offers: [{ id: 'o1', title: 'Eid Ul Fitr Special', description: '20% off on all bespoke Panjabi tailoring.', discountTag: '20% OFF', imageUrl: 'https://picsum.photos/seed/eid/600/400', linkUrl: '/shop', isActive: true }]
+          };
+          await dbService.writeFile(seedData);
+          setAllUsers(defaultUsers);
+          setProducts(INITIAL_PRODUCTS);
+          setNotices(seedData.notices as any);
+          setOffers(seedData.offers as any);
+          setCategories(['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']);
+        } else {
+          setProducts(db.products || []);
+          setUpcomingProducts(db.upcomingProducts || []);
+          setOrders(db.orders || []);
+          setAllUsers(db.users || []);
+          setFabrics(db.fabrics || []);
+          setBanners(db.banners || []);
+          setPartnerBrands(db.partners || []);
+          setReviews(db.reviews || []);
+          setProductRequests(db.requests || []);
+          setMaterialRequests(db.materials || []);
+          setEmailLogs(db.emails || []);
+          setNotifications(db.notifications || []);
+          setCoupons(db.coupons || []);
+          setGiftCards(db.giftCards || []);
+          setOffers(db.offers || []);
+          setNotices(db.notices || []);
+          setSubscribers(db.subscribers || []);
+          setBespokeServices(db.bespokeServices || []);
+          setDues(db.dues || []);
+          setCategories(db.categories || ['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring']);
+          if (db.config) setSystemConfig(db.config);
+        }
+      } catch (err) {
+        console.error("Hydration Critical failure:", err);
+      } finally {
+        setIsHydrated(true);
+      }
+    };
+    hydrateAndSeed();
   }, []);
 
-  // AUTO-PERSISTENCE
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('products', products); }, [products, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('orders', orders); }, [orders, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('users', allUsers); }, [allUsers, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('emails', emailLogs); }, [emailLogs, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('config', [{ ...systemConfig, id: 'global' }]); }, [systemConfig, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('notifications', notifications); }, [notifications, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('banners', banners); }, [banners, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('partners', partnerBrands); }, [partnerBrands, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('fabrics', fabrics); }, [fabrics, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('reviews', reviews); }, [reviews, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('requests', productRequests); }, [productRequests, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('materials', materialRequests); }, [materialRequests, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('coupons', coupons); }, [coupons, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('dues', dues); }, [dues, isHydrated, isImporting]);
-  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('categories', categories.map(cat => ({ id: cat, name: cat }))); }, [categories, isHydrated, isImporting]);
-
   const sendEmail = async (to: string, subject: string, body: string) => {
-    const brandedBody = `[DOCUMENT HEADER: ${systemConfig.documentLogo || systemConfig.siteLogo}]\n\n${body}\n\n---\n${systemConfig.siteName} • Bespoke Excellence\nAshulia, Savar, Dhaka`;
-    const log: EmailLog = { id: 'ML-' + Date.now(), to, subject, body: brandedBody, timestamp: new Date().toISOString(), status: 'sent', templateId: 'industrial-gen' };
-    setEmailLogs(prev => [log, ...prev]);
+    if (!to) return;
+    const brandedBody = `[DOCUMENT HEADER: ${systemConfig.documentLogo || systemConfig.siteLogo}]\n\n${body}\n\n---\nOFFICIAL COMMUNICATION FROM ${systemConfig.siteName.toUpperCase()}`;
+    const newLog: EmailLog = { 
+      id: 'ML-' + Date.now(), 
+      to, 
+      subject, 
+      body: brandedBody, 
+      timestamp: new Date().toISOString(), 
+      status: 'sent', 
+      templateId: 'v12-branded' 
+    };
+    const updatedLogs = [newLog, ...emailLogs];
+    setEmailLogs(updatedLogs);
+    await hardSaveToDisk({ emailLogs: updatedLogs });
   };
 
-  const notifyDueUpdate = async (due: DueRecord, isNew: boolean) => {
-    const subject = isNew ? `Fiscal Notice: New Outstanding Balance established` : `Ledger Update: Your balance has been modified`;
-    const body = `Salaam ${due.customerName},\n\nOur artisan ledger has been updated regarding your account.\n\n` +
-      `📌 Balance Reference: ${due.id}\n` +
-      `💰 Amount: BDT ${due.amount.toLocaleString()}\n` +
-      `📝 Reason: ${due.reason}\n` +
-      `📅 Status: ${due.status.toUpperCase()}\n\n` +
-      `Please visit your patron dashboard to view full fiscal details.\n\nThank you for your patronage.`;
+  const initiatePasswordReset = async (email: string) => {
+    const foundUser = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!foundUser) return false;
 
-    await sendEmail(due.customerEmail, subject, body);
+    const resetToken = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const body = `Salaam ${foundUser.name},\n\nA password reset was requested for your artisan account.\n\nYour recovery code: ${resetToken}\n\nIf you did not request this, please secure your identity immediately.`;
+    
+    await sendEmail(email, 'Access Recovery Protocol', body);
+    return true;
+  };
 
-    const targetUser = allUsers.find(u => u.email.toLowerCase() === due.customerEmail.toLowerCase());
-    if (targetUser) {
-      addNotification({
-        id: 'NOT-' + Date.now(),
-        userId: targetUser.id,
-        title: subject,
-        message: `Your fiscal ledger has been adjusted: BDT ${due.amount.toLocaleString()} for ${due.reason}. Status: ${due.status}.`,
-        date: new Date().toISOString(),
-        isRead: false,
-        type: 'fiscal',
-        link: `/dashboard`
+  const roastMaliciousUser = async (input: string) => {
+    if (!input.match(/<script|alert\(|onerror|onclick|select\s|from\s|drop\s/i)) return;
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `A user tried to inject malicious code: "${input}". Write a hilarious roast as a master tailor. 1 sentence.`,
       });
+      alert(`SECURITY WARNING: ${response.text}`);
+    } catch {
+      alert("Hacking attempt detected. Craft clothes, not viruses.");
     }
   };
 
-  const addDue = async (due: DueRecord) => {
-    setDues(prev => [due, ...prev]);
-    await notifyDueUpdate(due, true);
-  };
+  const addToCart = (item: CartItem) => setCart(prev => [...prev, item]);
+  const removeFromCart = (itemId: string) => setCart(prev => prev.filter(i => i.id !== itemId));
+  const updateQuantity = (itemId: string, qty: number) => setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: Math.max(1, qty) } : i));
+  const toggleWishlist = (id: string) => setWishlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
-  const updateDue = async (due: DueRecord) => {
-    const original = dues.find(d => d.id === due.id);
-    const updated = { ...due };
-    if (due.status === 'settled' && (!original || original.status === 'pending')) {
-      updated.settledDate = new Date().toISOString();
+  const addCategory = (cat: string) => { const updated = [...categories, cat]; setCategories(updated); hardSaveToDisk({ categories: updated }); };
+  const removeCategory = (cat: string) => { const updated = categories.filter(c => c !== cat); setCategories(updated); hardSaveToDisk({ categories: updated }); };
+
+  const addCoupon = async (c: Coupon) => { const updated = [...coupons, c]; setCoupons(updated); await hardSaveToDisk({ coupons: updated }); };
+  const updateCoupon = async (c: Coupon) => { const updated = coupons.map(curr => curr.id === c.id ? c : curr); setCoupons(updated); await hardSaveToDisk({ coupons: updated }); };
+  const removeCoupon = async (id: string) => { const updated = coupons.filter(c => c.id !== id); setCoupons(updated); await hardSaveToDisk({ coupons: updated }); };
+
+  const generateGiftCardCode = () => 'MT' + Math.random().toString(36).substring(2, 10).toUpperCase();
+
+  const placeOrder = async (order: Order) => { 
+    const updatedOrders = [order, ...orders]; 
+    
+    // Inventory Management
+    const updatedProducts = products.map(p => {
+      const cartItem = order.items.find(item => item.productId === p.id);
+      if (cartItem) {
+        const newStock = Math.max(0, p.stockCount - cartItem.quantity);
+        return { ...p, stockCount: newStock, inStock: newStock > 0 };
+      }
+      return p;
+    });
+
+    // Gift Card Auto-Generation on Purchase
+    const newGiftCards: GiftCard[] = [];
+    order.items.forEach(item => {
+      if (item.productId === 'gift-card') {
+        for(let i=0; i<item.quantity; i++) {
+           newGiftCards.push({
+              id: 'GC-' + Date.now() + i,
+              code: generateGiftCardCode(),
+              balance: item.price,
+              initialAmount: item.price,
+              customerEmail: order.customerEmail || '',
+              customerName: order.customerName || 'Bespoke Patron',
+              isActive: true,
+              createdAt: new Date().toISOString()
+           });
+        }
+      }
+    });
+
+    const finalGiftCards = [...newGiftCards, ...giftCards];
+
+    setOrders(updatedOrders); 
+    setProducts(updatedProducts);
+    setGiftCards(finalGiftCards);
+    setCart([]); 
+    
+    await hardSaveToDisk({ orders: updatedOrders, products: updatedProducts, giftCards: finalGiftCards }); 
+    
+    // Notify about purchase & gift cards
+    await sendEmail(order.customerEmail || '', 'Order Lodged', `Order Confirmed: #${order.id}. Artisan production has triggered.`); 
+    if (newGiftCards.length > 0) {
+      const gclist = newGiftCards.map(gc => `CODE: ${gc.code} (BDT ${gc.balance})`).join('\n');
+      await sendEmail(order.customerEmail || '', 'Artisan Credits Issued', `Salaam,\n\nYour purchased gift credits have been issued:\n\n${gclist}\n\nUse these codes during checkout for any bespoke creation.`);
     }
-    setDues(prev => prev.map(d => d.id === due.id ? updated : d));
-    await notifyDueUpdate(updated, false);
+  };
+  
+  const updateOrder = async (order: Order) => { const updated = orders.map(o => o.id === order.id ? order : o); setOrders(updated); await hardSaveToDisk({ orders: updated }); };
+  const updateOrderStatus = async (orderId: string, status: OrderStatus) => { const updated = orders.map(o => o.id === orderId ? { ...o, status } : o); setOrders(updated); await hardSaveToDisk({ orders: updated }); };
+  const updateProductionStep = async (orderId: string, step: ProductionStep) => { const updated = orders.map(o => o.id === orderId ? { ...o, productionStep: step } : o); setOrders(updated); await hardSaveToDisk({ orders: updated }); };
+  const removeOrder = async (id: string) => { const updated = orders.filter(o => o.id !== id); setOrders(updated); await hardSaveToDisk({ orders: updated }); };
+  const assignWorker = async (orderId: string, workerId: string) => { const updated = orders.map(o => o.id === orderId ? { ...o, assignedWorkerId: workerId } : o); setOrders(updated); await hardSaveToDisk({ orders: updated }); };
+
+  const addProduct = async (p: Product) => { const updated = [p, ...products]; setProducts(updated); await hardSaveToDisk({ products: updated }); };
+  const updateProduct = async (p: Product) => { const updated = products.map(curr => curr.id === p.id ? p : curr); setProducts(updated); await hardSaveToDisk({ products: updated }); };
+  const removeProduct = async (id: string) => { const updated = products.filter(p => p.id !== id); setProducts(updated); await hardSaveToDisk({ products: updated }); };
+
+  const addOffer = async (o: Offer) => { const updated = [o, ...offers]; setOffers(updated); await hardSaveToDisk({ offers: updated }); };
+  const updateOffer = async (o: Offer) => { const updated = offers.map(curr => curr.id === o.id ? o : curr); setOffers(updated); await hardSaveToDisk({ offers: updated }); };
+  const removeOffer = async (id: string) => { const updated = offers.filter(o => o.id !== id); setOffers(updated); await hardSaveToDisk({ offers: updated }); };
+
+  const addNotice = async (n: Notice) => { const updated = [n, ...notices]; setNotices(updated); await hardSaveToDisk({ notices: updated }); };
+  const updateNotice = async (n: Notice) => { const updated = notices.map(curr => curr.id === n.id ? n : curr); setNotices(updated); await hardSaveToDisk({ notices: updated }); };
+  const removeNotice = async (id: string) => { const updated = notices.filter(n => n.id !== id); setNotices(updated); await hardSaveToDisk({ notices: updated }); };
+
+  const subscribeToNewsletter = async (email: string) => {
+    if (subscribers.find(s => s.email.toLowerCase() === email.toLowerCase())) return;
+    const newSub: NewsletterSubscriber = { id: 'sub-' + Date.now(), email, date: new Date().toISOString() };
+    const updated = [newSub, ...subscribers];
+    setSubscribers(updated);
+    await hardSaveToDisk({ subscribers: updated });
+    await sendEmail(email, 'Artisan Access Granted', 'Welcome to Mehedi Tailors Newsletter.');
   };
 
-  const removeDue = async (id: string) => setDues(prev => prev.filter(d => d.id !== id));
+  const registerNewUser = async (u: User) => { const updated = [...allUsers, u]; setAllUsers(updated); await hardSaveToDisk({ allUsers: updated }); };
+  const updateAnyUser = async (u: User, notify = false) => { const updated = allUsers.map(x => x.id === u.id ? u : x); setAllUsers(updated); if (user?.id === u.id) setUser(u); if (notify) await sendEmail(u.email, 'Profile Update', 'Your atelier records have been synchronized.'); await hardSaveToDisk({ allUsers: updated }); };
+  const removeUser = async (id: string) => { const updated = allUsers.filter(u => u.id !== id); setAllUsers(updated); await hardSaveToDisk({ allUsers: updated }); };
 
-  const addNotification = (notif: Notification) => setNotifications(prev => [notif, ...prev]);
-  const markNotificationRead = (id: string) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-  const clearNotifications = () => setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+  const updateSystemConfig = async (config: SystemConfig) => { setSystemConfig(config); await hardSaveToDisk({ systemConfig: config }); };
+
+  const addFabric = async (f: Fabric) => { const updated = [...fabrics, f]; setFabrics(updated); await hardSaveToDisk({ fabrics: updated }); };
+  const removeFabric = async (id: string) => { const updated = fabrics.filter(f => f.id !== id); setFabrics(updated); await hardSaveToDisk({ fabrics: updated }); };
+  const addBanner = async (b: Banner) => { const updated = [...banners, b]; setBanners(updated); await hardSaveToDisk({ banners: updated }); };
+  const updateBanner = async (b: Banner) => { const updated = banners.map(curr => curr.id === b.id ? b : curr); setBanners(updated); await hardSaveToDisk({ banners: updated }); };
+  const removeBanner = async (id: string) => { const updated = banners.filter(b => b.id !== id); setBanners(updated); await hardSaveToDisk({ banners: updated }); };
+  const addGiftCard = async (gc: GiftCard) => { const updated = [gc, ...giftCards]; setGiftCards(updated); await hardSaveToDisk({ giftCards: updated }); };
+  const updateGiftCard = async (gc: GiftCard) => { const updated = giftCards.map(curr => curr.id === gc.id ? gc : curr); setGiftCards(updated); await hardSaveToDisk({ giftCards: updated }); };
+  const removeGiftCard = async (id: string) => { const updated = giftCards.filter(gc => gc.id !== id); setGiftCards(updated); await hardSaveToDisk({ giftCards: updated }); };
+  const addDue = async (due: DueRecord) => { const updated = [due, ...dues]; setDues(updated); await hardSaveToDisk({ dues: updated }); };
+  const updateDue = async (due: DueRecord) => { const updated = dues.map(d => d.id === due.id ? due : d); setDues(updated); await hardSaveToDisk({ dues: updated }); };
+  const removeDue = async (id: string) => { const updated = dues.filter(d => d.id !== id); setDues(updated); await hardSaveToDisk({ dues: updated }); };
+  const addBespokeService = async (s: BespokeService) => { const updated = [...bespokeServices, s]; setBespokeServices(updated); await hardSaveToDisk({ bespokeServices: updated }); };
+  const updateBespokeService = async (s: BespokeService) => { const updated = bespokeServices.map(curr => curr.id === s.id ? s : curr); setBespokeServices(updated); await hardSaveToDisk({ bespokeServices: updated }); };
+  const removeBespokeService = async (id: string) => { const updated = bespokeServices.filter(s => s.id !== id); setBespokeServices(updated); await hardSaveToDisk({ bespokeServices: updated }); };
+  const addProductRequest = async (req: ProductRequest) => { const updated = [req, ...productRequests]; setProductRequests(updated); await hardSaveToDisk({ productRequests: updated }); };
+  const addMaterialRequest = async (req: MaterialRequest) => { const updated = [req, ...materialRequests]; setMaterialRequests(updated); await hardSaveToDisk({ materialRequests: updated }); };
+  const updateMaterialRequestStatus = async (id: string, status: 'approved' | 'rejected') => { const updated = materialRequests.map(r => r.id === id ? { ...r, status } : r); setMaterialRequests(updated); await hardSaveToDisk({ materialRequests: updated }); };
+  const addReview = async (review: Review) => { const updated = [review, ...reviews]; setReviews(updated); await hardSaveToDisk({ reviews: updated }); };
+  const updateReviewStatus = async (reviewId: string, status: 'approved' | 'pending') => { const updated = reviews.map(r => r.id === reviewId ? { ...r, status } : r); setReviews(updated); await hardSaveToDisk({ reviews: updated }); };
+  const removeReview = async (id: string) => { const updated = reviews.filter(r => r.id !== id); setReviews(updated); await hardSaveToDisk({ reviews: updated }); };
+  const addPartnerBrand = async (brand: PartnerBrand) => { const updated = [...partnerBrands, brand]; setPartnerBrands(updated); await hardSaveToDisk({ partnerBrands: updated }); };
+  const updatePartnerBrand = async (brand: PartnerBrand) => { const updated = partnerBrands.map(curr => curr.id === brand.id ? brand : curr); setPartnerBrands(updated); await hardSaveToDisk({ partnerBrands: updated }); };
+  const removePartnerBrand = async (id: string) => { const updated = partnerBrands.filter(b => b.id !== id); setPartnerBrands(updated); await hardSaveToDisk({ partnerBrands: updated }); };
+  const addUpcomingProduct = async (p: UpcomingProduct) => { const updated = [...upcomingProducts, p]; setUpcomingProducts(updated); await hardSaveToDisk({ upcomingProducts: updated }); };
+  const updateUpcomingProduct = async (p: UpcomingProduct) => { const updated = upcomingProducts.map(curr => curr.id === p.id ? p : curr); setUpcomingProducts(updated); await hardSaveToDisk({ upcomingProducts: updated }); };
+  const removeUpcomingProduct = async (id: string) => { const updated = upcomingProducts.filter(p => p.id !== id); setUpcomingProducts(updated); await hardSaveToDisk({ upcomingProducts: updated }); };
 
   const exportDb = async () => {
     const data = await dbService.exportBackup();
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `mehedi_db_${new Date().toISOString().split('T')[0]}.json`; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `mehedi_db_export.json`; a.click();
   };
 
   const importDb = async (json: string) => {
-    setIsImporting(true);
-    try { await dbService.importBackup(json); setTimeout(() => window.location.reload(), 500); } 
-    catch (err) { setIsImporting(false); alert("Import failed: " + (err as any).message); }
+    try { await dbService.importBackup(json); window.location.reload(); } catch { alert("Import failed."); }
   };
 
-  const resetSystemData = async () => { await dbService.clearAll(); window.location.reload(); };
-
-  const placeOrder = async (order: Order) => {
-    setOrders(prev => [order, ...prev]);
-    setCart([]);
-    const invoiceLink = `${window.location.origin}/#/invoice/${order.id}`;
-    const trackingLink = `${window.location.origin}/#/track-order?id=${order.id}`;
-    await sendEmail(order.customerEmail || '', `Order Confirmed: #${order.id}`, `Salaam ${order.customerName},\n\nOrder #${order.id} established.\n\n📜 Invoice: ${invoiceLink}\n📍 Track: ${trackingLink}`);
-  };
-
-  const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
-  };
-
-  const updateProductionStep = async (orderId: string, productionStep: ProductionStep) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, productionStep } : o));
-  };
-
-  const assignWorker = async (orderId: string, assignedWorkerId: string) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, assignedWorkerId, status: 'In Progress' } : o));
-  };
-
-  const addToCart = (item: CartItem) => setCart(prev => [...prev, item]);
-  const removeFromCart = (itemId: string) => setCart(prev => prev.filter(i => i.id !== itemId));
-  const updateQuantity = (itemId: string, qty: number) => setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: qty } : i));
-  const toggleWishlist = (id: string) => setWishlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  const updateOrder = async (order: Order) => setOrders(prev => prev.map(o => o.id === order.id ? order : o));
-  const removeOrder = async (id: string) => setOrders(prev => prev.filter(o => o.id !== id));
-  const addProduct = async (product: Product) => setProducts(prev => [product, ...prev]);
-  const updateProduct = async (product: Product) => setProducts(prev => prev.map(p => p.id === product.id ? product : p));
-  const removeProduct = async (id: string) => setProducts(prev => prev.filter(p => p.id !== id));
-  const addPartnerBrand = async (brand: PartnerBrand) => setPartnerBrands(prev => [...prev, brand]);
-  const updatePartnerBrand = async (brand: PartnerBrand) => setPartnerBrands(prev => prev.map(b => b.id === brand.id ? brand : b));
-  const removePartnerBrand = async (id: string) => setPartnerBrands(prev => prev.filter(b => b.id !== id));
-  const registerNewUser = async (u: User) => setAllUsers(prev => [...prev, u]);
-  const updateAnyUser = async (u: User) => { setAllUsers(prev => prev.map(x => x.id === u.id ? u : x)); if (user?.id === u.id) setUser(u); };
-  const removeUser = async (id: string) => setAllUsers(prev => prev.filter(u => u.id !== id));
-  const addFabric = async (f: Fabric) => setFabrics(prev => [...prev, f]);
-  const removeFabric = async (id: string) => setFabrics(prev => prev.filter(f => f.id !== id));
-  const addCategory = (cat: string) => setCategories(prev => [...prev, cat]);
-  const removeCategory = (cat: string) => setCategories(prev => prev.filter(c => c !== cat));
-  const addCoupon = async (c: Coupon) => setCoupons(prev => [...prev, c]);
-  const updateCoupon = async (c: Coupon) => setCoupons(prev => prev.map(curr => curr.id === c.id ? c : curr));
-  const removeCoupon = async (id: string) => setCoupons(prev => prev.filter(c => c.id !== id));
-  const addBanner = async (b: Banner) => setBanners(prev => [...prev, b]);
-  const updateBanner = async (b: Banner) => setBanners(prev => prev.map(curr => curr.id === b.id ? b : curr));
-  const removeBanner = async (id: string) => setBanners(prev => prev.filter(b => b.id !== id));
-  const addProductRequest = async (req: ProductRequest) => setProductRequests(prev => [req, ...prev]);
-  const addMaterialRequest = async (req: MaterialRequest) => setMaterialRequests(prev => [req, ...prev]);
-  const updateMaterialRequestStatus = async (id: string, status: 'approved' | 'rejected') => { setMaterialRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r)); };
-  const addReview = async (review: Review) => setReviews(prev => [review, ...prev]);
-  const updateReviewStatus = async (reviewId: string, status: 'approved' | 'pending') => setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, status } : r));
-  const removeReview = async (id: string) => setReviews(prev => prev.filter(r => r.id !== id));
-  const updateSystemConfig = (config: SystemConfig) => setSystemConfig(config);
+  const resetSystemData = async () => { if (window.confirm("Purge DB?")) { await dbService.clearAll(); window.location.reload(); } };
+  const markNotificationRead = (id: string) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  const clearNotifications = () => setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+  const addNotification = (n: Notification) => setNotifications(prev => [n, ...prev]);
 
   return (
     <StoreContext.Provider value={{
@@ -305,9 +425,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       allUsers, wishlist, toggleWishlist,
       orders, placeOrder, updateOrder, updateOrderStatus, removeOrder, updateProductionStep, assignWorker,
       products, updateProduct, addProduct, removeProduct,
+      upcomingProducts, addUpcomingProduct, updateUpcomingProduct, removeUpcomingProduct,
       fabrics, addFabric, removeFabric,
       categories, addCategory, removeCategory,
       coupons, addCoupon, removeCoupon, updateCoupon,
+      giftCards, addGiftCard, updateGiftCard, removeGiftCard,
+      offers, addOffer, updateOffer, removeOffer,
+      notices, addNotice, updateNotice, removeNotice,
+      subscribers, subscribeToNewsletter,
       banners, addBanner, removeBanner, updateBanner,
       partnerBrands, addPartnerBrand, updatePartnerBrand, removePartnerBrand,
       registerNewUser, updateAnyUser, removeUser,
@@ -316,17 +441,12 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       reviews, addReview, updateReviewStatus, removeReview,
       systemConfig, updateSystemConfig,
       notifications, addNotification, markNotificationRead, clearNotifications,
-      emailLogs, sendEmail, isHydrated, resetSystemData, exportDb, importDb,
-      dues, addDue, updateDue, removeDue
+      emailLogs, sendEmail, initiatePasswordReset, isHydrated, resetSystemData, exportDb, importDb,
+      dues, addDue, updateDue, removeDue,
+      bespokeServices, addBespokeService, updateBespokeService, removeBespokeService,
+      roastMaliciousUser
     }}>
-      {isHydrated ? children : (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-           <div className="text-center">
-              <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-              <p className="text-slate-400 font-bold uppercase tracking-[0.6em] text-[10px]">Initializing Luxe Atelier</p>
-           </div>
-        </div>
-      )}
+      {isHydrated ? children : <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-slate-500 font-mono">Initializing Core Virtual FS...</div>}
     </StoreContext.Provider>
   );
 };

@@ -8,7 +8,8 @@ import {
   PlusIcon, 
   ShieldCheckIcon, 
   TicketIcon, 
-  XMarkIcon 
+  XMarkIcon,
+  ExclamationTriangleIcon 
 } from '@heroicons/react/24/outline';
 
 const CartPage: React.FC = () => {
@@ -26,13 +27,33 @@ const CartPage: React.FC = () => {
   const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
     setCouponError('');
-    const coupon = coupons.find(c => c.code === couponCode && c.isActive);
-    if (coupon) {
-      setAppliedCoupon({ code: coupon.code, percent: coupon.discountPercent });
-      setCouponCode('');
-    } else {
-      setCouponError('Invalid or expired coupon code.');
+    
+    const coupon = coupons.find(c => c.code.toUpperCase() === couponCode.trim().toUpperCase());
+    
+    if (!coupon) {
+      setCouponError('This voucher code does not exist in our archive.');
+      return;
     }
+
+    if (!coupon.isActive) {
+      setCouponError('This voucher has been deactivated by the atelier.');
+      return;
+    }
+
+    // Check Expiry
+    if (coupon.expiryDate && new Date(coupon.expiryDate) < new Date()) {
+      setCouponError('This voucher term has expired.');
+      return;
+    }
+
+    // Check Usage Limit
+    if (coupon.usageLimit !== null && coupon.usageCount >= coupon.usageLimit) {
+      setCouponError('This voucher has reached its maximum redemption capacity.');
+      return;
+    }
+
+    setAppliedCoupon({ code: coupon.code, percent: coupon.discountPercent });
+    setCouponCode('');
   };
 
   const handleCheckout = () => {
@@ -165,7 +186,12 @@ const CartPage: React.FC = () => {
                   <button type="submit" className="bg-slate-100 px-6 rounded-xl font-bold uppercase tracking-widest text-[9px] hover:bg-slate-200 transition">Apply</button>
                 </form>
               )}
-              {couponError && <p className="text-[9px] text-red-500 mt-3 font-bold uppercase tracking-widest">{couponError}</p>}
+              {couponError && (
+                <div className="flex items-center space-x-2 text-red-500 mt-3 animate-in fade-in slide-in-from-top-1">
+                  <ExclamationTriangleIcon className="w-3 h-3" />
+                  <p className="text-[9px] font-black uppercase tracking-widest">{couponError}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

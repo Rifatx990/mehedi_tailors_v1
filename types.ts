@@ -11,6 +11,61 @@ export type OrderStatus = 'Pending' | 'In Progress' | 'Shipped' | 'Delivered' | 
 export type PaymentStatus = 'Fully Paid' | 'Partially Paid' | 'Due' | 'Refunded';
 export type ProductionStep = 'Queue' | 'Cutting' | 'Stitching' | 'Finishing' | 'Ready';
 
+export interface GiftCard {
+  id: string;
+  code: string;
+  balance: number;
+  initialAmount: number;
+  customerEmail: string;
+  customerName: string;
+  isActive: boolean;
+  expiryDate?: string;
+  createdAt: string;
+}
+
+export interface Offer {
+  id: string;
+  title: string;
+  description: string;
+  discountTag: string;
+  imageUrl: string;
+  linkUrl: string;
+  isActive: boolean;
+}
+
+export interface Notice {
+  id: string;
+  content: string;
+  type: 'info' | 'warning' | 'promotion';
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface NewsletterSubscriber {
+  id: string;
+  email: string;
+  date: string;
+}
+
+export interface UpcomingProduct {
+  id: string;
+  name: string;
+  image: string;
+  expectedDate: string;
+  description: string;
+  isActive: boolean;
+}
+
+export interface BespokeService {
+  id: string;
+  name: string;
+  icon: string;
+  image?: string; 
+  basePrice: number;
+  description: string;
+  isActive: boolean;
+}
+
 export interface DueRecord {
   id: string;
   userId?: string;
@@ -19,8 +74,8 @@ export interface DueRecord {
   amount: number;
   reason: string;
   status: 'pending' | 'settled';
-  date: string; // Due date/Establishment date
-  settledDate?: string; // Date when payment was recovered
+  date: string; 
+  settledDate?: string; 
   lastUpdated: string;
 }
 
@@ -34,9 +89,10 @@ export interface SystemConfig {
   senderEmail: string;
   isEnabled: boolean;
   siteLogo?: string;
-  documentLogo?: string; // Specific for Invoices/Emails
+  documentLogo?: string; 
   siteName: string;
   dbVersion: string;
+  giftCardDenominations: number[]; // Added to manage buy system
 }
 
 export interface EmailLog {
@@ -47,6 +103,7 @@ export interface EmailLog {
   timestamp: string;
   status: 'sent' | 'failed' | 'queued';
   templateId: string;
+  smtpRef?: string;
 }
 
 export interface Fabric {
@@ -86,6 +143,7 @@ export interface Product {
   availableSizes: string[];
   colors: string[];
   inStock: boolean;
+  stockCount: number; // Added for inventory tracking
   isFeatured?: boolean;
 }
 
@@ -163,6 +221,9 @@ export interface Coupon {
   code: string;
   discountPercent: number;
   isActive: boolean;
+  usageLimit: number | null; // null means unlimited
+  usageCount: number;
+  expiryDate?: string;
 }
 
 export interface Review {

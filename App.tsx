@@ -46,11 +46,14 @@ import AdminMaterialRequestsPage from './pages/admin/AdminMaterialRequestsPage.t
 import AdminOutboxPage from './pages/admin/AdminOutboxPage.tsx';
 import AdminBrandingPage from './pages/admin/AdminBrandingPage.tsx';
 import AdminDuesPage from './pages/admin/AdminDuesPage.tsx';
-
-// Admin Management
+import AdminBespokeServicesPage from './pages/admin/AdminBespokeServicesPage.tsx';
 import AdminManagementStaffPage from './pages/admin/AdminManagementStaffPage.tsx';
 import AdminManagementWorkerPage from './pages/admin/AdminManagementWorkerPage.tsx';
 import AdminManagementCustomerPage from './pages/admin/AdminManagementCustomerPage.tsx';
+import AdminUpcomingPage from './pages/admin/AdminUpcomingPage.tsx';
+import AdminGiftCardsPage from './pages/admin/AdminGiftCardsPage.tsx';
+import AdminOffersPage from './pages/admin/AdminOffersPage.tsx';
+import AdminNoticesPage from './pages/admin/AdminNoticesPage.tsx';
 
 // Worker Pages
 import WorkerDashboardPage from './pages/worker/WorkerDashboardPage.tsx';
@@ -71,21 +74,23 @@ const App: React.FC = () => {
     <StoreProvider>
       <Router>
         <Routes>
-          {/* Public & Global Invoice */}
           <Route path="/invoice/:orderId" element={<InvoicePage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
-
-          {/* Protected Admin Routes */}
           <Route path="/admin/*" element={
             <ProtectedRoute role="admin">
               <Routes>
                 <Route path="dashboard" element={<AdminDashboardPage />} />
                 <Route path="reports" element={<AdminReportsPage />} />
                 <Route path="products" element={<AdminProductsPage />} />
+                <Route path="upcoming" element={<AdminUpcomingPage />} />
+                <Route path="bespoke-services" element={<AdminBespokeServicesPage />} />
                 <Route path="catalog" element={<AdminCatalogPage />} />
                 <Route path="labels" element={<AdminLabelStudioPage />} />
                 <Route path="orders" element={<AdminOrdersPage />} />
                 <Route path="dues" element={<AdminDuesPage />} />
+                <Route path="gift-cards" element={<AdminGiftCardsPage />} />
+                <Route path="offers" element={<AdminOffersPage />} />
+                <Route path="notices" element={<AdminNoticesPage />} />
                 <Route path="fabrics" element={<AdminFabricsPage />} />
                 <Route path="categories" element={<AdminCategoriesPage />} />
                 <Route path="coupons" element={<AdminCouponsPage />} />
@@ -104,8 +109,6 @@ const App: React.FC = () => {
               </Routes>
             </ProtectedRoute>
           } />
-
-          {/* Protected Worker Routes */}
           <Route path="/worker/*" element={
             <ProtectedRoute role="worker">
               <Routes>
@@ -122,8 +125,6 @@ const App: React.FC = () => {
               </Routes>
             </ProtectedRoute>
           } />
-
-          {/* Public & Customer Routes - With Layout */}
           <Route path="/*" element={
             <Layout>
               <Routes>
@@ -149,7 +150,6 @@ const App: React.FC = () => {
                     <DashboardPage />
                   </ProtectedRoute>
                 } />
-                <Route path="*" element={<div className="py-32 text-center text-4xl serif">Page Not Found</div>} />
               </Routes>
             </Layout>
           } />

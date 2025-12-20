@@ -1,15 +1,14 @@
 
 import React, { useState } from 'react';
-import { useStore } from '../context/StoreContext';
+import { useStore } from '../context/StoreContext.tsx';
 import { useNavigate } from 'react-router-dom';
 import { SparklesIcon, GiftIcon } from '@heroicons/react/24/outline';
 
 const GiftCardPage: React.FC = () => {
-  const [amount, setAmount] = useState(5000);
-  const { addToCart } = useStore();
+  const { addToCart, systemConfig } = useStore();
+  const amounts = systemConfig.giftCardDenominations || [2000, 5000, 10000, 25000];
+  const [amount, setAmount] = useState(amounts[0] || 5000);
   const navigate = useNavigate();
-
-  const amounts = [2000, 5000, 10000, 25000];
 
   const handleBuy = () => {
     addToCart({

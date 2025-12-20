@@ -13,7 +13,9 @@ import {
   SparklesIcon,
   ArrowTopRightOnSquareIcon,
   PlayIcon,
-  EyeIcon
+  CloudArrowUpIcon,
+  GlobeAltIcon,
+  LinkIcon
 } from '@heroicons/react/24/outline';
 import { Banner } from '../../types.ts';
 
@@ -22,9 +24,22 @@ const AdminBannersPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
+  const [imageSource, setImageSource] = useState<'upload' | 'url'>('upload');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({ title: '', subtitle: '', imageUrl: '', linkUrl: '', isActive: true });
+
+  const normalizeUrl = (url: string) => {
+    if (!url) return '';
+    let processed = url.trim();
+    if (processed.includes('imgur.com') && !processed.includes('i.imgur.com')) {
+      const match = processed.match(/imgur\.com\/(?:gallery\/|a\/|r\/[^\/]+\/)?([a-zA-Z0-9]+)/);
+      if (match && match[1]) {
+        return `https://i.imgur.com/${match[1]}.png`;
+      }
+    }
+    return processed;
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -38,7 +53,11 @@ const AdminBannersPage: React.FC = () => {
     e.preventDefault();
     const bannerData: Banner = {
       id: editingBanner ? editingBanner.id : 'B-' + Date.now(),
-      ...form
+      title: form.title,
+      subtitle: form.subtitle,
+      imageUrl: imageSource === 'url' ? normalizeUrl(form.imageUrl) : form.imageUrl,
+      linkUrl: form.linkUrl,
+      isActive: form.isActive
     };
     if (editingBanner) await updateBanner(bannerData);
     else await addBanner(bannerData);
@@ -47,6 +66,20 @@ const AdminBannersPage: React.FC = () => {
   };
 
   const activeCount = banners.filter(b => b.isActive).length;
+
+  const openAddModal = () => {
+    setEditingBanner(null);
+    setForm({ title:'', subtitle:'', imageUrl:'', linkUrl:'', isActive:true });
+    setImageSource('upload');
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (banner: Banner) => {
+    setEditingBanner(banner);
+    setForm(banner);
+    setImageSource(banner.imageUrl.startsWith('data:') ? 'upload' : 'url');
+    setIsModalOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
@@ -70,7 +103,7 @@ const AdminBannersPage: React.FC = () => {
                 <span>Live View System</span>
             </button>
             <button 
-                onClick={() => { setEditingBanner(null); setForm({ title:'', subtitle:'', imageUrl:'', linkUrl:'', isActive:true }); setIsModalOpen(true); }}
+                onClick={openAddModal}
                 className="bg-slate-900 text-white px-8 py-4 rounded-[1.5rem] font-bold uppercase tracking-widest text-[10px] flex items-center space-x-2 shadow-2xl shadow-slate-900/10 hover:bg-amber-600 transition-all active:scale-95"
             >
                 <PlusIcon className="w-4 h-4" />
@@ -84,7 +117,7 @@ const AdminBannersPage: React.FC = () => {
             {banners.map(banner => (
               <div key={banner.id} className="bg-white rounded-[3rem] overflow-hidden shadow-sm border border-slate-100 group transition-all hover:shadow-2xl hover:-translate-y-1 duration-500">
                 <div className="aspect-[21/9] relative overflow-hidden bg-slate-100">
-                  <img src={banner.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition duration-[2000ms]" alt="" />
+                  <img src={banner.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition duration-[2000ms]" alt="" referrerPolicy="no-referrer" />
                   <div className="absolute inset-0 bg-slate-950/20 group-hover:bg-transparent transition-colors duration-500"></div>
                   
                   <div className="absolute top-6 right-6 flex space-x-3">
@@ -95,7 +128,7 @@ const AdminBannersPage: React.FC = () => {
                       {banner.isActive ? <CheckCircleIcon className="w-5 h-5" /> : <NoSymbolIcon className="w-5 h-5" />}
                     </button>
                     <button 
-                        onClick={() => { setEditingBanner(banner); setForm(banner); setIsModalOpen(true); }}
+                        onClick={() => openEditModal(banner)}
                         className="p-3 bg-white/90 backdrop-blur text-slate-600 rounded-2xl shadow-2xl hover:text-amber-600 transition-all"
                     >
                         <PencilSquareIcon className="w-5 h-5" />
@@ -134,7 +167,7 @@ const AdminBannersPage: React.FC = () => {
           </div>
         )}
 
-        {/* Hero Slider Preview Modal */}
+        {/* Hero System Preview Modal */}
         {isPreviewOpen && (
             <div className="fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur-3xl flex flex-col p-6 animate-in fade-in duration-300">
                 <div className="flex justify-between items-center mb-8 px-4">
@@ -165,7 +198,7 @@ const AdminBannersPage: React.FC = () => {
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto no-scrollbar">
             <form onSubmit={handleSubmit} className="bg-white rounded-[3rem] p-10 md:p-12 w-full max-w-4xl shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)] relative animate-in zoom-in duration-300">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-950 transition-transform hover:rotate-90 duration-300"><XMarkIcon className="w-8 h-8" /></button>
+              <button type="button" onClick={() => setIsModalOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 transition-transform hover:rotate-90 duration-300"><XMarkIcon className="w-8 h-8" /></button>
               
               <div className="flex items-center space-x-4 mb-10">
                 <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center">
@@ -195,27 +228,64 @@ const AdminBannersPage: React.FC = () => {
 
                 <div className="space-y-8">
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-4 ml-1">High-Resolution Asset (21:9 Recommended)</label>
-                    <div 
-                      onClick={() => fileInputRef.current?.click()} 
-                      className={`w-full aspect-video border-2 border-dashed rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer transition-all duration-500 overflow-hidden relative group ${form.imageUrl ? 'border-emerald-500 bg-emerald-50/5 shadow-inner' : 'border-slate-200 bg-slate-50 hover:border-amber-600 hover:bg-white'}`}
-                    >
-                      {form.imageUrl ? (
-                        <div className="relative w-full h-full p-2">
-                           <img src={form.imageUrl} className="w-full h-full object-cover rounded-[1.8rem] shadow-2xl" alt="Preview" />
-                           <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <span className="bg-white text-slate-900 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl transform scale-90 group-hover:scale-100 transition-transform">Replace Asset</span>
-                           </div>
-                        </div>
-                      ) : (
-                        <div className="text-center">
-                          <PhotoIcon className="w-16 h-16 text-slate-200 mb-4 mx-auto group-hover:scale-110 transition-transform" />
-                          <p className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em]">Drop Artisan Image or Click</p>
-                          <p className="text-[9px] text-slate-300 mt-2 uppercase font-bold tracking-widest">Recommended size: 1920 x 800px</p>
-                        </div>
-                      )}
-                      <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" />
+                    <div className="flex items-center justify-between mb-4">
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block ml-1">Artisan Media Asset</label>
+                       <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                          <button type="button" onClick={() => setImageSource('upload')} className={`px-4 py-2 rounded-xl transition-all flex items-center space-x-2 text-[10px] font-bold uppercase ${imageSource === 'upload' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}>
+                             <CloudArrowUpIcon className="w-3.5 h-3.5" />
+                             <span>Upload</span>
+                          </button>
+                          <button type="button" onClick={() => setImageSource('url')} className={`px-4 py-2 rounded-xl transition-all flex items-center space-x-2 text-[10px] font-bold uppercase ${imageSource === 'url' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}>
+                             <GlobeAltIcon className="w-3.5 h-3.5" />
+                             <span>URL</span>
+                          </button>
+                       </div>
                     </div>
+
+                    {imageSource === 'upload' ? (
+                       <div 
+                         onClick={() => fileInputRef.current?.click()} 
+                         className={`w-full aspect-video border-2 border-dashed rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer transition-all duration-500 overflow-hidden relative group ${form.imageUrl ? 'border-emerald-500 bg-emerald-50/5 shadow-inner' : 'border-slate-200 bg-slate-50 hover:border-amber-600 hover:bg-white'}`}
+                       >
+                         {form.imageUrl && imageSource === 'upload' ? (
+                           <div className="relative w-full h-full p-2">
+                              <img src={form.imageUrl} className="w-full h-full object-cover rounded-[1.8rem] shadow-2xl" alt="Preview" />
+                              <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                 <span className="bg-white text-slate-900 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl transform scale-90 group-hover:scale-100 transition-transform">Replace Asset</span>
+                              </div>
+                           </div>
+                         ) : (
+                           <div className="text-center">
+                             <PhotoIcon className="w-16 h-16 text-slate-200 mb-4 mx-auto group-hover:scale-110 transition-transform" />
+                             <p className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em]">Drop Artisan Image or Click</p>
+                             <p className="text-[9px] text-slate-300 mt-2 uppercase font-bold tracking-widest">Recommended size: 1920 x 800px</p>
+                           </div>
+                         )}
+                         <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" />
+                       </div>
+                    ) : (
+                       <div className="space-y-4">
+                          <div className="relative group">
+                             <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-amber-600 transition-colors" />
+                             <input 
+                               value={form.imageUrl} 
+                               onChange={e => setForm({...form, imageUrl: e.target.value})} 
+                               className="w-full bg-slate-50 border border-slate-100 pl-12 pr-6 py-5 rounded-[1.5rem] outline-none focus:ring-4 focus:ring-amber-600/5 transition font-mono text-xs shadow-inner" 
+                               placeholder="https://i.imgur.com/..." 
+                             />
+                          </div>
+                          {form.imageUrl && (
+                            <div className="w-full aspect-video rounded-[2rem] border border-slate-100 bg-slate-50 overflow-hidden relative shadow-inner">
+                               <img 
+                                 src={form.imageUrl} 
+                                 className="w-full h-full object-cover" 
+                                 referrerPolicy="no-referrer"
+                                 onError={(e) => e.currentTarget.src = 'https://via.placeholder.com/1200x800?text=Invalid+Image+Stream'} 
+                               />
+                            </div>
+                          )}
+                       </div>
+                    )}
                   </div>
 
                   <div className="bg-slate-950 p-6 rounded-[2rem] border border-white/5 flex items-center justify-between shadow-2xl">

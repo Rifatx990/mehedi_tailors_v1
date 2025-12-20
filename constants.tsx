@@ -19,6 +19,7 @@ export const PRODUCTS: Product[] = [
     availableSizes: ['S', 'M', 'L', 'XL'],
     colors: ['Cream', 'Deep Blue', 'Maroon'],
     inStock: true,
+    stockCount: 15,
     isFeatured: true
   },
   {
@@ -36,6 +37,7 @@ export const PRODUCTS: Product[] = [
     availableSizes: ['Per Meter'],
     colors: ['Navy'],
     inStock: true,
+    stockCount: 50,
     isFeatured: true
   },
   {
@@ -54,6 +56,7 @@ export const PRODUCTS: Product[] = [
     availableSizes: ['Custom'],
     colors: ['Charcoal', 'Black'],
     inStock: true,
+    stockCount: 999,
     isFeatured: true
   },
   {
@@ -70,6 +73,7 @@ export const PRODUCTS: Product[] = [
     fabricType: 'Cotton-Silk Mix',
     availableSizes: ['Standard'],
     colors: ['Red', 'Emerald'],
-    inStock: true
+    inStock: true,
+    stockCount: 8
   }
 ];
