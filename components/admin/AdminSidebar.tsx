@@ -24,16 +24,18 @@ import {
   IdentificationIcon,
   PaperAirplaneIcon,
   Bars3Icon,
-  PaintBrushIcon
+  PaintBrushIcon,
+  BanknotesIcon
 } from '@heroicons/react/24/outline';
 
 const AdminSidebar: React.FC = () => {
-  const { setAdminUser, reviews, materialRequests } = useStore();
+  const { setAdminUser, reviews, materialRequests, dues } = useStore();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
   const pendingReviews = reviews.filter(r => r.status === 'pending').length;
   const pendingRequisitions = materialRequests.filter(r => r.status === 'pending').length;
+  const activeDues = dues.filter(d => d.status === 'pending').length;
 
   const handleLogout = () => {
     setAdminUser(null);
@@ -44,6 +46,7 @@ const AdminSidebar: React.FC = () => {
     { to: '/admin/dashboard', label: 'Overview', icon: ChartBarIcon },
     { to: '/admin/reports', label: 'Sales Reports', icon: DocumentChartBarIcon },
     { to: '/admin/orders', label: 'Order Pipeline', icon: ShoppingBagIcon },
+    { to: '/admin/dues', label: 'Due Ledger', icon: BanknotesIcon, badge: activeDues },
     { type: 'separator', label: 'Inventory' },
     { to: '/admin/products', label: 'Inventory (CRUD)', icon: TagIcon },
     { to: '/admin/catalog', label: 'Product Catalog', icon: IdentificationIcon },

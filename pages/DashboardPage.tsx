@@ -16,14 +16,16 @@ import {
   TrashIcon,
   ChevronRightIcon,
   DocumentTextIcon,
-  // Added ScissorsIcon to fix "Cannot find name 'ScissorsIcon'" error
-  ScissorsIcon
+  ScissorsIcon,
+  BanknotesIcon,
+  CurrencyBangladeshiIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 
 const DashboardPage: React.FC = () => {
-  const { user, orders, setUser, allUsers, notifications, markNotificationRead, clearNotifications } = useStore();
+  const { user, orders, dues, setUser, allUsers, notifications, markNotificationRead, clearNotifications } = useStore();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'measurements' | 'notifications'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'dues' | 'measurements' | 'notifications'>('profile');
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -42,9 +44,13 @@ const DashboardPage: React.FC = () => {
     navigate('/');
   };
 
+  const myDues = dues.filter(d => d.customerEmail.toLowerCase() === user.email.toLowerCase());
+  const pendingDuesCount = myDues.filter(d => d.status === 'pending').length;
+
   const tabs = [
     { id: 'profile', label: 'My Profile', icon: UserCircleIcon },
     { id: 'orders', label: 'Order History', icon: ClipboardDocumentListIcon },
+    { id: 'dues', label: 'Fiscal Ledger', icon: BanknotesIcon, badge: pendingDuesCount },
     { id: 'measurements', label: 'Artisan Fit Archive', icon: ArrowsRightLeftIcon },
     { id: 'notifications', label: 'Atelier Notices', icon: BellIcon, badge: notifications.filter(n => !n.isRead && n.userId === user.id).length },
   ];
@@ -83,7 +89,7 @@ const DashboardPage: React.FC = () => {
                       <span>{tab.label}</span>
                     </div>
                     {tab.badge && tab.badge > 0 ? (
-                      <span className={`text-[9px] font-bold w-5 h-5 rounded-full flex items-center justify-center ${activeTab === tab.id ? 'bg-amber-600 text-white' : 'bg-red-500 text-white'}`}>
+                      <span className={`text-[9px] font-bold w-5 h-5 rounded-full flex items-center justify-center ${activeTab === tab.id ? 'bg-amber-600 text-white' : 'bg-red-50 text-white'}`}>
                         {tab.badge}
                       </span>
                     ) : null}
@@ -156,7 +162,7 @@ const DashboardPage: React.FC = () => {
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6 pb-6 border-b border-slate-50">
                               <div>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Order Archive #{order.id}</span>
-                                <h4 className="text-2xl font-bold serif mt-1">{new Date(order.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</h4>
+                                <h4 className="text-2xl font-bold serif mt-1">{new Date(order.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</h4>
                               </div>
                               <div className="flex items-center space-x-3">
                                 <span className={`px-5 py-2 rounded-full text-[9px] font-bold uppercase tracking-widest shadow-sm ${
@@ -191,6 +197,71 @@ const DashboardPage: React.FC = () => {
                 </div>
               )}
 
+              {activeTab === 'dues' && (
+                <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+                   <h3 className="text-2xl font-bold serif mb-10">Fiscal Ledger</h3>
+                   {myDues.length === 0 ? (
+                      <div className="text-center py-20 bg-slate-50 rounded-[3rem] border border-dashed border-slate-200">
+                        <BanknotesIcon className="w-16 h-16 text-slate-200 mx-auto mb-6" />
+                        <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No outstanding balances.</p>
+                      </div>
+                   ) : (
+                      <div className="space-y-6">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div className="bg-rose-50 p-8 rounded-[2rem] border border-rose-100">
+                               <p className="text-[10px] font-black uppercase tracking-widest text-rose-400 mb-1">Unsettled Total</p>
+                               <p className="text-3xl font-black text-rose-600">BDT {myDues.filter(d => d.status === 'pending').reduce((s, d) => s + d.amount, 0).toLocaleString()}</p>
+                            </div>
+                            <div className="bg-emerald-50 p-8 rounded-[2rem] border border-emerald-100">
+                               <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-1">Recovered History</p>
+                               <p className="text-3xl font-black text-emerald-600">BDT {myDues.filter(d => d.status === 'settled').reduce((s, d) => s + d.amount, 0).toLocaleString()}</p>
+                            </div>
+                         </div>
+                         
+                         <div className="space-y-4">
+                            {myDues.map(due => (
+                               <div key={due.id} className={`p-8 rounded-[2.5rem] border transition-all flex flex-col md:flex-row md:items-center justify-between gap-6 ${due.status === 'settled' ? 'bg-white opacity-60 border-slate-100' : 'bg-white border-slate-200 shadow-md ring-1 ring-rose-100'}`}>
+                                  <div className="flex items-center space-x-5">
+                                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${due.status === 'settled' ? 'bg-slate-50 text-slate-300' : 'bg-rose-50 text-rose-500'}`}>
+                                        <CurrencyBangladeshiIcon className="w-7 h-7" />
+                                     </div>
+                                     <div>
+                                        <div className="flex items-center space-x-2">
+                                           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Balance ID: {due.id}</p>
+                                           {due.settledDate && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[7px] font-black uppercase rounded">Settled</span>}
+                                        </div>
+                                        <h4 className="text-lg font-bold text-slate-900 mt-1">{due.reason}</h4>
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2">
+                                            <div className="flex items-center space-x-1 text-[9px] font-bold uppercase text-slate-400">
+                                                <ClockIcon className="w-3 h-3" />
+                                                <span>Established: {new Date(due.date).toLocaleDateString()}</span>
+                                            </div>
+                                            {due.settledDate && (
+                                                <div className="flex items-center space-x-1 text-[9px] font-bold uppercase text-emerald-500">
+                                                    <CheckCircleIcon className="w-3 h-3" />
+                                                    <span>Settled: {new Date(due.settledDate).toLocaleDateString()}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                     </div>
+                                  </div>
+                                  <div className="flex items-center justify-between md:justify-end gap-8 border-t md:border-t-0 pt-4 md:pt-0">
+                                     <div className="text-right">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Amount</p>
+                                        <p className={`text-2xl font-black ${due.status === 'settled' ? 'text-slate-400' : 'text-slate-900'}`}>BDT {due.amount.toLocaleString()}</p>
+                                     </div>
+                                     <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${due.status === 'settled' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600 animate-pulse'}`}>
+                                        {due.status}
+                                     </div>
+                                  </div>
+                               </div>
+                            ))}
+                         </div>
+                      </div>
+                   )}
+                </div>
+              )}
+
               {activeTab === 'notifications' && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="flex justify-between items-center mb-10">
@@ -220,6 +291,7 @@ const DashboardPage: React.FC = () => {
                           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner ${
                             notif.type === 'sale' ? 'bg-rose-50 text-rose-500' : 
                             notif.type === 'restock' ? 'bg-emerald-50 text-emerald-500' : 
+                            notif.type === 'fiscal' ? 'bg-rose-100 text-rose-600' :
                             'bg-amber-100 text-amber-600'
                           }`}>
                             <BellIcon className="w-6 h-6" />

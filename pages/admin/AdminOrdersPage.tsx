@@ -13,7 +13,10 @@ import {
   FunnelIcon,
   CalendarIcon,
   DocumentTextIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  CheckBadgeIcon,
+  TruckIcon,
+  HandThumbUpIcon
 } from '@heroicons/react/24/outline';
 import { Order, PaymentStatus, OrderStatus, ProductionStep } from '../../types.ts';
 
@@ -60,6 +63,15 @@ const AdminOrdersPage: React.FC = () => {
   const statusOptions: OrderStatus[] = ['Pending', 'In Progress', 'Shipped', 'Delivered', 'Cancelled'];
   const productionSteps: ProductionStep[] = ['Queue', 'Cutting', 'Stitching', 'Finishing', 'Ready'];
 
+  const getStatusColor = (status: OrderStatus) => {
+    switch(status) {
+      case 'Delivered': return 'text-emerald-600 bg-emerald-50 border-emerald-100';
+      case 'Cancelled': return 'text-rose-600 bg-rose-50 border-rose-100';
+      case 'Shipped': return 'text-blue-600 bg-blue-50 border-blue-100';
+      default: return 'text-amber-600 bg-amber-50 border-amber-100';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       <AdminSidebar />
@@ -105,6 +117,7 @@ const AdminOrdersPage: React.FC = () => {
                   <tr className="text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b bg-slate-50/50">
                     <th className="px-8 py-6">ID & Patron</th>
                     <th className="px-8 py-6">Artisan</th>
+                    <th className="px-8 py-6">Status</th>
                     <th className="px-8 py-6">Phase</th>
                     <th className="px-8 py-6 text-right">Actions</th>
                   </tr>
@@ -130,6 +143,15 @@ const AdminOrdersPage: React.FC = () => {
                       </td>
                       <td className="px-8 py-8">
                         <select 
+                          value={order.status}
+                          onChange={(e) => updateOrderStatus(order.id, e.target.value as OrderStatus)}
+                          className={`border rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer ${getStatusColor(order.status)}`}
+                        >
+                          {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-8 py-8">
+                        <select 
                           value={order.productionStep || 'Queue'}
                           onChange={(e) => updateProductionStep(order.id, e.target.value as ProductionStep)}
                           className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none text-slate-600 cursor-pointer"
@@ -138,9 +160,32 @@ const AdminOrdersPage: React.FC = () => {
                         </select>
                       </td>
                       <td className="px-8 py-8 text-right space-x-2">
-                        <Link to={`/invoice/${order.id}`} className="inline-block p-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-900 hover:text-white transition shadow-sm"><DocumentTextIcon className="w-5 h-5" /></Link>
-                        <button onClick={() => { setSelectedOrder(order); setIsModalOpen(true); }} className="p-3 bg-slate-900 text-white rounded-xl hover:bg-amber-600 transition shadow-sm"><InformationCircleIcon className="w-5 h-5" /></button>
-                        <button onClick={() => removeOrder(order.id)} className="p-3 text-slate-300 hover:text-red-500 transition"><TrashIcon className="w-5 h-5" /></button>
+                        {/* Dynamic Quick Action Buttons */}
+                        {order.status === 'Shipped' && (
+                          <button 
+                            onClick={() => updateOrderStatus(order.id, 'Delivered')}
+                            className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-3 rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-600/20 group animate-in slide-in-from-right-2"
+                            title="Mark as Delivered"
+                          >
+                             <CheckBadgeIcon className="w-5 h-5" />
+                             <span className="text-[9px] font-black uppercase tracking-widest">Deliver</span>
+                          </button>
+                        )}
+                        
+                        {order.status === 'In Progress' && order.productionStep === 'Ready' && (
+                           <button 
+                             onClick={() => updateOrderStatus(order.id, 'Shipped')}
+                             className="inline-flex items-center space-x-2 bg-blue-600 text-white px-4 py-3 rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-600/20 group animate-in slide-in-from-right-2"
+                             title="Dispatch for Shipping"
+                           >
+                              <TruckIcon className="w-5 h-5" />
+                              <span className="text-[9px] font-black uppercase tracking-widest">Dispatch</span>
+                           </button>
+                        )}
+
+                        <Link to={`/invoice/${order.id}`} className="inline-block p-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-900 hover:text-white transition shadow-sm" title="View Invoice"><DocumentTextIcon className="w-5 h-5" /></Link>
+                        <button onClick={() => { setSelectedOrder(order); setIsModalOpen(true); }} className="p-3 bg-slate-900 text-white rounded-xl hover:bg-amber-600 transition shadow-sm" title="Reconcile Ledger"><InformationCircleIcon className="w-5 h-5" /></button>
+                        <button onClick={() => removeOrder(order.id)} className="p-3 text-slate-300 hover:text-red-500 transition" title="Discard"><TrashIcon className="w-5 h-5" /></button>
                       </td>
                     </tr>
                   ))}
@@ -157,7 +202,26 @@ const AdminOrdersPage: React.FC = () => {
                          <p className="font-mono text-xs font-black text-slate-900">#{order.id}</p>
                          <h3 className="font-bold text-lg text-slate-600 mt-1">{order.customerName}</h3>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${order.status === 'Delivered' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{order.status}</span>
+                      <div className="flex flex-col items-end space-y-2">
+                        <select 
+                          value={order.status}
+                          onChange={(e) => updateOrderStatus(order.id, e.target.value as OrderStatus)}
+                          className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${getStatusColor(order.status)}`}
+                        >
+                          {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        
+                        {/* Mobile Quick Actions */}
+                        {order.status === 'Shipped' && (
+                          <button 
+                            onClick={() => updateOrderStatus(order.id, 'Delivered')}
+                            className="flex items-center space-x-1.5 bg-emerald-600 text-white px-3 py-1.5 rounded-full shadow-lg shadow-emerald-600/20"
+                          >
+                             <CheckBadgeIcon className="w-3.5 h-3.5" />
+                             <span className="text-[7px] font-black uppercase">Fulfill Order</span>
+                          </button>
+                        )}
+                      </div>
                    </div>
 
                    <div className="grid grid-cols-1 gap-3">

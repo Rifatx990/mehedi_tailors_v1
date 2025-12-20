@@ -8,14 +8,15 @@ import {
   ChevronLeftIcon,
   ShieldCheckIcon,
   WalletIcon,
-  ReceiptPercentIcon
+  ReceiptPercentIcon,
+  InformationCircleIcon
 } from '@heroicons/react/24/outline';
 
 const CheckoutPage: React.FC = () => {
   const { cart, placeOrder, user } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'sslcommerz'>('sslcommerz');
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'sslcommerz'>('cod');
   const [paymentType, setPaymentType] = useState<'full' | 'advance'>('full');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -47,6 +48,12 @@ const CheckoutPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) return;
+    
+    // Guard for Digital Payment
+    if (paymentMethod === 'sslcommerz') {
+      alert("Digital Payment Gateway (SSLCommerz) is coming soon. Please select 'Cash on Delivery' to finalize your order.");
+      return;
+    }
     
     setIsProcessing(true);
 
@@ -146,15 +153,35 @@ const CheckoutPage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="flex gap-4">
-                <button type="button" onClick={() => setPaymentMethod('sslcommerz')} className={`flex-1 p-4 border-2 rounded-xl flex items-center justify-center space-x-2 transition ${paymentMethod === 'sslcommerz' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-100'}`}>
-                   <CreditCardIcon className="w-5 h-5" />
-                   <span className="text-xs font-bold uppercase">Digital Pay</span>
-                </button>
-                <button type="button" onClick={() => setPaymentMethod('cod')} className={`flex-1 p-4 border-2 rounded-xl flex items-center justify-center space-x-2 transition ${paymentMethod === 'cod' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-100'}`}>
-                   <BanknotesIcon className="w-5 h-5" />
-                   <span className="text-xs font-bold uppercase">Cash (Advance Required)</span>
-                </button>
+              <div className="flex flex-col space-y-4">
+                <div className="flex gap-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setPaymentMethod('sslcommerz')} 
+                    className={`flex-1 p-4 border-2 rounded-xl flex items-center justify-center space-x-2 transition ${paymentMethod === 'sslcommerz' ? 'border-amber-600 bg-amber-50' : 'border-slate-100 hover:border-slate-200'}`}
+                  >
+                     <CreditCardIcon className="w-5 h-5" />
+                     <span className="text-xs font-bold uppercase">Digital Pay</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setPaymentMethod('cod')} 
+                    className={`flex-1 p-4 border-2 rounded-xl flex items-center justify-center space-x-2 transition ${paymentMethod === 'cod' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-100'}`}
+                  >
+                     <BanknotesIcon className="w-5 h-5" />
+                     <span className="text-xs font-bold uppercase">Cash (On Delivery)</span>
+                  </button>
+                </div>
+
+                {paymentMethod === 'sslcommerz' && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start space-x-3 animate-in fade-in zoom-in duration-300">
+                    <InformationCircleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[11px] font-bold uppercase text-amber-800 tracking-widest">Coming Soon</p>
+                      <p className="text-xs text-amber-700 leading-relaxed mt-1">Our digital payment gateway is under final security calibration. <strong>Please select 'Cash' method instead</strong> to finalize your artisan commission today.</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -180,14 +207,17 @@ const CheckoutPage: React.FC = () => {
               </div>
               
               <div className="bg-white/5 p-6 rounded-2xl border border-white/10 mb-8">
-                 <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-2">Current Requirement</p>
-                 <p className="text-4xl font-bold">BDT {currentPaymentRequirement.toLocaleString()}</p>
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-2">Requirement Today</p>
+                 <p className="text-4xl font-bold">BDT {paymentMethod === 'cod' ? (paymentType === 'full' ? total : advanceAmount) : '0'}</p>
                  {paymentType === 'advance' && (
                     <p className="text-[10px] text-slate-400 mt-3 font-medium uppercase tracking-widest italic">Balance BDT {dueAmount.toLocaleString()} due on calibration fitting.</p>
                  )}
               </div>
               
-              <button type="submit" className="w-full bg-amber-600 text-white py-5 rounded-2xl font-bold uppercase tracking-widest hover:bg-amber-700 transition shadow-xl shadow-amber-600/20 flex items-center justify-center space-x-3">
+              <button 
+                type="submit" 
+                className={`w-full py-5 rounded-2xl font-bold uppercase tracking-widest transition shadow-xl flex items-center justify-center space-x-3 ${paymentMethod === 'sslcommerz' ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-amber-600 text-white hover:bg-amber-700 shadow-amber-600/20'}`}
+              >
                 <span>Finalize Contract</span>
                 <ShieldCheckIcon className="w-5 h-5" />
               </button>

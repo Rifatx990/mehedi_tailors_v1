@@ -17,6 +17,10 @@
         }
 
         @media print {
+            @page {
+                size: auto;
+                margin: 0mm;
+            }
             nav, footer, .no-print, .bg-slate-900, button, a {
                 display: none !important;
             }
@@ -28,21 +32,34 @@
             }
             .invoice-card {
                 box-shadow: none !important;
-                border: 1px solid #eee !important;
+                border: none !important;
                 width: 100% !important;
                 max-width: none !important;
                 margin: 0 !important;
                 border-radius: 0 !important;
+                padding: 10mm !important;
             }
             .invoice-header {
                 background-color: #0f172a !important;
                 color: white !important;
                 -webkit-print-color-adjust: exact;
+                padding: 5mm !important;
+                border-radius: 5mm !important;
             }
             .invoice-footer {
                 background-color: #f8fafc !important;
                 -webkit-print-color-adjust: exact;
+                margin-top: 5mm !important;
             }
+            h1 { font-size: 18pt !important; }
+            h2 { font-size: 16pt !important; }
+            h3 { font-size: 14pt !important; }
+            p, span, td, th { font-size: 9pt !important; }
+            .grid { gap: 10px !important; }
+            .p-10, .p-12, .p-16 { padding: 5mm !important; }
+            .mb-16 { margin-bottom: 5mm !important; }
+            .mt-16 { margin-top: 5mm !important; }
+            .space-y-12 > * + * { margin-top: 3mm !important; }
         }
     </style>
 <script type="importmap">
@@ -62,6 +79,5 @@
 </head>
 <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
 </body>
 </html>

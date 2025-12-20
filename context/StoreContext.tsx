@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { 
   CartItem, Product, User, Order, OrderStatus, Fabric, Coupon, 
   ProductRequest, Banner, Review, ProductionStep, MaterialRequest, 
-  SystemConfig, Notification, PartnerBrand, EmailLog 
+  SystemConfig, Notification, PartnerBrand, EmailLog, DueRecord 
 } from '../types.ts';
 import { PRODUCTS as INITIAL_PRODUCTS } from '../constants.tsx';
 import { dbService } from '../services/DatabaseService.ts';
@@ -71,6 +71,10 @@ interface StoreContextType {
   clearNotifications: () => void;
   emailLogs: EmailLog[];
   sendEmail: (to: string, subject: string, body: string) => Promise<void>;
+  dues: DueRecord[];
+  addDue: (due: DueRecord) => Promise<void>;
+  updateDue: (due: DueRecord) => Promise<void>;
+  removeDue: (id: string) => Promise<void>;
   isHydrated: boolean;
   resetSystemData: () => void;
   exportDb: () => Promise<void>;
@@ -80,37 +84,8 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const DEFAULT_BANNERS: Banner[] = [
-  { 
-    id: 'b1', 
-    title: 'Precision in Every Stitch', 
-    subtitle: 'Where heritage craftsmanship meets surgical precision in our Ashulia atelier.', 
-    imageUrl: 'https://images.unsplash.com/photo-1594932224828-b4b059b6f6f9?q=80&w=2080&auto=format&fit=crop', 
-    linkUrl: '/shop', 
-    isActive: true 
-  },
-  { 
-    id: 'b2', 
-    title: 'Masterpiece Archive 2025', 
-    subtitle: 'Explore our latest curated silhouettes designed for the modern gentleman who seeks distinction.', 
-    imageUrl: 'https://images.unsplash.com/photo-1604176354204-926873ff7da9?q=80&w=2080&auto=format&fit=crop', 
-    linkUrl: '/shop', 
-    isActive: true 
-  },
-  { 
-    id: 'b3', 
-    title: 'Artisanal Italian Textiles', 
-    subtitle: 'Directly sourced from the finest mills of Biella and Milan to ensure unparalleled comfort and drape.', 
-    imageUrl: 'https://images.unsplash.com/photo-1558191053-8edcb01e1da3?q=80&w=2080&auto=format&fit=crop', 
-    linkUrl: '/fabrics', 
-    isActive: true 
-  }
-];
-
-const DEFAULT_PARTNERS: PartnerBrand[] = [
-  { id: 'pb1', name: 'Loro Piana', logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/0/07/Loro_Piana_logo.svg/1200px-Loro_Piana_logo.svg.png', isActive: true },
-  { id: 'pb2', name: 'Ermenegildo Zegna', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Ermenegildo_Zegna_Logo.svg/1280px-Ermenegildo_Zegna_Logo.svg.png', isActive: true },
-  { id: 'pb3', name: 'Vitale Barberis Canonico', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Vitale_Barberis_Canonico_Logo.svg/2560px-Vitale_Barberis_Canonico_Logo.svg.png', isActive: true },
-  { id: 'pb4', name: 'Scabal', logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/4/4b/Scabal_logo.png/250px-Scabal_logo.png', isActive: true }
+  { id: 'b1', title: 'Precision in Every Stitch', subtitle: 'Where heritage craftsmanship meets surgical precision.', imageUrl: 'https://images.unsplash.com/photo-1594932224828-b4b059b6f6f9?q=80&w=2080&auto=format&fit=crop', linkUrl: '/shop', isActive: true },
+  { id: 'b2', title: 'Masterpiece Archive 2025', subtitle: 'Explore curated silhouettes for the modern gentleman.', imageUrl: 'https://images.unsplash.com/photo-1604176354204-926873ff7da9?q=80&w=2080&auto=format&fit=crop', linkUrl: '/shop', isActive: true }
 ];
 
 const DEFAULT_CATEGORIES = ['Men', 'Women', 'Kids', 'Fabrics', 'Custom Tailoring'];
@@ -127,6 +102,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [dues, setDues] = useState<DueRecord[]>([]);
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [fabrics, setFabrics] = useState<Fabric[]>([]);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
@@ -143,27 +119,18 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     siteName: 'Mehedi Tailors & Fabrics',
     siteLogo: 'https://via.placeholder.com/200x80?text=HEADER+LOGO',
     documentLogo: 'https://via.placeholder.com/300x120?text=DOCUMENT+LOGO',
-    dbVersion: '4.5.0-BESPOKE'
+    dbVersion: '4.5.2-FISCAL-REPORTING'
   });
 
   useEffect(() => {
     const hydrate = async () => {
       await dbService.init();
-      const [p, o, u, f, b, pt, r, req, m, c, e, n, coup, cats] = await Promise.all([
-        dbService.getAll('products'),
-        dbService.getAll('orders'),
-        dbService.getAll('users'),
-        dbService.getAll('fabrics'),
-        dbService.getAll('banners'),
-        dbService.getAll('partners'),
-        dbService.getAll('reviews'),
-        dbService.getAll('requests'),
-        dbService.getAll('materials'),
-        dbService.getAll('config'),
-        dbService.getAll('emails'),
-        dbService.getAll('notifications'),
-        dbService.getAll('coupons'),
-        dbService.getAll('categories')
+      const [p, o, u, f, b, pt, r, req, m, c, e, n, coup, cats, d] = await Promise.all([
+        dbService.getAll('products'), dbService.getAll('orders'), dbService.getAll('users'),
+        dbService.getAll('fabrics'), dbService.getAll('banners'), dbService.getAll('partners'),
+        dbService.getAll('reviews'), dbService.getAll('requests'), dbService.getAll('materials'),
+        dbService.getAll('config'), dbService.getAll('emails'), dbService.getAll('notifications'),
+        dbService.getAll('coupons'), dbService.getAll('categories'), dbService.getAll('dues')
       ]);
 
       if (p.length > 0) setProducts(p);
@@ -173,18 +140,11 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           { id: 'admin-001', name: 'Mehedi Admin', email: 'admin@meheditailors.com', phone: '+8801720267213', address: 'Dhonaid, Ashulia', measurements: [], role: 'admin', password: 'admin123' },
           { id: 'worker-001', name: 'Kabir Artisan', email: 'worker@meheditailors.com', phone: '+8801711122233', address: 'Staff Quarters, Savar', measurements: [], role: 'worker', specialization: 'Master Stitcher', password: 'worker123' }
         ];
-        setAllUsers(defaults);
-        await dbService.save('users', defaults);
+        setAllUsers(defaults); await dbService.save('users', defaults);
       }
       if (f.length > 0) setFabrics(f);
-      if (b.length > 0) setBanners(b); else {
-        setBanners(DEFAULT_BANNERS);
-        await dbService.save('banners', DEFAULT_BANNERS);
-      }
-      if (pt.length > 0) setPartnerBrands(pt); else {
-        setPartnerBrands(DEFAULT_PARTNERS);
-        await dbService.save('partners', DEFAULT_PARTNERS);
-      }
+      if (b.length > 0) setBanners(b); else { setBanners(DEFAULT_BANNERS); await dbService.save('banners', DEFAULT_BANNERS); }
+      if (pt.length > 0) setPartnerBrands(pt);
       if (r.length > 0) setReviews(r);
       if (req.length > 0) setProductRequests(req);
       if (m.length > 0) setMaterialRequests(m);
@@ -192,16 +152,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (n.length > 0) setNotifications(n);
       if (coup.length > 0) setCoupons(coup);
       if (cats.length > 0) setCategories(cats.map(cat => cat.name));
-      
-      const config = c.find(x => x.id === 'global');
-      if (config) setSystemConfig(config);
+      if (d.length > 0) setDues(d);
 
+      const config = c.find(x => x.id === 'global'); if (config) setSystemConfig(config);
       setIsHydrated(true);
     };
     hydrate();
   }, []);
 
-  // AUTO-PERSISTENCE ENGINE
+  // AUTO-PERSISTENCE
   useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('products', products); }, [products, isHydrated, isImporting]);
   useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('orders', orders); }, [orders, isHydrated, isImporting]);
   useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('users', allUsers); }, [allUsers, isHydrated, isImporting]);
@@ -215,104 +174,95 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('requests', productRequests); }, [productRequests, isHydrated, isImporting]);
   useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('materials', materialRequests); }, [materialRequests, isHydrated, isImporting]);
   useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('coupons', coupons); }, [coupons, isHydrated, isImporting]);
-  useEffect(() => { 
-    if (!isHydrated || isImporting) return; 
-    dbService.save('categories', categories.map(cat => ({ id: cat, name: cat }))); 
-  }, [categories, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('dues', dues); }, [dues, isHydrated, isImporting]);
+  useEffect(() => { if (!isHydrated || isImporting) return; dbService.save('categories', categories.map(cat => ({ id: cat, name: cat }))); }, [categories, isHydrated, isImporting]);
 
   const sendEmail = async (to: string, subject: string, body: string) => {
     const brandedBody = `[DOCUMENT HEADER: ${systemConfig.documentLogo || systemConfig.siteLogo}]\n\n${body}\n\n---\n${systemConfig.siteName} • Bespoke Excellence\nAshulia, Savar, Dhaka`;
-    const log: EmailLog = {
-      id: 'ML-' + Date.now(),
-      to,
-      subject,
-      body: brandedBody,
-      timestamp: new Date().toISOString(),
-      status: 'sent',
-      templateId: 'industrial-gen'
-    };
+    const log: EmailLog = { id: 'ML-' + Date.now(), to, subject, body: brandedBody, timestamp: new Date().toISOString(), status: 'sent', templateId: 'industrial-gen' };
     setEmailLogs(prev => [log, ...prev]);
   };
 
-  /**
-   * Helper to trigger automated customer notifications for order updates.
-   */
-  const notifyCustomerOfUpdate = async (orderId: string, type: 'status' | 'step', value: string) => {
-    const order = orders.find(o => o.id === orderId);
-    if (!order || !order.customerEmail) return;
+  const notifyDueUpdate = async (due: DueRecord, isNew: boolean) => {
+    const subject = isNew ? `Fiscal Notice: New Outstanding Balance established` : `Ledger Update: Your balance has been modified`;
+    const body = `Salaam ${due.customerName},\n\nOur artisan ledger has been updated regarding your account.\n\n` +
+      `📌 Balance Reference: ${due.id}\n` +
+      `💰 Amount: BDT ${due.amount.toLocaleString()}\n` +
+      `📝 Reason: ${due.reason}\n` +
+      `📅 Status: ${due.status.toUpperCase()}\n\n` +
+      `Please visit your patron dashboard to view full fiscal details.\n\nThank you for your patronage.`;
 
-    const invoiceLink = `${window.location.origin}/#/invoice/${orderId}`;
-    const trackingLink = `${window.location.origin}/#/track-order?id=${orderId}`;
-    
-    let subject = '';
-    let intro = '';
+    await sendEmail(due.customerEmail, subject, body);
 
-    if (type === 'status') {
-      subject = `Order Update: #${orderId} is now ${value}`;
-      intro = `Salaam ${order.customerName},\n\nYour bespoke commission #${orderId} has transitioned to the "${value}" status.`;
-    } else {
-      subject = `Atelier Progress: #${orderId} - ${value}`;
-      intro = `Salaam ${order.customerName},\n\nOur artisans have reached a new milestone. Your garment #${orderId} is now in the "${value}" phase of production.`;
+    const targetUser = allUsers.find(u => u.email.toLowerCase() === due.customerEmail.toLowerCase());
+    if (targetUser) {
+      addNotification({
+        id: 'NOT-' + Date.now(),
+        userId: targetUser.id,
+        title: subject,
+        message: `Your fiscal ledger has been adjusted: BDT ${due.amount.toLocaleString()} for ${due.reason}. Status: ${due.status}.`,
+        date: new Date().toISOString(),
+        isRead: false,
+        type: 'fiscal',
+        link: `/dashboard`
+      });
     }
-
-    const body = `${intro}\n\nYou can access your official artisan invoice and track real-time progress using the links below:\n\n📜 Digital Invoice:\n${invoiceLink}\n\n📍 Real-time Tracking:\n${trackingLink}\n\nThank you for choosing Mehedi Tailors for your bespoke journey.`;
-
-    await sendEmail(order.customerEmail, subject, body);
   };
+
+  const addDue = async (due: DueRecord) => {
+    setDues(prev => [due, ...prev]);
+    await notifyDueUpdate(due, true);
+  };
+
+  const updateDue = async (due: DueRecord) => {
+    const original = dues.find(d => d.id === due.id);
+    const updated = { ...due };
+    if (due.status === 'settled' && (!original || original.status === 'pending')) {
+      updated.settledDate = new Date().toISOString();
+    }
+    setDues(prev => prev.map(d => d.id === due.id ? updated : d));
+    await notifyDueUpdate(updated, false);
+  };
+
+  const removeDue = async (id: string) => setDues(prev => prev.filter(d => d.id !== id));
+
+  const addNotification = (notif: Notification) => setNotifications(prev => [notif, ...prev]);
+  const markNotificationRead = (id: string) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  const clearNotifications = () => setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
 
   const exportDb = async () => {
     const data = await dbService.exportBackup();
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `mehedi_atelier_db_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `mehedi_db_${new Date().toISOString().split('T')[0]}.json`; a.click();
   };
 
   const importDb = async (json: string) => {
     setIsImporting(true);
-    try {
-      await dbService.importBackup(json);
-      setTimeout(() => window.location.reload(), 500);
-    } catch (err) {
-      setIsImporting(false);
-      alert("Import failed: " + (err as any).message);
-    }
+    try { await dbService.importBackup(json); setTimeout(() => window.location.reload(), 500); } 
+    catch (err) { setIsImporting(false); alert("Import failed: " + (err as any).message); }
   };
 
-  const resetSystemData = async () => {
-    await dbService.clearAll();
-    window.location.reload();
-  };
+  const resetSystemData = async () => { await dbService.clearAll(); window.location.reload(); };
 
   const placeOrder = async (order: Order) => {
     setOrders(prev => [order, ...prev]);
     setCart([]);
-    
     const invoiceLink = `${window.location.origin}/#/invoice/${order.id}`;
     const trackingLink = `${window.location.origin}/#/track-order?id=${order.id}`;
-
-    await sendEmail(
-      order.customerEmail || '',
-      `Order Confirmed: #${order.id} - Mehedi Tailors`,
-      `Salaam ${order.customerName},\n\nYour bespoke order #${order.id} has been established and is now in our assembly queue.\n\n📜 View Invoice: ${invoiceLink}\n📍 Track Progress: ${trackingLink}`
-    );
+    await sendEmail(order.customerEmail || '', `Order Confirmed: #${order.id}`, `Salaam ${order.customerName},\n\nOrder #${order.id} established.\n\n📜 Invoice: ${invoiceLink}\n📍 Track: ${trackingLink}`);
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
-    await notifyCustomerOfUpdate(orderId, 'status', status);
   };
 
   const updateProductionStep = async (orderId: string, productionStep: ProductionStep) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, productionStep } : o));
-    await notifyCustomerOfUpdate(orderId, 'step', productionStep);
   };
 
   const assignWorker = async (orderId: string, assignedWorkerId: string) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, assignedWorkerId, status: 'In Progress' } : o));
-    await notifyCustomerOfUpdate(orderId, 'status', 'In Progress (Assigned to Artisan)');
   };
 
   const addToCart = (item: CartItem) => setCart(prev => [...prev, item]);
@@ -328,10 +278,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const updatePartnerBrand = async (brand: PartnerBrand) => setPartnerBrands(prev => prev.map(b => b.id === brand.id ? brand : b));
   const removePartnerBrand = async (id: string) => setPartnerBrands(prev => prev.filter(b => b.id !== id));
   const registerNewUser = async (u: User) => setAllUsers(prev => [...prev, u]);
-  const updateAnyUser = async (u: User) => {
-    setAllUsers(prev => prev.map(x => x.id === u.id ? u : x));
-    if (user?.id === u.id) setUser(u);
-  };
+  const updateAnyUser = async (u: User) => { setAllUsers(prev => prev.map(x => x.id === u.id ? u : x)); if (user?.id === u.id) setUser(u); };
   const removeUser = async (id: string) => setAllUsers(prev => prev.filter(u => u.id !== id));
   const addFabric = async (f: Fabric) => setFabrics(prev => [...prev, f]);
   const removeFabric = async (id: string) => setFabrics(prev => prev.filter(f => f.id !== id));
@@ -345,16 +292,11 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const removeBanner = async (id: string) => setBanners(prev => prev.filter(b => b.id !== id));
   const addProductRequest = async (req: ProductRequest) => setProductRequests(prev => [req, ...prev]);
   const addMaterialRequest = async (req: MaterialRequest) => setMaterialRequests(prev => [req, ...prev]);
-  const updateMaterialRequestStatus = async (id: string, status: 'approved' | 'rejected') => {
-    setMaterialRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
-  };
+  const updateMaterialRequestStatus = async (id: string, status: 'approved' | 'rejected') => { setMaterialRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r)); };
   const addReview = async (review: Review) => setReviews(prev => [review, ...prev]);
   const updateReviewStatus = async (reviewId: string, status: 'approved' | 'pending') => setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, status } : r));
   const removeReview = async (id: string) => setReviews(prev => prev.filter(r => r.id !== id));
   const updateSystemConfig = (config: SystemConfig) => setSystemConfig(config);
-  const addNotification = (notif: Notification) => setNotifications(prev => [notif, ...prev]);
-  const markNotificationRead = (id: string) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-  const clearNotifications = () => setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
 
   return (
     <StoreContext.Provider value={{
@@ -374,13 +316,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       reviews, addReview, updateReviewStatus, removeReview,
       systemConfig, updateSystemConfig,
       notifications, addNotification, markNotificationRead, clearNotifications,
-      emailLogs, sendEmail, isHydrated, resetSystemData, exportDb, importDb
+      emailLogs, sendEmail, isHydrated, resetSystemData, exportDb, importDb,
+      dues, addDue, updateDue, removeDue
     }}>
       {isHydrated ? children : (
         <div className="min-h-screen bg-slate-900 flex items-center justify-center">
            <div className="text-center">
               <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-              <p className="text-slate-400 font-bold uppercase tracking-[0.6em] text-[10px] animate-pulse">Initializing Luxe Atelier DB</p>
+              <p className="text-slate-400 font-bold uppercase tracking-[0.6em] text-[10px]">Initializing Luxe Atelier</p>
            </div>
         </div>
       )}

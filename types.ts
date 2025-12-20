@@ -11,6 +11,19 @@ export type OrderStatus = 'Pending' | 'In Progress' | 'Shipped' | 'Delivered' | 
 export type PaymentStatus = 'Fully Paid' | 'Partially Paid' | 'Due' | 'Refunded';
 export type ProductionStep = 'Queue' | 'Cutting' | 'Stitching' | 'Finishing' | 'Ready';
 
+export interface DueRecord {
+  id: string;
+  userId?: string;
+  customerName: string;
+  customerEmail: string;
+  amount: number;
+  reason: string;
+  status: 'pending' | 'settled';
+  date: string; // Due date/Establishment date
+  settledDate?: string; // Date when payment was recovered
+  lastUpdated: string;
+}
+
 export interface SystemConfig {
   smtpHost: string;
   smtpPort: number;
@@ -188,6 +201,6 @@ export interface Notification {
   message: string;
   date: string;
   isRead: boolean;
-  type: 'sale' | 'restock' | 'order_update' | 'general';
+  type: 'sale' | 'restock' | 'order_update' | 'general' | 'fiscal';
   link?: string;
 }

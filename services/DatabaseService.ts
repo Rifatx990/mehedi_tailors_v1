@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'MehediAtelierDB';
-const DB_VERSION = 2; // Incremented version for new stores
+const DB_VERSION = 3; // Incremented version for dues store
 const STORES = {
   PRODUCTS: 'products',
   ORDERS: 'orders',
@@ -20,7 +20,8 @@ const STORES = {
   EMAILS: 'emails',
   NOTIFICATIONS: 'notifications',
   COUPONS: 'coupons',
-  CATEGORIES: 'categories'
+  CATEGORIES: 'categories',
+  DUES: 'dues'
 };
 
 export class DatabaseService {
@@ -35,7 +36,6 @@ export class DatabaseService {
         const db = (event.target as IDBOpenDBRequest).result;
         Object.values(STORES).forEach(store => {
           if (!db.objectStoreNames.contains(store)) {
-            // Categories is a special case: we'll store them as objects {id: string, name: string}
             db.createObjectStore(store, { keyPath: 'id' });
           }
         });
@@ -123,7 +123,6 @@ export class DatabaseService {
 
   async importBackup(json: string): Promise<void> {
     const data = JSON.parse(json);
-    // Sequence processing is critical to prevent transaction collisions
     for (const store of Object.values(STORES)) {
       if (data[store] && Array.isArray(data[store])) {
         await this.save(store, data[store]);
