@@ -1,4 +1,3 @@
-
 {
   "name": "mehedi-tailors-bespoke-erp",
   "private": true,
@@ -6,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm run start",
-    "start": "node init-db.js && npx concurrently \"npm run server\" \"npx vite\"",
-    "server": "node server.js",
+    "start": "node init-db.js && npx vite",
     "db:init": "node init-db.js",
     "build": "npx vite build",
     "preview": "npx vite preview"
