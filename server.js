@@ -11,9 +11,9 @@ const port = 3001;
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// Global Request Logger for Debugging Handshakes
+// Trace Middleware: Monitoring handshakes for debugging 404s
 app.use((req, res, next) => {
-    console.log(`[ATELIER GATEWAY] ${new Date().toISOString()} - ${req.method} ${req.url}`);
+    console.log(`[ATELIER MONITOR] ${new Date().toISOString()} | ${req.method} ${req.url}`);
     next();
 });
 
@@ -21,7 +21,7 @@ const poolConfig = process.env.DATABASE_URL
   ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
   : {
       user: process.env.DB_USER || 'postgres',
-      host: process.env.DB_HOST || 'localhost',
+      host: process.env.DB_HOST || '127.0.0.1',
       database: process.env.DB_NAME || 'mehedi_atelier',
       password: process.env.DB_PASSWORD || 'postgres',
       port: parseInt(process.env.DB_PORT || '5432'),
@@ -66,7 +66,10 @@ const setupCRUD = (route, table) => {
         try {
             const result = await query(`SELECT * FROM ${table} ORDER BY id ASC`);
             res.json(result.rows);
-        } catch (err) { res.status(500).json({ error: err.message }); }
+        } catch (err) { 
+            console.error(`Error fetching ${route}:`, err.message);
+            res.status(500).json({ error: err.message }); 
+        }
     });
 
     apiRouter.post(`/${route}`, async (req, res) => {
@@ -133,6 +136,7 @@ apiRouter.patch('/orders/:id', async (req, res) => {
 apiRouter.get('/config', async (req, res) => {
     try {
         const result = await query('SELECT * FROM system_config WHERE id = 1');
+        if (result.rowCount === 0) return res.status(404).json({ error: "Master config not seeded" });
         res.json(result.rows[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -149,15 +153,15 @@ apiRouter.put('/config', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Explicit 404 for API Router to catch missing endpoints before global handlers
+// Final explicit catch-all inside router
 apiRouter.use((req, res) => {
-    console.error(`[API 404] No such route: ${req.method} ${req.originalUrl}`);
-    res.status(404).json({ error: `API endpoint ${req.path} not found` });
+    console.error(`[API 404] Route not found: ${req.method} ${req.originalUrl}`);
+    res.status(404).json({ error: `API route ${req.path} not recognized` });
 });
 
-// Mount the router at /api
+// Primary API Mount
 app.use('/api', apiRouter);
 
 app.listen(port, '0.0.0.0', () => {
-    console.log(`[MEHEDI ATELIER] Gateway Live on port ${port}`);
+    console.log(`[MEHEDI ATELIER] Relational REST Gateway Live on port ${port}`);
 });

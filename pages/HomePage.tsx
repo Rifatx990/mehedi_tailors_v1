@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext.tsx';
@@ -102,7 +101,7 @@ const HomePage: React.FC = () => {
         )}
       </section>
 
-      {/* Partner Alliance Marquee */}
+      {/* Partner Alliance Marquee - NEW SYSTEM */}
       {activeBrands.length > 0 && (
         <section className="py-20 bg-white border-b border-slate-50 overflow-hidden">
            <div className="container mx-auto px-6 mb-12">
@@ -145,7 +144,7 @@ const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* High-Contrast Benefits Section */}
+      {/* Seasonal Advantages */}
       <section className="py-32 md:py-48 bg-slate-950 relative overflow-hidden">
          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-600/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2"></div>
          <div className="container mx-auto px-6 relative z-10">
@@ -186,7 +185,7 @@ const HomePage: React.FC = () => {
          </div>
       </section>
 
-      {/* Global Artisan Gift Engine */}
+      {/* Global Artisan Gift Engine - Controlled by Admin Settings */}
       {systemConfig.giftCardsEnabled && (
         <section className="py-32 md:py-56 bg-white">
            <div className="container mx-auto px-6">

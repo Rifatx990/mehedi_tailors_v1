@@ -30,12 +30,16 @@
         .shadow-3xl { box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.4); }
 
         @media print {
-            @page { size: A4; margin: 0mm; }
+            @page { size: A4; margin: 10mm; }
             nav, footer, .no-print, button, .admin-sidebar, aside, .floating-actions { display: none !important; }
-            body, #root, main { background: white !important; padding: 0 !important; margin: 0 !important; width: 210mm !important; }
-            .invoice-card { box-shadow: none !important; border: none !important; border-radius: 0 !important; padding: 10mm !important; width: 100% !important; }
-            .invoice-header { background-color: #020617 !important; -webkit-print-color-adjust: exact; color: white !important; }
+            body { background: white !important; padding: 0 !important; margin: 0 !important; color: black !important; }
+            #root, main { background: white !important; width: 100% !important; }
+            .invoice-card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; border-radius: 0 !important; padding: 0 !important; width: 100% !important; }
+            .invoice-header { background-color: #020617 !important; -webkit-print-color-adjust: exact; color: white !important; padding: 20px !important; }
             .no-print-bg { background-color: transparent !important; }
+            .bg-slate-50 { background-color: #f8fafc !important; -webkit-print-color-adjust: exact; }
+            .bg-amber-600 { background-color: #d97706 !important; -webkit-print-color-adjust: exact; color: white !important; }
+            * { transition: none !important; animation: none !important; }
         }
     </style>
 <script type="importmap">
@@ -49,12 +53,12 @@
     "@heroicons/react/24/solid": "https://esm.sh/@heroicons/react@2.2.0/24/solid",
     "@heroicons/react/": "https://esm.sh/@heroicons/react@^2.2.0/",
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "express": "https://esm.sh/express@^5.2.1",
+    "pg": "https://esm.sh/pg@^8.16.3",
+    "cors": "https://esm.sh/cors@^2.8.5",
     "body-parser": "https://esm.sh/body-parser@^2.2.1",
     "dotenv/": "https://esm.sh/dotenv@^17.2.3/",
-    "vite": "https://esm.sh/vite@^7.3.0",
-    "cors": "https://esm.sh/cors@^2.8.5",
-    "pg": "https://esm.sh/pg@^8.16.3",
-    "express": "https://esm.sh/express@^5.2.1"
+    "vite": "https://esm.sh/vite@^7.3.0"
   }
 }
 </script>
