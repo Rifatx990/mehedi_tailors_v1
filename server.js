@@ -59,7 +59,7 @@ app.get('/', (req, res) => {
             <div style="margin-top: 40px; padding: 20px; background: white; border-radius: 20px; display: inline-block; box-shadow: 0 10px 25px rgba(0,0,0,0.05);">
                 <p>Please visit the frontend studio at:</p>
                 <code style="background: #f1f5f9; padding: 10px 20px; border-radius: 10px; display: block; margin-top: 10px; font-weight: bold; color: #0f172a;">
-                    http://localhost:5173
+                    http://localhost:5000
                 </code>
             </div>
         </div>
