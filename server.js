@@ -6,7 +6,7 @@ import bodyParser from 'body-parser';
 import 'dotenv/config';
 
 const app = express();
-const port = 5000;
+const port = 3002;
 
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -50,16 +50,16 @@ const toSnake = (obj) => {
     return snake;
 };
 
-// Redirect root visits to the correct frontend port
+// Root splash remains for direct diagnostic visits to 3002
 app.get('/', (req, res) => {
     res.status(200).send(`
         <div style="font-family: sans-serif; text-align: center; padding: 100px; background: #f8fafc; min-height: 100vh;">
             <h1 style="color: #d97706; font-size: 3rem; margin-bottom: 20px;">Mehedi Atelier API</h1>
             <p style="color: #64748b; font-size: 1.2rem;">Data gateway is synchronized and awaiting instructions.</p>
             <div style="margin-top: 40px; padding: 20px; background: white; border-radius: 20px; display: inline-block; box-shadow: 0 10px 25px rgba(0,0,0,0.05);">
-                <p>Please visit the frontend studio at port <strong>5000</strong>:</p>
+                <p>Please visit the frontend studio at port <strong>3001</strong>:</p>
                 <code style="background: #f1f5f9; padding: 10px 20px; border-radius: 10px; display: block; margin-top: 10px; font-weight: bold; color: #0f172a;">
-                    http://localhost:5000
+                    http://localhost:3001
                 </code>
             </div>
         </div>
