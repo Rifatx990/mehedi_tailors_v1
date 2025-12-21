@@ -24,7 +24,7 @@ DB_NAME=mehedi_atelier
 ```
 
 ### 3. Automated Startup
-The system is now fully automated. Running the start command will:
+The system is now fully automated and uses ES Modules. Running the start command will:
 - Initialize the database schema (`database.sql`)
 - Seed default artisan data (`seeder.sql`)
 - Launch the API backend on `localhost:3001`

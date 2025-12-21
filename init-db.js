@@ -1,7 +1,8 @@
 
-const { Pool } = require('pg');
-const fs = require('fs');
-require('dotenv').config();
+import pg from 'pg';
+const { Pool } = pg;
+import fs from 'fs';
+import 'dotenv/config';
 
 const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
@@ -14,6 +15,11 @@ const pool = new Pool({
 async function run() {
   console.log('--- ATELIER DATABASE INITIALIZATION ---');
   try {
+    // Check if SQL files exist
+    if (!fs.existsSync('database.sql') || !fs.existsSync('seeder.sql')) {
+      throw new Error('Required SQL files (database.sql or seeder.sql) are missing from the root directory.');
+    }
+
     const schemaSql = fs.readFileSync('database.sql', 'utf8');
     const seederSql = fs.readFileSync('seeder.sql', 'utf8');
 
@@ -27,6 +33,7 @@ async function run() {
   } catch (err) {
     console.error('DATABASE INITIALIZATION FAILED:');
     console.error(err.message);
+    process.exit(1);
   } finally {
     await pool.end();
   }

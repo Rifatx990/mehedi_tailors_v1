@@ -1,9 +1,10 @@
 
-const express = require('express');
-const { Pool } = require('pg');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-require('dotenv').config();
+import express from 'express';
+import pg from 'pg';
+const { Pool } = pg;
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import 'dotenv/config';
 
 const app = express();
 const port = 3001;
@@ -35,7 +36,6 @@ const toSnake = (obj) => {
 // --- CORE API ---
 
 const setupCRUD = (route, table) => {
-    // GET all
     app.get(`/api/${route}`, async (req, res) => {
         try {
             const result = await query(`SELECT * FROM ${table} ORDER BY id ASC`);
@@ -43,11 +43,10 @@ const setupCRUD = (route, table) => {
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
 
-    // POST create
     app.post(`/api/${route}`, async (req, res) => {
         const body = toSnake(req.body);
         const keys = Object.keys(body);
-        const values = Object.values(body).map(v => typeof v === 'object' ? JSON.stringify(v) : v);
+        const values = Object.values(body).map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
         const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
         
         try {
@@ -57,12 +56,11 @@ const setupCRUD = (route, table) => {
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
 
-    // PUT update
     app.put(`/api/${route}/:id`, async (req, res) => {
         const body = toSnake(req.body);
-        delete body.id; // Protected
+        delete body.id;
         const keys = Object.keys(body);
-        const values = Object.values(body).map(v => typeof v === 'object' ? JSON.stringify(v) : v);
+        const values = Object.values(body).map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
         const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
         
         try {
@@ -72,7 +70,6 @@ const setupCRUD = (route, table) => {
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
 
-    // DELETE
     app.delete(`/api/${route}/:id`, async (req, res) => {
         try {
             await query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]);
@@ -98,11 +95,10 @@ setupCRUD('material-requests', 'material_requests');
 setupCRUD('product-requests', 'product_requests');
 setupCRUD('reviews', 'reviews');
 
-// Specialized Order Patching (Workflow Steps)
 app.patch('/api/orders/:id', async (req, res) => {
     const fields = toSnake(req.body);
     const keys = Object.keys(fields);
-    const values = Object.values(fields).map(v => typeof v === 'object' ? JSON.stringify(v) : v);
+    const values = Object.values(fields).map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
     const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
     
     try {
@@ -111,7 +107,6 @@ app.patch('/api/orders/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Singleton Config
 app.get('/api/config', async (req, res) => {
     try {
         const result = await query('SELECT * FROM system_config LIMIT 1');
@@ -123,7 +118,7 @@ app.put('/api/config', async (req, res) => {
     const fields = toSnake(req.body);
     delete fields.id;
     const keys = Object.keys(fields);
-    const values = Object.values(fields).map(v => typeof v === 'object' ? JSON.stringify(v) : v);
+    const values = Object.values(fields).map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
     const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
     
     try {
