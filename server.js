@@ -11,9 +11,9 @@ const port = 3001;
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// Trace Middleware: Monitoring handshakes for debugging 404s
+// Trace Middleware: Log every single hit to the server
 app.use((req, res, next) => {
-    console.log(`[ATELIER MONITOR] ${new Date().toISOString()} | ${req.method} ${req.url}`);
+    console.log(`[ATELIER INBOUND] ${new Date().toISOString()} | ${req.method} ${req.url}`);
     next();
 });
 
@@ -69,7 +69,6 @@ apiRouter.post('/verify-smtp', async (req, res) => {
             return res.status(400).json({ error: "Incomplete SMTP configuration." });
         }
         
-        // Log a diagnostic email to the ledger as part of the "verification"
         const logId = 'DIAG-' + Date.now();
         await query(
             `INSERT INTO email_logs (id, recipient, subject, body, status, template_id) 
@@ -159,6 +158,7 @@ apiRouter.patch('/orders/:id', async (req, res) => {
 apiRouter.get('/config', async (req, res) => {
     try {
         const result = await query('SELECT * FROM system_config WHERE id = 1');
+        if (result.rows.length === 0) return res.status(404).json({ error: "Config not found" });
         res.json(result.rows[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
