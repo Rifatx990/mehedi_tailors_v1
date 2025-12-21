@@ -1,4 +1,3 @@
-
 import express from 'express';
 import pg from 'pg';
 const { Pool } = pg;
@@ -12,25 +11,40 @@ const port = 3001;
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'mehedi_atelier',
-  password: process.env.DB_PASSWORD || 'postgres',
-  port: process.env.DB_PORT || 5432,
+// Prioritize DATABASE_URL for flexible cloud deployments
+const poolConfig = process.env.DATABASE_URL 
+  ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
+  : {
+      user: process.env.DB_USER || 'postgres',
+      host: process.env.DB_HOST || 'localhost',
+      database: process.env.DB_NAME || 'mehedi_atelier',
+      password: process.env.DB_PASSWORD || 'postgres',
+      port: process.env.DB_PORT || 5432,
+    };
+
+const pool = new Pool(poolConfig);
+
+pool.on('error', (err) => {
+    console.error('Unexpected error on idle PostgreSQL client', err);
+    process.exit(-1);
 });
 
 const query = (text, params) => pool.query(text, params);
 
+// Helper: Frontend camelCase -> Database snake_case
 const toSnake = (obj) => {
+    if (!obj || typeof obj !== 'object') return obj;
     const snake = {};
     for (let key in obj) {
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        snake[snakeKey] = obj[key];
+        snake[snakeKey] = (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) 
+            ? toSnake(obj[key]) 
+            : obj[key];
     }
     return snake;
 };
 
+// Auto CRUD Setup
 const setupCRUD = (route, table) => {
     app.get(`/api/${route}`, async (req, res) => {
         try {
@@ -42,7 +56,9 @@ const setupCRUD = (route, table) => {
     app.post(`/api/${route}`, async (req, res) => {
         const body = toSnake(req.body);
         const keys = Object.keys(body);
-        const values = Object.values(body).map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
+        const values = Object.values(body).map(v => 
+            (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+        );
         const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
         try {
             const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`;
@@ -55,7 +71,9 @@ const setupCRUD = (route, table) => {
         const body = toSnake(req.body);
         delete body.id;
         const keys = Object.keys(body);
-        const values = Object.values(body).map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
+        const values = Object.values(body).map(v => 
+            (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+        );
         const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
         try {
             const sql = `UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`;
@@ -72,6 +90,7 @@ const setupCRUD = (route, table) => {
     });
 };
 
+// Register Managed Entities
 setupCRUD('users', 'users');
 setupCRUD('products', 'products');
 setupCRUD('fabrics', 'fabrics');
@@ -88,10 +107,13 @@ setupCRUD('material-requests', 'material_requests');
 setupCRUD('product-requests', 'product_requests');
 setupCRUD('reviews', 'reviews');
 
+// Specific Overrides
 app.patch('/api/orders/:id', async (req, res) => {
     const fields = toSnake(req.body);
     const keys = Object.keys(fields);
-    const values = Object.values(fields).map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
+    const values = Object.values(fields).map(v => 
+        (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+    );
     const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
     try {
         const result = await query(`UPDATE orders SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
@@ -110,7 +132,9 @@ app.put('/api/config', async (req, res) => {
     const fields = toSnake(req.body);
     delete fields.id;
     const keys = Object.keys(fields);
-    const values = Object.values(fields).map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
+    const values = Object.values(fields).map(v => 
+        (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+    );
     const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
     try {
         const result = await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values);
