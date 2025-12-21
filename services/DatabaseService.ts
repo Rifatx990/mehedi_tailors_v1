@@ -1,45 +1,60 @@
-
 /**
  * ATELIER REST GATEWAY (PostgreSQL Backend Client)
- * Interfaces with the Node.js API layer.
  */
 
 export class DatabaseService {
-  private readonly baseUrl: string = 'http://localhost:3001/api';
+  // Use relative path to leverage proxy in dev or same-origin in production
+  private readonly baseUrl: string = '/api';
 
   private async request<T>(path: string, options?: RequestInit): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...options?.headers,
-      },
-    });
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...options?.headers,
+        },
+      });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'API Handshake Failed' }));
-      throw new Error(error.message || `API Error: ${response.status}`);
+      if (!response.ok) {
+        // Backend returns errors in { error: "message" } format
+        let message = `HTTP Error ${response.status}`;
+        try {
+            const errorData = await response.json();
+            message = errorData.error || errorData.message || message;
+        } catch (e) {
+            // If response is not JSON, use the status text
+            message = response.statusText || message;
+        }
+        throw new Error(message);
+      }
+
+      return response.json();
+    } catch (err: any) {
+      console.error(`Atelier API Handshake Error [${path}]:`, err.message);
+      throw err; // Propagate to StoreContext for handling
     }
-
-    return response.json();
   }
 
-  // --- IDENTITY & ACCESS ---
+  // HEALTH CHECK
+  async checkHealth() { return this.request<{status: string}>('/health'); }
+
+  // IDENTITY
   async getUsers() { return this.request<any[]>('/users'); }
   async saveUser(user: any) { 
-    return this.request<any>(`/users${user.id ? `/${user.id}` : ''}`, {
-      method: user.id ? 'PUT' : 'POST',
+    return this.request<any>(`/users${user.id && !user._isNew ? `/${user.id}` : ''}`, {
+      method: user.id && !user._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(user)
     });
   }
   async deleteUser(id: string) { return this.request(`/users/${id}`, { method: 'DELETE' }); }
 
-  // --- INVENTORY ---
+  // INVENTORY
   async getProducts() { return this.request<any[]>('/products'); }
   async saveProduct(p: any) {
-    return this.request<any>(`/products${p.id ? `/${p.id}` : ''}`, {
-      method: p.id ? 'PUT' : 'POST',
+    return this.request<any>(`/products${p.id && !p._isNew ? `/${p.id}` : ''}`, {
+      method: p.id && !p._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(p)
     });
   }
@@ -47,26 +62,27 @@ export class DatabaseService {
 
   async getUpcoming() { return this.request<any[]>('/upcoming'); }
   async saveUpcoming(p: any) {
-    return this.request<any>(`/upcoming${p.id ? `/${p.id}` : ''}`, {
-      method: p.id ? 'PUT' : 'POST',
+    return this.request<any>(`/upcoming${p.id && !p._isNew ? `/${p.id}` : ''}`, {
+      method: p.id && !p._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(p)
     });
   }
+  async deleteUpcoming(id: string) { return this.request(`/upcoming/${id}`, { method: 'DELETE' }); }
 
   async getFabrics() { return this.request<any[]>('/fabrics'); }
   async saveFabric(f: any) {
-    return this.request<any>(`/fabrics${f.id ? `/${f.id}` : ''}`, {
-      method: f.id ? 'PUT' : 'POST',
+    return this.request<any>(`/fabrics${f.id && !f._isNew ? `/${f.id}` : ''}`, {
+      method: f.id && !f._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(f)
     });
   }
   async deleteFabric(id: string) { return this.request(`/fabrics/${id}`, { method: 'DELETE' }); }
 
-  // --- TRANSACTIONS ---
+  // TRANSACTIONS
   async getOrders() { return this.request<any[]>('/orders'); }
   async saveOrder(order: any) {
-    return this.request<any>(`/orders${order.id ? `/${order.id}` : ''}`, {
-      method: order.id ? 'PATCH' : 'POST',
+    return this.request<any>(`/orders${order.id && !order._isNew ? `/${order.id}` : ''}`, {
+      method: order.id && !order._isNew ? 'PATCH' : 'POST',
       body: JSON.stringify(order)
     });
   }
@@ -74,18 +90,18 @@ export class DatabaseService {
 
   async getDues() { return this.request<any[]>('/dues'); }
   async saveDue(due: any) {
-    return this.request<any>(`/dues${due.id ? `/${due.id}` : ''}`, {
-      method: due.id ? 'PUT' : 'POST',
+    return this.request<any>(`/dues${due.id && !due._isNew ? `/${due.id}` : ''}`, {
+      method: due.id && !due._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(due)
     });
   }
   async deleteDue(id: string) { return this.request(`/dues/${id}`, { method: 'DELETE' }); }
 
-  // --- PROMOTIONS ---
+  // PROMOTIONS
   async getCoupons() { return this.request<any[]>('/coupons'); }
   async saveCoupon(c: any) {
-    return this.request<any>(`/coupons${c.id ? `/${c.id}` : ''}`, {
-      method: c.id ? 'PUT' : 'POST',
+    return this.request<any>(`/coupons${c.id && !c._isNew ? `/${c.id}` : ''}`, {
+      method: c.id && !c._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(c)
     });
   }
@@ -93,23 +109,24 @@ export class DatabaseService {
 
   async getGiftCards() { return this.request<any[]>('/gift-cards'); }
   async saveGiftCard(gc: any) {
-    return this.request<any>(`/gift-cards${gc.id ? `/${gc.id}` : ''}`, {
-      method: gc.id ? 'PUT' : 'POST',
+    return this.request<any>(`/gift-cards${gc.id && !gc._isNew ? `/${gc.id}` : ''}`, {
+      method: gc.id && !gc._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(gc)
     });
   }
+  async deleteGiftCard(id: string) { return this.request(`/gift-cards/${id}`, { method: 'DELETE' }); }
 
-  // --- CONFIG ---
+  // SYSTEM
   async getConfig() { return this.request<any>('/config'); }
   async updateConfig(config: any) {
     return this.request<any>('/config', { method: 'PUT', body: JSON.stringify(config) });
   }
 
-  // --- MARKETING ---
+  // MARKETING
   async getBanners() { return this.request<any[]>('/banners'); }
   async saveBanner(b: any) {
-    return this.request<any>(`/banners${b.id ? `/${b.id}` : ''}`, {
-      method: b.id ? 'PUT' : 'POST',
+    return this.request<any>(`/banners${b.id && !b._isNew ? `/${b.id}` : ''}`, {
+      method: b.id && !b._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(b)
     });
   }
@@ -117,8 +134,8 @@ export class DatabaseService {
 
   async getNotices() { return this.request<any[]>('/notices'); }
   async saveNotice(n: any) {
-    return this.request<any>(`/notices${n.id ? `/${n.id}` : ''}`, {
-      method: n.id ? 'PUT' : 'POST',
+    return this.request<any>(`/notices${n.id && !n._isNew ? `/${n.id}` : ''}`, {
+      method: n.id && !n._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(n)
     });
   }
@@ -126,8 +143,8 @@ export class DatabaseService {
 
   async getOffers() { return this.request<any[]>('/offers'); }
   async saveOffer(o: any) {
-    return this.request<any>(`/offers${o.id ? `/${o.id}` : ''}`, {
-      method: o.id ? 'PUT' : 'POST',
+    return this.request<any>(`/offers${o.id && !o._isNew ? `/${o.id}` : ''}`, {
+      method: o.id && !o._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(o)
     });
   }
@@ -135,8 +152,8 @@ export class DatabaseService {
 
   async getBespokeServices() { return this.request<any[]>('/bespoke-services'); }
   async saveBespokeService(s: any) {
-    return this.request<any>(`/bespoke-services${s.id ? `/${s.id}` : ''}`, {
-      method: s.id ? 'PUT' : 'POST',
+    return this.request<any>(`/bespoke-services${s.id && !s._isNew ? `/${s.id}` : ''}`, {
+      method: s.id && !s._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(s)
     });
   }
@@ -144,17 +161,18 @@ export class DatabaseService {
 
   async getPartners() { return this.request<any[]>('/partners'); }
   async savePartner(p: any) {
-    return this.request<any>(`/partners${p.id ? `/${p.id}` : ''}`, {
-      method: p.id ? 'PUT' : 'POST',
+    return this.request<any>(`/partners${p.id && !p._isNew ? `/${p.id}` : ''}`, {
+      method: p.id && !p._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(p)
     });
   }
+  async deletePartner(id: string) { return this.request(`/partners/${id}`, { method: 'DELETE' }); }
   
-  // --- OPERATIONS ---
+  // OPERATIONS
   async getMaterialRequests() { return this.request<any[]>('/material-requests'); }
   async saveMaterialRequest(r: any) {
-    return this.request<any>(`/material-requests${r.id ? `/${r.id}` : ''}`, {
-      method: r.id ? 'PUT' : 'POST',
+    return this.request<any>(`/material-requests${r.id && !r._isNew ? `/${r.id}` : ''}`, {
+      method: r.id && !r._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(r)
     });
   }
@@ -166,12 +184,14 @@ export class DatabaseService {
 
   async getReviews() { return this.request<any[]>('/reviews'); }
   async saveReview(r: any) {
-    return this.request<any>(`/reviews${r.id ? `/${r.id}` : ''}`, {
-      method: r.id ? 'PUT' : 'POST',
+    return this.request<any>(`/reviews${r.id && !r._isNew ? `/${r.id}` : ''}`, {
+      method: r.id && !r._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(r)
     });
   }
   async deleteReview(id: string) { return this.request(`/reviews/${id}`, { method: 'DELETE' }); }
+
+  async getEmails() { return this.request<any[]>('/emails'); }
 }
 
 export const dbService = new DatabaseService();

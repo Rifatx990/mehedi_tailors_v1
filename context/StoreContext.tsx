@@ -1,9 +1,8 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { 
   CartItem, Product, User, Order, OrderStatus, Fabric, Coupon, 
   Banner, ProductionStep, SystemConfig, Notice, Offer, PartnerBrand, BespokeService, 
-  Notification, GiftCard, DueRecord, EmailLog, MaterialRequest, ProductRequest, Review, UpcomingProduct
+  Notification, GiftCard, DueRecord, MaterialRequest, ProductRequest, Review, UpcomingProduct, EmailLog
 } from '../types.ts';
 import { dbService } from '../services/DatabaseService.ts';
 
@@ -26,17 +25,22 @@ interface StoreContextType {
   updateOrder: (order: Order) => Promise<void>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   updateProductionStep: (orderId: string, step: ProductionStep) => Promise<void>;
-  assignWorker: (orderId: string, workerId: string) => Promise<void>;
   removeOrder: (id: string) => Promise<void>;
+  assignWorker: (orderId: string, workerId: string) => Promise<void>;
   products: Product[];
   updateProduct: (product: Product) => Promise<void>;
   addProduct: (product: Product) => Promise<void>;
   removeProduct: (id: string) => Promise<void>;
   upcomingProducts: UpcomingProduct[];
+  addUpcomingProduct: (p: UpcomingProduct) => Promise<void>;
+  updateUpcomingProduct: (p: UpcomingProduct) => Promise<void>;
+  removeUpcomingProduct: (id: string) => Promise<void>;
   fabrics: Fabric[];
   addFabric: (fabric: Fabric) => Promise<void>;
   removeFabric: (id: string) => Promise<void>;
   categories: string[];
+  addCategory: (cat: string) => void;
+  removeCategory: (cat: string) => void;
   coupons: Coupon[];
   addCoupon: (coupon: Coupon) => Promise<void>;
   updateCoupon: (coupon: Coupon) => Promise<void>;
@@ -55,6 +59,8 @@ interface StoreContextType {
   removeOffer: (id: string) => Promise<void>;
   giftCards: GiftCard[];
   addGiftCard: (gc: GiftCard) => Promise<void>;
+  updateGiftCard: (gc: GiftCard) => Promise<void>;
+  removeGiftCard: (id: string) => Promise<void>;
   dues: DueRecord[];
   addDue: (due: DueRecord) => Promise<void>;
   updateDue: (due: DueRecord) => Promise<void>;
@@ -65,9 +71,10 @@ interface StoreContextType {
   removeBespokeService: (id: string) => Promise<void>;
   partnerBrands: PartnerBrand[];
   addPartnerBrand: (p: PartnerBrand) => Promise<void>;
+  updatePartnerBrand: (p: PartnerBrand) => Promise<void>;
+  removePartnerBrand: (id: string) => Promise<void>;
   systemConfig: SystemConfig;
   updateSystemConfig: (config: SystemConfig) => Promise<void>;
-  notifications: Notification[];
   productRequests: ProductRequest[];
   addProductRequest: (req: ProductRequest) => Promise<void>;
   materialRequests: MaterialRequest[];
@@ -77,11 +84,17 @@ interface StoreContextType {
   addReview: (rev: Review) => Promise<void>;
   updateReviewStatus: (id: string, status: 'approved' | 'pending') => Promise<void>;
   removeReview: (id: string) => Promise<void>;
+  emailLogs: EmailLog[];
+  notifications: Notification[];
+  markNotificationRead: (id: string) => void;
+  clearNotifications: () => void;
   isHydrated: boolean;
   syncToServer: () => Promise<void>;
   registerNewUser: (user: User) => Promise<void>;
-  updateAnyUser: (user: User, notify?: boolean) => Promise<void>;
+  updateAnyUser: (user: User, silent?: boolean) => Promise<void>;
   removeUser: (id: string) => Promise<void>;
+  subscribeToNewsletter: (email: string) => Promise<void>;
+  roastMaliciousUser: (input: string) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -96,8 +109,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [upcomingProducts, setUpcomingProducts] = useState<UpcomingProduct[]>([]);
   const [fabrics, setFabrics] = useState<Fabric[]>([]);
-  const [categories, setCategories] = useState<string[]>(['Men', 'Women', 'Fabrics', 'Custom Tailoring']);
+  const [categories, setCategories] = useState<string[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -109,126 +123,164 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [productRequests, setProductRequests] = useState<ProductRequest[]>([]);
   const [materialRequests, setMaterialRequests] = useState<MaterialRequest[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>({
     smtpHost: '', smtpPort: 465, smtpUser: '', smtpPass: '', secure: true, 
     senderName: 'Mehedi Tailors', senderEmail: '', isEnabled: false, 
-    siteName: 'Mehedi Tailors & Fabrics', dbVersion: 'POSTGRES-9.0.0', giftCardDenominations: [2000, 5000, 10000], giftCardsEnabled: true
+    siteName: 'Mehedi Tailors & Fabrics', dbVersion: 'REST-SQL-12.0', giftCardDenominations: [2000, 5000, 10000], giftCardsEnabled: true
   });
 
-  const mapDbToCamel = (obj: any) => {
+  const mapDbToCamel = (obj: any): any => {
     if (!obj || typeof obj !== 'object') return obj;
     if (Array.isArray(obj)) return obj.map(mapDbToCamel);
     const newObj: any = {};
     for (let key in obj) {
       const camelKey = key.replace(/(_\w)/g, (m) => m[1].toUpperCase());
-      newObj[camelKey] = (typeof obj[key] === 'object' && obj[key] !== null) ? mapDbToCamel(obj[key]) : obj[key];
+      newObj[camelKey] = (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) 
+        ? mapDbToCamel(obj[key]) 
+        : obj[key];
     }
     return newObj;
   };
 
   const bootstrap = useCallback(async () => {
     try {
-      const [users, prods, ords, conf, bans, nats, offs, coups, gcs, ds, svcs, pats, reqs, mats, revs] = await Promise.all([
-        dbService.getUsers(), dbService.getProducts(), dbService.getOrders(),
+      const [users, prods, upcs, ords, conf, bans, nats, offs, coups, gcs, ds, svcs, pats, preqs, mreqs, revs, fabs, emails] = await Promise.all([
+        dbService.getUsers(), dbService.getProducts(), dbService.getUpcoming(), dbService.getOrders(),
         dbService.getConfig(), dbService.getBanners(), dbService.getNotices(),
         dbService.getOffers(), dbService.getCoupons(), dbService.getGiftCards(),
         dbService.getDues(), dbService.getBespokeServices(), dbService.getPartners(),
-        dbService.getProductRequests(), dbService.getMaterialRequests(), dbService.getReviews()
+        dbService.getProductRequests(), dbService.getMaterialRequests(), dbService.getReviews(),
+        dbService.getFabrics(), dbService.getEmails()
       ]);
 
-      setAllUsers(users.map(mapDbToCamel));
-      setProducts(prods.map(mapDbToCamel));
-      setOrders(ords.map(mapDbToCamel));
+      setAllUsers(mapDbToCamel(users));
+      setProducts(mapDbToCamel(prods));
+      setUpcomingProducts(mapDbToCamel(upcs));
+      setOrders(mapDbToCamel(ords));
       if (conf) setSystemConfig(mapDbToCamel(conf));
-      setBanners(bans.map(mapDbToCamel));
-      setNotices(nats.map(mapDbToCamel));
-      setOffers(offs.map(mapDbToCamel));
-      setCoupons(coups.map(mapDbToCamel));
-      setGiftCards(gcs.map(mapDbToCamel));
-      setDues(ds.map(mapDbToCamel));
-      setBespokeServices(svcs.map(mapDbToCamel));
-      setPartnerBrands(pats.map(mapDbToCamel));
-      setProductRequests(reqs.map(mapDbToCamel));
-      setMaterialRequests(mats.map(mapDbToCamel));
-      setReviews(revs.map(mapDbToCamel));
+      setBanners(mapDbToCamel(bans));
+      setNotices(mapDbToCamel(nats));
+      setOffers(mapDbToCamel(offs));
+      setCoupons(mapDbToCamel(coups));
+      setGiftCards(mapDbToCamel(gcs));
+      setDues(mapDbToCamel(ds));
+      setBespokeServices(mapDbToCamel(svcs));
+      setPartnerBrands(mapDbToCamel(pats));
+      setProductRequests(mapDbToCamel(preqs));
+      setMaterialRequests(mapDbToCamel(mreqs));
+      setReviews(mapDbToCamel(revs));
+      setFabrics(mapDbToCamel(fabs));
+      setEmailLogs(mapDbToCamel(emails));
       
       const cats = Array.from(new Set(prods.map((p: any) => p.category)));
       setCategories(cats.length ? (cats as string[]) : ['Men', 'Women', 'Fabrics', 'Custom Tailoring']);
       
+      // Auto-restore session from DB if stored in local storage
+      const storedUserId = localStorage.getItem('mt_user_id');
+      if (storedUserId) {
+        const fullUser = mapDbToCamel(users).find((u: any) => u.id === storedUserId);
+        if (fullUser) {
+           if (fullUser.role === 'admin') setAdminUser(fullUser);
+           else if (fullUser.role === 'worker') setWorkerUser(fullUser);
+           else setUser(fullUser);
+        }
+      }
+
       setIsHydrated(true);
     } catch (err) {
-      console.error("PostgreSQL Authority Handshake Failed:", err);
+      console.error("Central Ledger Connection Failed:", err);
       setIsHydrated(true);
     }
   }, []);
 
   useEffect(() => { bootstrap(); }, [bootstrap]);
 
-  // DB Mutators
+  // WRAPPERS FOR DATABASE OPERATIONS
   const updateSystemConfig = async (config: SystemConfig) => { const s = await dbService.updateConfig(config); setSystemConfig(mapDbToCamel(s)); };
-  const addProduct = async (p: Product) => { const s = await dbService.saveProduct(p); setProducts(prev => [mapDbToCamel(s), ...prev]); };
+  
+  const addProduct = async (p: Product) => { const s = await dbService.saveProduct({...p, _isNew: true}); setProducts(prev => [mapDbToCamel(s), ...prev]); };
   const updateProduct = async (p: Product) => { const s = await dbService.saveProduct(p); setProducts(prev => prev.map(c => c.id === p.id ? mapDbToCamel(s) : c)); };
   const removeProduct = async (id: string) => { await dbService.deleteProduct(id); setProducts(prev => prev.filter(p => p.id !== id)); };
 
-  const placeOrder = async (order: Order) => { const s = await dbService.saveOrder(order); setOrders(prev => [mapDbToCamel(s), ...prev]); setCart([]); };
+  const addUpcomingProduct = async (p: UpcomingProduct) => { const s = await dbService.saveUpcoming({...p, _isNew: true}); setUpcomingProducts(prev => [mapDbToCamel(s), ...prev]); };
+  const updateUpcomingProduct = async (p: UpcomingProduct) => { const s = await dbService.saveUpcoming(p); setUpcomingProducts(prev => prev.map(c => c.id === p.id ? mapDbToCamel(s) : c)); };
+  const removeUpcomingProduct = async (id: string) => { await dbService.deleteUpcoming(id); setUpcomingProducts(prev => prev.filter(p => p.id !== id)); };
+
+  const placeOrder = async (order: Order) => { const s = await dbService.saveOrder({...order, _isNew: true}); setOrders(prev => [mapDbToCamel(s), ...prev]); setCart([]); };
   const updateOrder = async (order: Order) => { const s = await dbService.saveOrder(order); setOrders(prev => prev.map(o => o.id === order.id ? mapDbToCamel(s) : o)); };
   const updateOrderStatus = async (id: string, status: OrderStatus) => { await dbService.saveOrder({ id, status }); setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o)); };
   const updateProductionStep = async (id: string, productionStep: ProductionStep) => { await dbService.saveOrder({ id, productionStep }); setOrders(prev => prev.map(o => o.id === id ? { ...o, productionStep } : o)); };
+  const assignWorker = async (orderId: string, workerId: string) => { await dbService.saveOrder({ id: orderId, assignedWorkerId: workerId }); setOrders(prev => prev.map(o => o.id === orderId ? { ...o, assignedWorkerId: workerId } : o)); };
   const removeOrder = async (id: string) => { await dbService.deleteOrder(id); setOrders(prev => prev.filter(o => o.id !== id)); };
 
-  const registerNewUser = async (u: User) => { const s = await dbService.saveUser(u); setAllUsers(prev => [...prev, mapDbToCamel(s)]); setUser(mapDbToCamel(s)); };
-  const updateAnyUser = async (u: User) => { const s = await dbService.saveUser(u); setAllUsers(prev => prev.map(x => x.id === u.id ? mapDbToCamel(s) : x)); };
+  const registerNewUser = async (u: User) => { const s = await dbService.saveUser({...u, _isNew: true}); setAllUsers(prev => [...prev, mapDbToCamel(s)]); };
+  const updateAnyUser = async (u: User, silent: boolean = false) => { const s = await dbService.saveUser(u); setAllUsers(prev => prev.map(x => x.id === u.id ? mapDbToCamel(s) : x)); if (user?.id === u.id) setUser(mapDbToCamel(s)); };
   const removeUser = async (id: string) => { await dbService.deleteUser(id); setAllUsers(prev => prev.filter(u => u.id !== id)); };
 
-  const addCoupon = async (c: Coupon) => { const s = await dbService.saveCoupon(c); setCoupons(prev => [mapDbToCamel(s), ...prev]); };
-  const updateCoupon = async (c: Coupon) => { const s = await dbService.saveCoupon(c); setCoupons(prev => prev.map(curr => curr.id === c.id ? mapDbToCamel(s) : curr)); };
-  const removeCoupon = async (id: string) => { await dbService.deleteCoupon(id); setCoupons(prev => prev.filter(c => c.id !== id)); };
+  const roastMaliciousUser = async (input: string) => { /* Visual roast logic could go here */ };
+  const subscribeToNewsletter = async (email: string) => { /* Logic to track subscribers */ };
 
   return (
     <StoreContext.Provider value={{
       cart, addToCart: (i) => setCart(prev => [...prev, i]), 
       removeFromCart: (id) => setCart(prev => prev.filter(i => i.id !== id)), 
       updateQuantity: (id, q) => setCart(prev => prev.map(i => i.id === id ? {...i, quantity: Math.max(1, q)} : i)),
-      user, setUser, adminUser, setAdminUser, workerUser, setWorkerUser,
+      user, setUser: (u) => { setUser(u); u ? localStorage.setItem('mt_user_id', u.id) : localStorage.removeItem('mt_user_id'); },
+      adminUser, setAdminUser: (u) => { setAdminUser(u); u ? localStorage.setItem('mt_user_id', u.id) : localStorage.removeItem('mt_user_id'); },
+      workerUser, setWorkerUser: (u) => { setWorkerUser(u); u ? localStorage.setItem('mt_user_id', u.id) : localStorage.removeItem('mt_user_id'); },
       allUsers, wishlist, toggleWishlist: (id) => setWishlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]),
-      orders, placeOrder, updateOrder, updateOrderStatus, updateProductionStep, removeOrder,
+      orders, placeOrder, updateOrder, updateOrderStatus, updateProductionStep, removeOrder, assignWorker,
       products, updateProduct, addProduct, removeProduct,
-      fabrics, addFabric: async (f) => { await dbService.saveFabric(f); setFabrics(prev => [...prev, f]); }, removeFabric: async () => {},
-      categories, coupons, addCoupon, updateCoupon, removeCoupon,
-      banners, addBanner: async (b) => { const s = await dbService.saveBanner(b); setBanners(prev => [mapDbToCamel(s), ...prev]); }, 
+      upcomingProducts, addUpcomingProduct, updateUpcomingProduct, removeUpcomingProduct,
+      fabrics, addFabric: async (f) => { const s = await dbService.saveFabric({...f, _isNew: true}); setFabrics(prev => [...prev, mapDbToCamel(s)]); }, 
+      removeFabric: async (id) => { await dbService.deleteFabric(id); setFabrics(prev => prev.filter(f => f.id !== id)); },
+      categories, addCategory: (c) => setCategories(prev => [...prev, c]), removeCategory: (c) => setCategories(prev => prev.filter(x => x !== c)),
+      coupons, addCoupon: async (c) => { const s = await dbService.saveCoupon({...c, _isNew: true}); setCoupons(prev => [mapDbToCamel(s), ...prev]); },
+      updateCoupon: async (c) => { const s = await dbService.saveCoupon(c); setCoupons(prev => prev.map(curr => curr.id === c.id ? mapDbToCamel(s) : curr)); },
+      removeCoupon: async (id) => { await dbService.deleteCoupon(id); setCoupons(prev => prev.filter(c => c.id !== id)); },
+      banners, addBanner: async (b) => { const s = await dbService.saveBanner({...b, _isNew: true}); setBanners(prev => [mapDbToCamel(s), ...prev]); }, 
       updateBanner: async (b) => { const s = await dbService.saveBanner(b); setBanners(prev => prev.map(c => c.id === b.id ? mapDbToCamel(s) : c)); }, 
       removeBanner: async (id) => { await dbService.deleteBanner(id); setBanners(prev => prev.filter(x => x.id !== id)); },
-      notices, addNotice: async (n) => { const s = await dbService.saveNotice(n); setNotices(prev => [mapDbToCamel(s), ...prev]); }, 
+      notices, addNotice: async (n) => { const s = await dbService.saveNotice({...n, _isNew: true}); setNotices(prev => [mapDbToCamel(s), ...prev]); }, 
       updateNotice: async (n) => { const s = await dbService.saveNotice(n); setNotices(prev => prev.map(c => c.id === n.id ? mapDbToCamel(s) : c)); },
       removeNotice: async (id) => { await dbService.deleteNotice(id); setNotices(prev => prev.filter(x => x.id !== id)); },
-      offers, addOffer: async (o) => { const s = await dbService.saveOffer(o); setOffers(prev => [mapDbToCamel(s), ...prev]); }, 
+      offers, addOffer: async (o) => { const s = await dbService.saveOffer({...o, _isNew: true}); setOffers(prev => [mapDbToCamel(s), ...prev]); }, 
       updateOffer: async (o) => { const s = await dbService.saveOffer(o); setOffers(prev => prev.map(c => c.id === o.id ? mapDbToCamel(s) : c)); },
       removeOffer: async (id) => { await dbService.deleteOffer(id); setOffers(prev => prev.filter(x => x.id !== id)); },
-      giftCards, addGiftCard: async (gc) => { const s = await dbService.saveGiftCard(gc); setGiftCards(prev => [mapDbToCamel(s), ...prev]); },
-      dues, addDue: async (d) => { const s = await dbService.saveDue(d); setDues(prev => [mapDbToCamel(s), ...prev]); }, 
+      giftCards, addGiftCard: async (gc) => { const s = await dbService.saveGiftCard({...gc, _isNew: true}); setGiftCards(prev => [mapDbToCamel(s), ...prev]); },
+      updateGiftCard: async (gc) => { const s = await dbService.saveGiftCard(gc); setGiftCards(prev => prev.map(c => c.id === gc.id ? mapDbToCamel(s) : c)); },
+      removeGiftCard: async (id) => { await dbService.deleteGiftCard(id); setGiftCards(prev => prev.filter(x => x.id !== id)); },
+      dues, addDue: async (d) => { const s = await dbService.saveDue({...d, _isNew: true}); setDues(prev => [mapDbToCamel(s), ...prev]); }, 
       updateDue: async (d) => { const s = await dbService.saveDue(d); setDues(prev => prev.map(c => c.id === d.id ? mapDbToCamel(s) : c)); },
       removeDue: async (id) => { await dbService.deleteDue(id); setDues(prev => prev.filter(x => x.id !== id)); },
-      bespokeServices, addBespokeService: async (s) => { const res = await dbService.saveBespokeService(s); setBespokeServices(prev => [mapDbToCamel(res), ...prev]); },
+      bespokeServices, addBespokeService: async (s) => { const res = await dbService.saveBespokeService({...s, _isNew: true}); setBespokeServices(prev => [mapDbToCamel(res), ...prev]); },
       updateBespokeService: async (s) => { const res = await dbService.saveBespokeService(s); setBespokeServices(prev => prev.map(c => c.id === s.id ? mapDbToCamel(res) : c)); },
       removeBespokeService: async (id) => { await dbService.deleteBespokeService(id); setBespokeServices(prev => prev.filter(x => x.id !== id)); },
-      partnerBrands, addPartnerBrand: async (p) => { const s = await dbService.savePartner(p); setPartnerBrands(prev => [mapDbToCamel(s), ...prev]); },
+      partnerBrands, addPartnerBrand: async (p) => { const s = await dbService.savePartner({...p, _isNew: true}); setPartnerBrands(prev => [mapDbToCamel(s), ...prev]); },
+      updatePartnerBrand: async (p) => { const s = await dbService.savePartner(p); setPartnerBrands(prev => prev.map(c => c.id === p.id ? mapDbToCamel(s) : c)); },
+      removePartnerBrand: async (id) => { await dbService.deletePartner(id); setPartnerBrands(prev => prev.filter(x => x.id !== id)); },
       systemConfig, updateSystemConfig,
-      notifications: [], 
       productRequests, addProductRequest: async (r) => { const s = await dbService.saveProductRequest(r); setProductRequests(prev => [mapDbToCamel(s), ...prev]); },
-      materialRequests, addMaterialRequest: async (r) => { const s = await dbService.saveMaterialRequest(r); setMaterialRequests(prev => [mapDbToCamel(s), ...prev]); }, 
+      materialRequests, addMaterialRequest: async (r) => { const s = await dbService.saveMaterialRequest({...r, _isNew: true}); setMaterialRequests(prev => [mapDbToCamel(s), ...prev]); }, 
       updateMaterialRequestStatus: async (id, status) => { const s = await dbService.saveMaterialRequest({id, status}); setMaterialRequests(prev => prev.map(r => r.id === id ? mapDbToCamel(s) : r)); },
-      reviews, addReview: async (r) => { const s = await dbService.saveReview(r); setReviews(prev => [mapDbToCamel(s), ...prev]); }, 
+      reviews, addReview: async (r) => { const s = await dbService.saveReview({...r, _isNew: true}); setReviews(prev => [mapDbToCamel(s), ...prev]); }, 
       updateReviewStatus: async (id, status) => { const s = await dbService.saveReview({id, status}); setReviews(prev => prev.map(r => r.id === id ? mapDbToCamel(s) : r)); },
       removeReview: async (id) => { await dbService.deleteReview(id); setReviews(prev => prev.filter(x => x.id !== id)); },
+      emailLogs, notifications, 
+      markNotificationRead: (id) => setNotifications(prev => prev.map(n => n.id === id ? {...n, isRead: true} : n)),
+      clearNotifications: () => setNotifications([]),
       isHydrated, syncToServer: async () => { await bootstrap(); },
-      registerNewUser, updateAnyUser, removeUser, assignWorker: async () => {}, upcomingProducts: []
+      registerNewUser, updateAnyUser, removeUser,
+      subscribeToNewsletter, roastMaliciousUser
     }}>
       {isHydrated ? children : (
         <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-6">
            <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
            <div className="text-center">
-             <p className="text-amber-500 font-mono text-xs uppercase tracking-[0.5em] animate-pulse">PostgreSQL Handshake...</p>
-             <p className="text-slate-600 text-[8px] font-black uppercase tracking-widest mt-2">Connecting to Authority</p>
+             <p className="text-amber-500 font-mono text-xs uppercase tracking-[0.5em] animate-pulse">Synchronizing Authoritative Ledger...</p>
+             <p className="text-slate-600 text-[8px] font-black uppercase tracking-widest mt-4">Connecting to PostgreSQL Cloud Service</p>
            </div>
         </div>
       )}

@@ -11,90 +11,115 @@ const port = 3001;
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// Prioritize DATABASE_URL for flexible cloud deployments
+// Global Request Logger for Debugging Handshakes
+app.use((req, res, next) => {
+    console.log(`[ATELIER BRIDGE] ${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+});
+
 const poolConfig = process.env.DATABASE_URL 
   ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
   : {
       user: process.env.DB_USER || 'postgres',
-      host: process.env.DB_HOST || 'localhost',
+      host: process.env.DB_HOST || '127.0.0.1',
       database: process.env.DB_NAME || 'mehedi_atelier',
       password: process.env.DB_PASSWORD || 'postgres',
-      port: process.env.DB_PORT || 5432,
+      port: parseInt(process.env.DB_PORT || '5432'),
     };
 
 const pool = new Pool(poolConfig);
 
-pool.on('error', (err) => {
-    console.error('Unexpected error on idle PostgreSQL client', err);
-    process.exit(-1);
-});
+const query = async (text, params) => {
+    try {
+        return await pool.query(text, params);
+    } catch (err) {
+        console.error('Database Query Error:', err.message);
+        throw err;
+    }
+};
 
-const query = (text, params) => pool.query(text, params);
-
-// Helper: Frontend camelCase -> Database snake_case
 const toSnake = (obj) => {
-    if (!obj || typeof obj !== 'object') return obj;
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
     const snake = {};
     for (let key in obj) {
+        // Skip internal state flags used by the frontend
+        if (key.startsWith('_')) continue;
+        
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        snake[snakeKey] = (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) 
-            ? toSnake(obj[key]) 
-            : obj[key];
+        snake[snakeKey] = (typeof obj[key] === 'object' && obj[key] !== null) ? toSnake(obj[key]) : obj[key];
     }
     return snake;
 };
 
-// Auto CRUD Setup
+// Create a dedicated router for all API endpoints
+const apiRouter = express.Router();
+
+// Health Check
+apiRouter.get('/health', async (req, res) => {
+    try {
+        await query('SELECT 1');
+        res.json({ status: 'connected' });
+    } catch (err) {
+        res.status(500).json({ status: 'disconnected', error: err.message });
+    }
+});
+
 const setupCRUD = (route, table) => {
-    app.get(`/api/${route}`, async (req, res) => {
+    apiRouter.get(`/${route}`, async (req, res) => {
         try {
             const result = await query(`SELECT * FROM ${table} ORDER BY id ASC`);
             res.json(result.rows);
-        } catch (err) { res.status(500).json({ error: err.message }); }
+        } catch (err) { 
+            console.error(`Error fetching ${route}:`, err.message);
+            res.status(500).json({ error: err.message }); 
+        }
     });
 
-    app.post(`/api/${route}`, async (req, res) => {
-        const body = toSnake(req.body);
-        const keys = Object.keys(body);
-        const values = Object.values(body).map(v => 
-            (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
-        );
-        const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    apiRouter.post(`/${route}`, async (req, res) => {
         try {
-            const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`;
-            const result = await query(sql, values);
+            const body = toSnake(req.body);
+            const keys = Object.keys(body);
+            const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
+            const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+            const result = await query(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`, values);
             res.json(result.rows[0]);
-        } catch (err) { res.status(500).json({ error: err.message }); }
+        } catch (err) { 
+            console.error(`Error creating ${route}:`, err.message);
+            res.status(500).json({ error: err.message }); 
+        }
     });
 
-    app.put(`/api/${route}/:id`, async (req, res) => {
-        const body = toSnake(req.body);
-        delete body.id;
-        const keys = Object.keys(body);
-        const values = Object.values(body).map(v => 
-            (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
-        );
-        const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
+    apiRouter.put(`/${route}/:id`, async (req, res) => {
         try {
-            const sql = `UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`;
-            const result = await query(sql, [req.params.id, ...values]);
+            const body = toSnake(req.body);
+            delete body.id;
+            const keys = Object.keys(body);
+            const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
+            const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
+            const result = await query(`UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
             res.json(result.rows[0]);
-        } catch (err) { res.status(500).json({ error: err.message }); }
+        } catch (err) { 
+            console.error(`Error updating ${route}:`, err.message);
+            res.status(500).json({ error: err.message }); 
+        }
     });
 
-    app.delete(`/api/${route}/:id`, async (req, res) => {
+    apiRouter.delete(`/${route}/:id`, async (req, res) => {
         try {
             await query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]);
             res.json({ success: true });
-        } catch (err) { res.status(500).json({ error: err.message }); }
+        } catch (err) { 
+            console.error(`Error deleting ${route}:`, err.message);
+            res.status(500).json({ error: err.message }); 
+        }
     });
 };
 
-// Register Managed Entities
+// Register Routes within the apiRouter
 setupCRUD('users', 'users');
 setupCRUD('products', 'products');
+setupCRUD('upcoming', 'upcoming_products');
 setupCRUD('fabrics', 'fabrics');
-setupCRUD('bespoke-services', 'bespoke_services');
 setupCRUD('orders', 'orders');
 setupCRUD('dues', 'dues');
 setupCRUD('banners', 'banners');
@@ -106,42 +131,56 @@ setupCRUD('partners', 'partners');
 setupCRUD('material-requests', 'material_requests');
 setupCRUD('product-requests', 'product_requests');
 setupCRUD('reviews', 'reviews');
+setupCRUD('emails', 'email_logs');
+setupCRUD('bespoke-services', 'bespoke_services');
 
-// Specific Overrides
-app.patch('/api/orders/:id', async (req, res) => {
-    const fields = toSnake(req.body);
-    const keys = Object.keys(fields);
-    const values = Object.values(fields).map(v => 
-        (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
-    );
-    const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
+// Custom Order Patching
+apiRouter.patch('/orders/:id', async (req, res) => {
     try {
+        const fields = toSnake(req.body);
+        delete fields.id;
+        const keys = Object.keys(fields);
+        const values = Object.values(fields).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
+        const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
         const result = await query(`UPDATE orders SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
         res.json(result.rows[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/config', async (req, res) => {
+// System Config Handling
+apiRouter.get('/config', async (req, res) => {
     try {
         const result = await query('SELECT * FROM system_config WHERE id = 1');
+        if (result.rowCount === 0) {
+            const init = await query("INSERT INTO system_config (site_name) VALUES ('Mehedi Tailors & Fabrics') RETURNING *");
+            return res.json(init.rows[0]);
+        }
         res.json(result.rows[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/config', async (req, res) => {
-    const fields = toSnake(req.body);
-    delete fields.id;
-    const keys = Object.keys(fields);
-    const values = Object.values(fields).map(v => 
-        (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
-    );
-    const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+apiRouter.put('/config', async (req, res) => {
     try {
+        const fields = toSnake(req.body);
+        delete fields.id;
+        const keys = Object.keys(fields);
+        const values = Object.values(fields).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
+        const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
         const result = await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values);
         res.json(result.rows[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.listen(port, () => {
-  console.log(`[MEHEDI ATELIER BACKEND] Authorized on http://localhost:${port}`);
+// Final catch-all for unmatched routes within the API router
+apiRouter.use((req, res) => {
+    console.warn(`[404 WARNING] Unmatched Route: ${req.method} ${req.originalUrl}`);
+    res.status(404).json({ error: `API route ${req.method} ${req.path} not found` });
+});
+
+// Mount the router at root. 
+// The Vite proxy strips '/api' so requests arrive here without the prefix.
+app.use('/', apiRouter);
+
+app.listen(port, '0.0.0.0', () => {
+    console.log(`[MEHEDI ATELIER] Relational REST Gateway Online on port ${port}`);
 });
