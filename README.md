@@ -1,7 +1,7 @@
 
 # Mehedi Tailors & Fabrics — PostgreSQL Enterprise Suite
 
-This application is powered by a **Relational PostgreSQL Backend**. This ensures industrial-grade persistence, ACID compliance, and multi-user concurrency.
+This application is powered by a **Relational PostgreSQL Backend**. This ensures industrial-grade persistence, ACID compliance, and multi-user concurrency for your artisan studio.
 
 ---
 
@@ -10,23 +10,36 @@ This application is powered by a **Relational PostgreSQL Backend**. This ensures
 ### 1. Database Provisioning
 You must have a PostgreSQL instance running (v14 or higher recommended).
 1. Create a new database: `CREATE DATABASE mehedi_atelier;`
-2. Apply the schema: `psql -d mehedi_atelier -f database.sql`
-3. Load bootstrap data: `psql -d mehedi_atelier -f seeder.sql`
+2. Configure credentials (see Step 2).
 
-### 2. Backend Startup
-The application requires a Node.js runtime for the API server.
-1. Ensure the following dependencies are installed: `npm install express pg cors body-parser`.
-2. Configure environment variables (optional) or use the defaults in `server.js`.
-3. Start the server: `node server.js`
-   * The server will run on `http://localhost:3001`.
+### 2. Environment Configuration
+Create a `.env` file in the project root to store your database secrets. **Do not commit this file to version control.**
 
-### 3. Frontend Handshake
-The React frontend is configured to point to `localhost:3001/api`. Ensure the server is running before interacting with the UI. Login checking is now performed against the database records fetched on startup.
+```env
+DB_USER=postgres
+DB_PASSWORD=your_postgres_password
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=mehedi_atelier
+```
+
+### 3. Automated Startup
+The system is now fully automated. Running the start command will:
+- Initialize the database schema (`database.sql`)
+- Seed default artisan data (`seeder.sql`)
+- Launch the API backend on `localhost:3001`
+- Launch the React frontend
+
+**Command:**
+```bash
+npm install
+npm start
+```
 
 ---
 
 ## 🔐 Administrative Access
-Default credentials (from `seeder.sql`):
+Default credentials (provisioned via `seeder.sql`):
 - **Admin**: `admin@meheditailors.com` / `admin123`
 - **Worker**: `worker@meheditailors.com` / `worker123`
 

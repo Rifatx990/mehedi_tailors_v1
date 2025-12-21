@@ -3,6 +3,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+require('dotenv').config();
 
 const app = express();
 const port = 3001;
@@ -10,7 +11,7 @@ const port = 3001;
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// Database connection parameters
+// Database connection parameters from environment or defaults
 const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'localhost',
