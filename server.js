@@ -11,9 +11,9 @@ const port = 3001;
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// Trace Middleware: Log every single hit to the server
+// Trace Middleware
 app.use((req, res, next) => {
-    console.log(`[ATELIER INBOUND] ${new Date().toISOString()} | ${req.method} ${req.url}`);
+    console.log(`[GATEWAY INBOUND] ${new Date().toLocaleTimeString()} | ${req.method} ${req.url}`);
     next();
 });
 
@@ -25,6 +25,7 @@ const poolConfig = process.env.DATABASE_URL
       database: process.env.DB_NAME || 'mehedi_atelier',
       password: process.env.DB_PASSWORD || 'postgres',
       port: parseInt(process.env.DB_PORT || '5432'),
+      idleTimeoutMillis: 30000,
     };
 
 const pool = new Pool(poolConfig);
@@ -49,6 +50,22 @@ const toSnake = (obj) => {
     return snake;
 };
 
+// Root redirect for accidental direct access
+app.get('/', (req, res) => {
+    res.send(`
+        <div style="font-family: sans-serif; text-align: center; padding: 100px; background: #f8fafc; min-height: 100vh;">
+            <h1 style="color: #d97706; font-size: 3rem; margin-bottom: 20px;">Mehedi Atelier API</h1>
+            <p style="color: #64748b; font-size: 1.2rem;">Data gateway is synchronized and awaiting instructions.</p>
+            <div style="margin-top: 40px; padding: 20px; background: white; border-radius: 20px; display: inline-block; box-shadow: 0 10px 25px rgba(0,0,0,0.05);">
+                <p>Please visit the frontend studio at:</p>
+                <code style="background: #f1f5f9; padding: 10px 20px; border-radius: 10px; display: block; margin-top: 10px; font-weight: bold; color: #0f172a;">
+                    http://localhost:5173
+                </code>
+            </div>
+        </div>
+    `);
+});
+
 const apiRouter = express.Router();
 
 // Health Check
@@ -68,19 +85,13 @@ apiRouter.post('/verify-smtp', async (req, res) => {
         if (!config.smtpHost || !config.smtpUser) {
             return res.status(400).json({ error: "Incomplete SMTP configuration." });
         }
-        
         const logId = 'DIAG-' + Date.now();
         await query(
             `INSERT INTO email_logs (id, recipient, subject, body, status, template_id) 
              VALUES ($1, $2, $3, $4, $5, $6)`,
-            [logId, config.smtpUser, 'Atelier SMTP Handshake Success', 'Diagnostics confirmed. Your node is now synchronized with the artisan mail server.', 'sent', 'diagnostic_check']
+            [logId, config.smtpUser, 'Atelier SMTP Handshake Success', 'Diagnostics confirmed.', 'sent', 'diagnostic_check']
         );
-
-        res.json({ 
-            success: true, 
-            message: "SMTP Connection Established Successfully.",
-            timestamp: new Date().toISOString()
-        });
+        res.json({ success: true, message: "SMTP Connection Established Successfully." });
     } catch (err) {
         res.status(500).json({ error: "SMTP Handshake Failed: " + err.message });
     }
@@ -175,12 +186,11 @@ apiRouter.put('/config', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.use('/api', apiRouter);
+
 apiRouter.use((req, res) => {
-    console.error(`[API 404] No such route: ${req.method} ${req.originalUrl}`);
     res.status(404).json({ error: `API endpoint ${req.path} not found` });
 });
-
-app.use('/api', apiRouter);
 
 app.listen(port, '0.0.0.0', () => {
     console.log(`[MEHEDI ATELIER] Gateway Live on port ${port}`);

@@ -17,23 +17,16 @@ export class DatabaseService {
       });
 
       if (!response.ok) {
-        // Handle non-ok responses (404, 500, etc)
         let errorMessage = `API Error: ${response.status} ${response.statusText}`;
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorData.message || errorMessage;
-        } catch (e) {
-          // Response was not JSON (e.g. standard 404 page)
-        }
+        } catch (e) {}
         throw new Error(errorMessage);
       }
 
       return response.json();
     } catch (err: any) {
-      if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
-        console.error(`Atelier API Handshake Refused: Backend server on port 3001 is likely offline.`);
-        throw new Error("Backend connection refused. Ensure 'npm run server' is active.");
-      }
       console.error(`Atelier API Handshake Error [${path}]:`, err.message);
       throw err;
     }
