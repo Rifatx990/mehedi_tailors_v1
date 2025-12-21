@@ -50,14 +50,14 @@ const toSnake = (obj) => {
     return snake;
 };
 
-// Root redirect for accidental direct access
+// Redirect root visits to the correct frontend port
 app.get('/', (req, res) => {
-    res.send(`
+    res.status(200).send(`
         <div style="font-family: sans-serif; text-align: center; padding: 100px; background: #f8fafc; min-height: 100vh;">
             <h1 style="color: #d97706; font-size: 3rem; margin-bottom: 20px;">Mehedi Atelier API</h1>
             <p style="color: #64748b; font-size: 1.2rem;">Data gateway is synchronized and awaiting instructions.</p>
             <div style="margin-top: 40px; padding: 20px; background: white; border-radius: 20px; display: inline-block; box-shadow: 0 10px 25px rgba(0,0,0,0.05);">
-                <p>Please visit the frontend studio at:</p>
+                <p>Please visit the frontend studio at port <strong>5000</strong>:</p>
                 <code style="background: #f1f5f9; padding: 10px 20px; border-radius: 10px; display: block; margin-top: 10px; font-weight: bold; color: #0f172a;">
                     http://localhost:5000
                 </code>
@@ -186,11 +186,13 @@ apiRouter.put('/config', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.use('/api', apiRouter);
-
+// Finalize API router 404 handler
 apiRouter.use((req, res) => {
     res.status(404).json({ error: `API endpoint ${req.path} not found` });
 });
+
+// Mount the API router
+app.use('/api', apiRouter);
 
 app.listen(port, '0.0.0.0', () => {
     console.log(`[MEHEDI ATELIER] Gateway Live on port ${port}`);

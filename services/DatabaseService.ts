@@ -21,7 +21,11 @@ export class DatabaseService {
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorData.message || errorMessage;
-        } catch (e) {}
+        } catch (e) {
+          if (response.status === 404) {
+            errorMessage = "Service Endpoint Not Found (Check Backend Proxy)";
+          }
+        }
         throw new Error(errorMessage);
       }
 
