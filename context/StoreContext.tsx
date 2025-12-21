@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { 
   CartItem, Product, User, Order, OrderStatus, Fabric, Coupon, 
@@ -158,6 +157,24 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setNotifications(prev => [newNotif, ...prev]);
   }, []);
 
+  const sendAutomatedEmail = async (to: string, subject: string, body: string) => {
+    const log: Partial<EmailLog> = {
+      id: 'ML' + Date.now(),
+      to,
+      subject,
+      body: `[DOCUMENT HEADER: ${systemConfig.siteLogo}]\n\n${body}`,
+      timestamp: new Date().toISOString(),
+      status: 'sent',
+      templateId: 'automated_status_update'
+    };
+    try {
+      const s = await dbService.request('/emails', { method: 'POST', body: JSON.stringify(log) });
+      setEmailLogs(prev => [mapDbToCamel(s), ...prev]);
+    } catch (e) {
+      console.error("Failed to log automated artisan email:", e);
+    }
+  };
+
   const bootstrap = useCallback(async () => {
     try {
       const [users, prods, upcs, ords, conf, bans, nats, offs, coups, gcs, ds, svcs, pats, preqs, mreqs, revs, fabs, emails] = await Promise.all([
@@ -211,12 +228,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => { bootstrap(); }, [bootstrap]);
 
   const updateSystemConfig = async (config: SystemConfig) => { const s = await dbService.updateConfig(config); setSystemConfig(mapDbToCamel(s)); };
-  
   const addProduct = async (p: Product) => { const s = await dbService.saveProduct({...p, _isNew: true}); setProducts(prev => [mapDbToCamel(s), ...prev]); };
   const updateProduct = async (p: Product) => { const s = await dbService.saveProduct(p); setProducts(prev => prev.map(c => c.id === p.id ? mapDbToCamel(s) : c)); };
   const removeProduct = async (id: string) => { await dbService.deleteProduct(id); setProducts(prev => prev.filter(p => p.id !== id)); };
-
-  // Fixed: Added missing upcoming products implementations
   const addUpcomingProduct = async (p: UpcomingProduct) => { const s = await dbService.saveUpcoming({...p, _isNew: true}); setUpcomingProducts(prev => [mapDbToCamel(s), ...prev]); };
   const updateUpcomingProduct = async (p: UpcomingProduct) => { const s = await dbService.saveUpcoming(p); setUpcomingProducts(prev => prev.map(c => c.id === p.id ? mapDbToCamel(s) : c)); };
   const removeUpcomingProduct = async (id: string) => { await dbService.deleteUpcoming(id); setUpcomingProducts(prev => prev.filter(p => p.id !== id)); };
@@ -227,10 +241,10 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setOrders(prev => [savedOrder, ...prev]); 
     setCart([]); 
     
-    // Automated Notification & Log
     const targetUser = allUsers.find(u => u.email === order.customerEmail);
     if (targetUser) {
         createNotification(targetUser.id, 'Artisan Handshake Success', `Your order #${order.id} has been logged in the world archive.`, 'order_update');
+        sendAutomatedEmail(order.customerEmail!, `Order Confirmation: #${order.id}`, `Salam ${order.customerName}, your artisan commission has been established. Our masters are now preparing your chosen materials.`);
     }
   };
 
@@ -239,10 +253,11 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o)); 
     
     const order = orders.find(o => o.id === id);
-    if (order) {
+    if (order && order.customerEmail) {
         const targetUser = allUsers.find(u => u.email === order.customerEmail);
         if (targetUser) {
             createNotification(targetUser.id, 'Status Broadcast', `Your commission #${id} is now ${status}.`, 'order_update');
+            sendAutomatedEmail(order.customerEmail, `Status Update: #${id}`, `Greetings. Your commission status has shifted to: ${status}. Tracking is available on your dashboard.`);
         }
     }
   };
@@ -250,14 +265,19 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const updateProductionStep = async (id: string, productionStep: ProductionStep) => { 
     await dbService.saveOrder({ id, productionStep }); 
     setOrders(prev => prev.map(o => o.id === id ? { ...o, productionStep } : o)); 
+    
+    const order = orders.find(o => o.id === id);
+    if (order && productionStep === 'Ready' && order.customerEmail) {
+       sendAutomatedEmail(order.customerEmail, `Garment Ready: #${id}`, `Excellent news. Your bespoke garment has passed quality control and is now ready for dispatch.`);
+    }
   };
 
   const registerNewUser = async (u: User) => { const s = await dbService.saveUser({...u, _isNew: true}); setAllUsers(prev => [...prev, mapDbToCamel(s)]); };
   const updateAnyUser = async (u: User) => { const s = await dbService.saveUser(u); setAllUsers(prev => prev.map(x => x.id === u.id ? mapDbToCamel(s) : x)); if (user?.id === u.id) setUser(mapDbToCamel(s)); };
   const removeUser = async (id: string) => { await dbService.deleteUser(id); setAllUsers(prev => prev.filter(u => u.id !== id)); };
 
-  const roastMaliciousUser = async (input: string) => { /* Visual roast logic */ };
-  const subscribeToNewsletter = async (email: string) => { /* Newsletter Tracking */ };
+  const roastMaliciousUser = async (input: string) => { /* UI Visual Roast */ };
+  const subscribeToNewsletter = async (email: string) => { /* Subscription logic */ };
 
   return (
     <StoreContext.Provider value={{

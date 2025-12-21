@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext.tsx';
@@ -41,11 +40,11 @@ const InvoicePage: React.FC = () => {
         <div className="flex justify-between items-center mb-6 no-print">
           <button onClick={() => navigate(-1)} className="flex items-center space-x-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition">
             <ArrowLeftIcon className="w-4 h-4" />
-            <span>Return</span>
+            <span>Return to Dashboard</span>
           </button>
           <button onClick={() => window.print()} className="flex items-center space-x-2 bg-slate-900 text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-xl hover:bg-amber-600 transition">
             <PrinterIcon className="w-4 h-4" />
-            <span>Print Invoice</span>
+            <span>Print / Save PDF</span>
           </button>
         </div>
 
@@ -53,9 +52,9 @@ const InvoicePage: React.FC = () => {
           {/* Header Section */}
           <div className="bg-slate-900 p-6 md:p-12 text-white flex flex-col md:flex-row justify-between items-start md:items-center space-y-6 md:space-y-0 invoice-header">
             <div className="flex flex-col">
-              {systemConfig.documentLogo ? (
+              {systemConfig.documentLogo || systemConfig.siteLogo ? (
                 <img 
-                  src={systemConfig.documentLogo} 
+                  src={systemConfig.documentLogo || systemConfig.siteLogo} 
                   alt="Logo" 
                   className="h-10 md:h-12 w-auto object-contain mr-auto mb-3" 
                   referrerPolicy="no-referrer"
@@ -67,7 +66,7 @@ const InvoicePage: React.FC = () => {
               <p className="text-slate-400 text-[8px] md:text-[9px] uppercase tracking-[0.4em] mt-1">Bespoke Production Ledger</p>
             </div>
             <div className="text-left md:text-right">
-              <p className="text-[9px] uppercase tracking-widest font-bold text-amber-500">Invoice ID</p>
+              <p className="text-[9px] uppercase tracking-widest font-bold text-amber-500">Document Ref</p>
               <p className="text-xl md:text-2xl font-mono font-bold">#{order.id}</p>
             </div>
           </div>

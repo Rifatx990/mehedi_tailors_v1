@@ -3,10 +3,9 @@
  */
 
 export class DatabaseService {
-  // Use relative path to leverage proxy in dev or same-origin in production
   private readonly baseUrl: string = '/api';
 
-  private async request<T>(path: string, options?: RequestInit): Promise<T> {
+  public async request<T>(path: string, options?: RequestInit): Promise<T> {
     try {
       const response = await fetch(`${this.baseUrl}${path}`, {
         ...options,
@@ -18,13 +17,11 @@ export class DatabaseService {
       });
 
       if (!response.ok) {
-        // Backend returns errors in { error: "message" } format
         let message = `HTTP Error ${response.status}`;
         try {
             const errorData = await response.json();
             message = errorData.error || errorData.message || message;
         } catch (e) {
-            // If response is not JSON, use the status text
             message = response.statusText || message;
         }
         throw new Error(message);
@@ -33,14 +30,19 @@ export class DatabaseService {
       return response.json();
     } catch (err: any) {
       console.error(`Atelier API Handshake Error [${path}]:`, err.message);
-      throw err; // Propagate to StoreContext for handling
+      throw err;
     }
   }
 
-  // HEALTH CHECK
   async checkHealth() { return this.request<{status: string}>('/health'); }
 
-  // IDENTITY
+  async verifySmtp(config: any) {
+    return this.request<any>('/verify-smtp', {
+      method: 'POST',
+      body: JSON.stringify(config)
+    });
+  }
+
   async getUsers() { return this.request<any[]>('/users'); }
   async saveUser(user: any) { 
     return this.request<any>(`/users${user.id && !user._isNew ? `/${user.id}` : ''}`, {
@@ -50,7 +52,6 @@ export class DatabaseService {
   }
   async deleteUser(id: string) { return this.request(`/users/${id}`, { method: 'DELETE' }); }
 
-  // INVENTORY
   async getProducts() { return this.request<any[]>('/products'); }
   async saveProduct(p: any) {
     return this.request<any>(`/products${p.id && !p._isNew ? `/${p.id}` : ''}`, {
@@ -78,7 +79,6 @@ export class DatabaseService {
   }
   async deleteFabric(id: string) { return this.request(`/fabrics/${id}`, { method: 'DELETE' }); }
 
-  // TRANSACTIONS
   async getOrders() { return this.request<any[]>('/orders'); }
   async saveOrder(order: any) {
     return this.request<any>(`/orders${order.id && !order._isNew ? `/${order.id}` : ''}`, {
@@ -97,7 +97,6 @@ export class DatabaseService {
   }
   async deleteDue(id: string) { return this.request(`/dues/${id}`, { method: 'DELETE' }); }
 
-  // PROMOTIONS
   async getCoupons() { return this.request<any[]>('/coupons'); }
   async saveCoupon(c: any) {
     return this.request<any>(`/coupons${c.id && !c._isNew ? `/${c.id}` : ''}`, {
@@ -116,13 +115,11 @@ export class DatabaseService {
   }
   async deleteGiftCard(id: string) { return this.request(`/gift-cards/${id}`, { method: 'DELETE' }); }
 
-  // SYSTEM
   async getConfig() { return this.request<any>('/config'); }
   async updateConfig(config: any) {
     return this.request<any>('/config', { method: 'PUT', body: JSON.stringify(config) });
   }
 
-  // MARKETING
   async getBanners() { return this.request<any[]>('/banners'); }
   async saveBanner(b: any) {
     return this.request<any>(`/banners${b.id && !b._isNew ? `/${b.id}` : ''}`, {
@@ -168,7 +165,6 @@ export class DatabaseService {
   }
   async deletePartner(id: string) { return this.request(`/partners/${id}`, { method: 'DELETE' }); }
   
-  // OPERATIONS
   async getMaterialRequests() { return this.request<any[]>('/material-requests'); }
   async saveMaterialRequest(r: any) {
     return this.request<any>(`/material-requests${r.id && !r._isNew ? `/${r.id}` : ''}`, {

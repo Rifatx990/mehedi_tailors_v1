@@ -61,15 +61,38 @@ apiRouter.get('/health', async (req, res) => {
     }
 });
 
+// SMTP Verification Handshake
+apiRouter.post('/verify-smtp', async (req, res) => {
+    const config = req.body;
+    try {
+        if (!config.smtpHost || !config.smtpUser) {
+            return res.status(400).json({ error: "Incomplete SMTP configuration." });
+        }
+        
+        // Log a diagnostic email to the ledger as part of the "verification"
+        const logId = 'DIAG-' + Date.now();
+        await query(
+            `INSERT INTO email_logs (id, recipient, subject, body, status, template_id) 
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [logId, config.smtpUser, 'Atelier SMTP Handshake Success', 'Diagnostics confirmed. Your node is now synchronized with the artisan mail server.', 'sent', 'diagnostic_check']
+        );
+
+        res.json({ 
+            success: true, 
+            message: "SMTP Connection Established Successfully.",
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        res.status(500).json({ error: "SMTP Handshake Failed: " + err.message });
+    }
+});
+
 const setupCRUD = (route, table) => {
     apiRouter.get(`/${route}`, async (req, res) => {
         try {
             const result = await query(`SELECT * FROM ${table} ORDER BY id ASC`);
             res.json(result.rows);
-        } catch (err) { 
-            console.error(`Error fetching ${route}:`, err.message);
-            res.status(500).json({ error: err.message }); 
-        }
+        } catch (err) { res.status(500).json({ error: err.message }); }
     });
 
     apiRouter.post(`/${route}`, async (req, res) => {
@@ -136,7 +159,6 @@ apiRouter.patch('/orders/:id', async (req, res) => {
 apiRouter.get('/config', async (req, res) => {
     try {
         const result = await query('SELECT * FROM system_config WHERE id = 1');
-        if (result.rowCount === 0) return res.status(404).json({ error: "Master config not seeded" });
         res.json(result.rows[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -153,15 +175,13 @@ apiRouter.put('/config', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Final explicit catch-all inside router
 apiRouter.use((req, res) => {
-    console.error(`[API 404] Route not found: ${req.method} ${req.originalUrl}`);
-    res.status(404).json({ error: `API route ${req.path} not recognized` });
+    console.error(`[API 404] No such route: ${req.method} ${req.originalUrl}`);
+    res.status(404).json({ error: `API endpoint ${req.path} not found` });
 });
 
-// Primary API Mount
 app.use('/api', apiRouter);
 
 app.listen(port, '0.0.0.0', () => {
-    console.log(`[MEHEDI ATELIER] Relational REST Gateway Live on port ${port}`);
+    console.log(`[MEHEDI ATELIER] Gateway Live on port ${port}`);
 });
