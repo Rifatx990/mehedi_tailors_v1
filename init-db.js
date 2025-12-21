@@ -15,21 +15,21 @@ const pool = new Pool({
 async function run() {
   console.log('--- ATELIER DATABASE INITIALIZATION ---');
   try {
-    // Check if SQL files exist
+    // Read files as UTF-8 specifically to avoid BOM issues
     if (!fs.existsSync('database.sql') || !fs.existsSync('seeder.sql')) {
-      throw new Error('Required SQL files (database.sql or seeder.sql) are missing from the root directory.');
+      throw new Error('Required SQL files (database.sql or seeder.sql) are missing.');
     }
 
-    const schemaSql = fs.readFileSync('database.sql', 'utf8');
-    const seederSql = fs.readFileSync('seeder.sql', 'utf8');
+    const schemaSql = fs.readFileSync('database.sql', 'utf8').replace(/^\uFEFF/, '');
+    const seederSql = fs.readFileSync('seeder.sql', 'utf8').replace(/^\uFEFF/, '');
 
-    console.log('Applying Schema...');
+    console.log('Executing Schema Definition...');
     await pool.query(schemaSql);
     
-    console.log('Applying Seeder Data...');
+    console.log('Populating Artisan Seeder Data...');
     await pool.query(seederSql);
 
-    console.log('SUCCESS: Database is synchronized with the latest PostgreSQL schema.');
+    console.log('SUCCESS: Global Ledger Synchronized.');
   } catch (err) {
     console.error('DATABASE INITIALIZATION FAILED:');
     console.error(err.message);

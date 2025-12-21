@@ -12,7 +12,6 @@ const port = 3001;
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// Database connection parameters from environment or defaults
 const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'localhost',
@@ -23,7 +22,6 @@ const pool = new Pool({
 
 const query = (text, params) => pool.query(text, params);
 
-// Helper: Convert frontend camelCase to DB snake_case
 const toSnake = (obj) => {
     const snake = {};
     for (let key in obj) {
@@ -32,8 +30,6 @@ const toSnake = (obj) => {
     }
     return snake;
 };
-
-// --- CORE API ---
 
 const setupCRUD = (route, table) => {
     app.get(`/api/${route}`, async (req, res) => {
@@ -48,7 +44,6 @@ const setupCRUD = (route, table) => {
         const keys = Object.keys(body);
         const values = Object.values(body).map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
         const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-        
         try {
             const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`;
             const result = await query(sql, values);
@@ -62,7 +57,6 @@ const setupCRUD = (route, table) => {
         const keys = Object.keys(body);
         const values = Object.values(body).map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
         const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
-        
         try {
             const sql = `UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`;
             const result = await query(sql, [req.params.id, ...values]);
@@ -78,7 +72,6 @@ const setupCRUD = (route, table) => {
     });
 };
 
-// Register API Entities
 setupCRUD('users', 'users');
 setupCRUD('products', 'products');
 setupCRUD('fabrics', 'fabrics');
@@ -100,7 +93,6 @@ app.patch('/api/orders/:id', async (req, res) => {
     const keys = Object.keys(fields);
     const values = Object.values(fields).map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
     const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
-    
     try {
         const result = await query(`UPDATE orders SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
         res.json(result.rows[0]);
@@ -109,7 +101,7 @@ app.patch('/api/orders/:id', async (req, res) => {
 
 app.get('/api/config', async (req, res) => {
     try {
-        const result = await query('SELECT * FROM system_config LIMIT 1');
+        const result = await query('SELECT * FROM system_config WHERE id = 1');
         res.json(result.rows[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -120,7 +112,6 @@ app.put('/api/config', async (req, res) => {
     const keys = Object.keys(fields);
     const values = Object.values(fields).map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
     const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
-    
     try {
         const result = await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values);
         res.json(result.rows[0]);
