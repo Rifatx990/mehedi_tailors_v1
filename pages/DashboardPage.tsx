@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { useNavigate, Link } from 'react-router-dom';
@@ -19,29 +18,69 @@ import {
   ScissorsIcon,
   BanknotesIcon,
   CurrencyBangladeshiIcon,
-  ClockIcon
+  ClockIcon,
+  PencilSquareIcon,
+  ArrowPathIcon,
+  // Fix: added missing XMarkIcon import
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 
 const DashboardPage: React.FC = () => {
-  const { user, orders, dues, setUser, allUsers, notifications, markNotificationRead, clearNotifications } = useStore();
+  const { user, orders, dues, setUser, updateAnyUser, notifications, markNotificationRead, clearNotifications } = useStore();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'dues' | 'measurements' | 'notifications'>('profile');
+  
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: '',
+    phone: '',
+    address: ''
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (!user && !localStorage.getItem('mt_user')) {
+      if (!user && !localStorage.getItem('mt_user_id')) {
         navigate('/login');
       }
     }, 100);
     return () => clearTimeout(timer);
   }, [user, navigate]);
 
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        name: user.name,
+        phone: user.phone,
+        address: user.address
+      });
+    }
+  }, [user]);
+
   if (!user) return null;
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('mt_user');
+    localStorage.removeItem('mt_user_id');
     navigate('/');
+  };
+
+  const handleProfileUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdating(true);
+    try {
+      await updateAnyUser({
+        ...user,
+        name: profileForm.name,
+        phone: profileForm.phone,
+        address: profileForm.address
+      });
+      setIsEditingProfile(false);
+    } catch (err) {
+      alert("Failed to synchronize profile changes. Please check your connectivity.");
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const myDues = dues.filter(d => d.customerEmail.toLowerCase() === user.email.toLowerCase());
@@ -111,37 +150,99 @@ const DashboardPage: React.FC = () => {
               
               {activeTab === 'profile' && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-                  <h3 className="text-2xl font-bold serif mb-10">Artisan Account</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className="flex justify-between items-center mb-10">
+                    <h3 className="text-2xl font-bold serif">Artisan Account</h3>
+                    <button 
+                      onClick={() => setIsEditingProfile(!isEditingProfile)}
+                      className={`flex items-center space-x-2 px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
+                        isEditingProfile ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100'
+                      }`}
+                    >
+                      {isEditingProfile ? (
+                        <>
+                          <XMarkIcon className="w-4 h-4" />
+                          <span>Cancel Edit</span>
+                        </>
+                      ) : (
+                        <>
+                          <PencilSquareIcon className="w-4 h-4" />
+                          <span>Refine Data</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleProfileUpdate} className="grid grid-cols-1 md:grid-cols-2 gap-10">
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block ml-1">Full Legal Name</label>
-                      <div className="flex items-center space-x-4 p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100">
+                      <div className={`flex items-center space-x-4 p-5 rounded-[1.5rem] border transition-all ${isEditingProfile ? 'bg-white border-amber-600 ring-4 ring-amber-600/5' : 'bg-slate-50 border-slate-100'}`}>
                         <UserCircleIcon className="w-6 h-6 text-slate-400" />
-                        <span className="font-bold text-slate-900">{user.name}</span>
+                        <input 
+                          required
+                          disabled={!isEditingProfile}
+                          value={profileForm.name}
+                          onChange={e => setProfileForm({...profileForm, name: e.target.value})}
+                          className="bg-transparent w-full font-bold text-slate-900 outline-none disabled:cursor-not-allowed"
+                        />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block ml-1">Secure Email</label>
-                      <div className="flex items-center space-x-4 p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100">
+                      <div className="flex items-center space-x-4 p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100 opacity-60">
                         <EnvelopeIcon className="w-6 h-6 text-slate-400" />
                         <span className="font-bold text-slate-900">{user.email}</span>
                       </div>
+                      <p className="text-[8px] text-slate-300 font-bold uppercase ml-1 italic">* Identity identifiers cannot be modified</p>
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block ml-1">Contact Mobile</label>
-                      <div className="flex items-center space-x-4 p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100">
+                      <div className={`flex items-center space-x-4 p-5 rounded-[1.5rem] border transition-all ${isEditingProfile ? 'bg-white border-amber-600 ring-4 ring-amber-600/5' : 'bg-slate-50 border-slate-100'}`}>
                         <PhoneIcon className="w-6 h-6 text-slate-400" />
-                        <span className="font-bold text-slate-900">{user.phone}</span>
+                        <input 
+                          required
+                          disabled={!isEditingProfile}
+                          value={profileForm.phone}
+                          onChange={e => setProfileForm({...profileForm, phone: e.target.value})}
+                          className="bg-transparent w-full font-bold text-slate-900 outline-none disabled:cursor-not-allowed"
+                        />
                       </div>
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block ml-1">Delivery Headquarters</label>
-                      <div className="flex items-start space-x-4 p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100">
+                      <div className={`flex items-start space-x-4 p-5 rounded-[1.5rem] border transition-all ${isEditingProfile ? 'bg-white border-amber-600 ring-4 ring-amber-600/5' : 'bg-slate-50 border-slate-100'}`}>
                         <MapPinIcon className="w-6 h-6 text-slate-400 mt-1" />
-                        <span className="font-bold text-slate-900">{user.address}</span>
+                        <input 
+                          required
+                          disabled={!isEditingProfile}
+                          value={profileForm.address}
+                          onChange={e => setProfileForm({...profileForm, address: e.target.value})}
+                          className="bg-transparent w-full font-bold text-slate-900 outline-none disabled:cursor-not-allowed"
+                        />
                       </div>
                     </div>
-                  </div>
+
+                    {isEditingProfile && (
+                      <div className="md:col-span-2 pt-6">
+                        <button 
+                          type="submit"
+                          disabled={isUpdating}
+                          className="w-full bg-slate-900 text-white py-6 rounded-2xl font-black uppercase tracking-[0.2em] text-[11px] shadow-3xl hover:bg-amber-600 transition-all flex items-center justify-center space-x-3 disabled:opacity-50"
+                        >
+                          {isUpdating ? (
+                            <>
+                              <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                              <span>Synchronizing Registry...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircleIcon className="w-5 h-5" />
+                              <span>Save Artisan Profile</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </form>
                 </div>
               )}
 
@@ -166,7 +267,7 @@ const DashboardPage: React.FC = () => {
                               </div>
                               <div className="flex items-center space-x-3">
                                 <span className={`px-5 py-2 rounded-full text-[9px] font-bold uppercase tracking-widest shadow-sm ${
-                                  order.status === 'Delivered' ? 'bg-emerald-500 text-white' : 'bg-amber-600 text-white'
+                                  order.status === 'Delivered' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-600 text-white'
                                 }`}>
                                   {order.status}
                                 </span>

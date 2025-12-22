@@ -128,51 +128,20 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [systemConfig, setSystemConfig] = useState<SystemConfig>({
     smtpHost: '', smtpPort: 465, smtpUser: '', smtpPass: '', secure: true, 
     senderName: 'Mehedi Tailors', senderEmail: '', isEnabled: false, 
-    siteName: 'Mehedi Tailors & Fabrics', dbVersion: 'REST-SQL-13.0', giftCardDenominations: [2000, 5000, 10000], giftCardsEnabled: true
+    siteName: 'Mehedi Tailors & Fabrics', dbVersion: 'REST-SQL-18.0', giftCardDenominations: [2000, 5000, 10000], giftCardsEnabled: true
   });
 
+  // DEEP CAMEL MAPPING (Recursively handles arrays and objects)
   const mapDbToCamel = (obj: any): any => {
-    if (!obj || typeof obj !== 'object') return obj;
+    if (obj === null || typeof obj !== 'object') return obj;
     if (Array.isArray(obj)) return obj.map(mapDbToCamel);
+    
     const newObj: any = {};
     for (let key in obj) {
       const camelKey = key.replace(/(_\w)/g, (m) => m[1].toUpperCase());
-      newObj[camelKey] = (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) 
-        ? mapDbToCamel(obj[key]) 
-        : obj[key];
+      newObj[camelKey] = mapDbToCamel(obj[key]);
     }
     return newObj;
-  };
-
-  const createNotification = useCallback((userId: string, title: string, message: string, type: any = 'general') => {
-    const newNotif: Notification = {
-      id: 'N' + Date.now(),
-      userId,
-      title,
-      message,
-      date: new Date().toISOString(),
-      isRead: false,
-      type
-    };
-    setNotifications(prev => [newNotif, ...prev]);
-  }, []);
-
-  const sendAutomatedEmail = async (to: string, subject: string, body: string) => {
-    const log: Partial<EmailLog> = {
-      id: 'ML' + Date.now(),
-      to,
-      subject,
-      body: `[DOCUMENT HEADER: ${systemConfig.siteLogo}]\n\n${body}`,
-      timestamp: new Date().toISOString(),
-      status: 'sent',
-      templateId: 'automated_status_update'
-    };
-    try {
-      const s = await dbService.request('/emails', { method: 'POST', body: JSON.stringify(log) });
-      setEmailLogs(prev => [mapDbToCamel(s), ...prev]);
-    } catch (e) {
-      console.error("Failed to log automated artisan email:", e);
-    }
   };
 
   const bootstrap = useCallback(async () => {
@@ -228,53 +197,31 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const addProduct = async (p: Product) => { const s = await dbService.saveProduct({...p, _isNew: true}); setProducts(prev => [mapDbToCamel(s), ...prev]); };
   const updateProduct = async (p: Product) => { const s = await dbService.saveProduct(p); setProducts(prev => prev.map(c => c.id === p.id ? mapDbToCamel(s) : c)); };
   const removeProduct = async (id: string) => { await dbService.deleteProduct(id); setProducts(prev => prev.filter(p => p.id !== id)); };
-  const addUpcomingProduct = async (p: UpcomingProduct) => { const s = await dbService.saveUpcoming({...p, _isNew: true}); setUpcomingProducts(prev => [mapDbToCamel(s), ...prev]); };
-  const updateUpcomingProduct = async (p: UpcomingProduct) => { const s = await dbService.saveUpcoming(p); setUpcomingProducts(prev => prev.map(c => c.id === p.id ? mapDbToCamel(s) : c)); };
-  const removeUpcomingProduct = async (id: string) => { await dbService.deleteUpcoming(id); setUpcomingProducts(prev => prev.filter(p => p.id !== id)); };
 
   const placeOrder = async (order: Order) => { 
     const s = await dbService.saveOrder({...order, _isNew: true}); 
-    const savedOrder = mapDbToCamel(s);
-    setOrders(prev => [savedOrder, ...prev]); 
+    setOrders(prev => [mapDbToCamel(s), ...prev]); 
     setCart([]); 
-    
-    const targetUser = allUsers.find(u => u.email === order.customerEmail);
-    if (targetUser) {
-        createNotification(targetUser.id, 'Artisan Handshake Success', `Your order #${order.id} has been logged in the world archive.`, 'order_update');
-        sendAutomatedEmail(order.customerEmail!, `Order Confirmation: #${order.id}`, `Salam ${order.customerName}, your artisan commission has been established. Our masters are now preparing your chosen materials.`);
-    }
+  };
+
+  const updateOrder = async (order: Order) => { 
+    const s = await dbService.saveOrder(order); 
+    setOrders(prev => prev.map(curr => curr.id === order.id ? mapDbToCamel(s) : curr)); 
   };
 
   const updateOrderStatus = async (id: string, status: OrderStatus) => { 
     const s = await dbService.saveOrder({ id, status }); 
     setOrders(prev => prev.map(o => o.id === id ? mapDbToCamel(s) : o)); 
-    
-    const order = orders.find(o => o.id === id);
-    if (order && order.customerEmail) {
-        const targetUser = allUsers.find(u => u.email === order.customerEmail);
-        if (targetUser) {
-            createNotification(targetUser.id, 'Status Broadcast', `Your commission #${id} is now ${status}.`, 'order_update');
-            sendAutomatedEmail(order.customerEmail, `Status Update: #${id}`, `Greetings. Your commission status has shifted to: ${status}. Tracking is available on your dashboard.`);
-        }
-    }
   };
 
   const updateProductionStep = async (id: string, productionStep: ProductionStep) => { 
     const s = await dbService.saveOrder({ id, productionStep }); 
     setOrders(prev => prev.map(o => o.id === id ? mapDbToCamel(s) : o)); 
-    
-    const order = orders.find(o => o.id === id);
-    if (order && productionStep === 'Ready' && order.customerEmail) {
-       sendAutomatedEmail(order.customerEmail, `Garment Ready: #${id}`, `Excellent news. Your bespoke garment has passed quality control and is now ready for dispatch.`);
-    }
   };
 
   const registerNewUser = async (u: User) => { const s = await dbService.saveUser({...u, _isNew: true}); setAllUsers(prev => [...prev, mapDbToCamel(s)]); };
   const updateAnyUser = async (u: User) => { const s = await dbService.saveUser(u); setAllUsers(prev => prev.map(x => x.id === u.id ? mapDbToCamel(s) : x)); if (user?.id === u.id) setUser(mapDbToCamel(s)); };
   const removeUser = async (id: string) => { await dbService.deleteUser(id); setAllUsers(prev => prev.filter(u => u.id !== id)); };
-
-  const roastMaliciousUser = async (input: string) => { /* UI Visual Roast */ };
-  const subscribeToNewsletter = async (email: string) => { /* Subscription logic */ };
 
   return (
     <StoreContext.Provider value={{
@@ -285,18 +232,16 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       adminUser, setAdminUser: (u) => { setAdminUser(u); u ? localStorage.setItem('mt_user_id', u.id) : localStorage.removeItem('mt_user_id'); },
       workerUser, setWorkerUser: (u) => { setWorkerUser(u); u ? localStorage.setItem('mt_user_id', u.id) : localStorage.removeItem('mt_user_id'); },
       allUsers, wishlist, toggleWishlist: (id) => setWishlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]),
-      orders, placeOrder, 
-      updateOrder: async (o) => { 
-        const s = await dbService.saveOrder(o); 
-        setOrders(prev => prev.map(curr => curr.id === o.id ? mapDbToCamel(s) : curr)); 
-      },
+      orders, placeOrder, updateOrder,
       updateOrderStatus, updateProductionStep, removeOrder: async (id) => { await dbService.deleteOrder(id); setOrders(prev => prev.filter(o => o.id !== id)); }, 
       assignWorker: async (id, workerId) => { 
         const s = await dbService.saveOrder({ id, assignedWorkerId: workerId }); 
         setOrders(prev => prev.map(o => o.id === id ? mapDbToCamel(s) : o)); 
       },
       products, updateProduct, addProduct, removeProduct,
-      upcomingProducts, addUpcomingProduct, updateUpcomingProduct, removeUpcomingProduct,
+      upcomingProducts, addUpcomingProduct: async (p) => { const s = await dbService.saveUpcoming({...p, _isNew: true}); setUpcomingProducts(prev => [mapDbToCamel(s), ...prev]); },
+      updateUpcomingProduct: async (p) => { const s = await dbService.saveUpcoming(p); setUpcomingProducts(prev => prev.map(c => c.id === p.id ? mapDbToCamel(s) : c)); },
+      removeUpcomingProduct: async (id) => { await dbService.deleteUpcoming(id); setUpcomingProducts(prev => prev.filter(p => p.id !== id)); },
       fabrics, addFabric: async (f) => { const s = await dbService.saveFabric({...f, _isNew: true}); setFabrics(prev => [...prev, mapDbToCamel(s)]); }, 
       removeFabric: async (id) => { await dbService.deleteFabric(id); setFabrics(prev => prev.filter(f => f.id !== id)); },
       categories, addCategory: (c) => setCategories(prev => [...prev, c]), removeCategory: (c) => setCategories(prev => prev.filter(x => x !== c)),
@@ -336,7 +281,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       clearNotifications: () => setNotifications([]),
       isHydrated, syncToServer: async () => { await bootstrap(); },
       registerNewUser, updateAnyUser, removeUser,
-      subscribeToNewsletter, roastMaliciousUser
+      subscribeToNewsletter: async (e) => { /* Mock */ }, 
+      roastMaliciousUser: async (i) => { /* Mock */ }
     }}>
       {isHydrated ? children : (
         <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-6">

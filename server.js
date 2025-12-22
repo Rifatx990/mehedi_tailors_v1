@@ -41,6 +41,20 @@ const query = async (text, params) => {
     }
 };
 
+// --- RECURSIVE TRANSFORMERS (Ensures nested JSONB keys match frontend types) ---
+const toSnake = (obj) => {
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(toSnake);
+    
+    const snake = {};
+    for (let key in obj) {
+        if (key.startsWith('_')) continue;
+        const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+        snake[snakeKey] = toSnake(obj[key]);
+    }
+    return snake;
+};
+
 // --- ROBUST SMTP SYSTEM ---
 const sendMail = async ({ to, subject, html }) => {
   try {
@@ -51,6 +65,9 @@ const sendMail = async ({ to, subject, html }) => {
       host: config.smtp_host || process.env.SMTP_HOST || "smtp.gmail.com",
       port: config.smtp_port || process.env.SMTP_PORT || 587,
       secure: config.secure ?? false, 
+      connectionTimeout: 10000, // 10s Timeout
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
       auth: {
         user: config.smtp_user || process.env.SMTP_USER,
         pass: config.smtp_pass || process.env.SMTP_PASS
@@ -70,18 +87,6 @@ const sendMail = async ({ to, subject, html }) => {
     console.error("❌ Email Failed:", err.message);
     return false;
   }
-};
-
-const toSnake = (obj) => {
-    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
-    const snake = {};
-    for (let key in obj) {
-        if (key.startsWith('_')) continue;
-        const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        const val = obj[key];
-        snake[snakeKey] = (val !== null && typeof val === 'object') ? JSON.stringify(val) : val;
-    }
-    return snake;
 };
 
 const apiRouter = express.Router();
@@ -107,7 +112,9 @@ const setupCRUD = (route, table) => {
         try {
             const body = toSnake(req.body);
             const keys = Object.keys(body);
-            const values = Object.values(body);
+            const values = Object.values(body).map(v => 
+              (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+            );
             const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
             const result = await query(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`, values);
             res.json(result.rows[0]);
@@ -119,7 +126,9 @@ const setupCRUD = (route, table) => {
             const body = toSnake(req.body);
             delete body.id;
             const keys = Object.keys(body);
-            const values = Object.values(body);
+            const values = Object.values(body).map(v => 
+              (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+            );
             const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
             const result = await query(`UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
             res.json(result.rows[0]);
@@ -153,13 +162,15 @@ setupCRUD('product-requests', 'product_requests');
 setupCRUD('reviews', 'reviews');
 setupCRUD('bespoke-services', 'bespoke_services');
 
-// Custom Order Handlers
+// Custom Order Handlers (uses PATCH for partial updates)
 apiRouter.patch('/orders/:id', async (req, res) => {
     try {
         const fields = toSnake(req.body);
         delete fields.id;
         const keys = Object.keys(fields);
-        const values = Object.values(fields);
+        const values = Object.values(fields).map(v => 
+          (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+        );
         const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
         const result = await query(`UPDATE orders SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
         
@@ -167,7 +178,7 @@ apiRouter.patch('/orders/:id', async (req, res) => {
             await sendMail({
                 to: result.rows[0].customer_email,
                 subject: `Order Status Updated: #${req.params.id}`,
-                html: `<h2>Order Update</h2><p>Your order status is now: <strong>${req.body.status}</strong></p>`
+                html: `<h2>Order Update</h2><p>Your artisan commission #${req.params.id} status is now: <strong>${req.body.status}</strong></p><p>View your dashboard for details.</p>`
             });
         }
         res.json(result.rows[0]);
@@ -199,11 +210,14 @@ apiRouter.post('/verify-smtp', async (req, res) => {
             host: req.body.smtpHost,
             port: req.body.smtpPort,
             secure: req.body.secure,
+            connectionTimeout: 5000, 
+            greetingTimeout: 5000,
             auth: { user: req.body.smtpUser, pass: req.body.smtpPass }
         });
         await transporter.verify();
         res.json({ success: true, message: "Handshake Successful" });
     } catch (err) {
+        console.error("SMTP Verify Failed:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useStore } from '../../context/StoreContext.tsx';
 import AdminSidebar from '../../components/admin/AdminSidebar.tsx';
@@ -21,7 +20,7 @@ const AdminOutboxPage: React.FC = () => {
   const [selectedLog, setSelectedLog] = useState<EmailLog | null>(null);
 
   const filteredLogs = emailLogs.filter(log => 
-    log.to.toLowerCase().includes(search.toLowerCase()) || 
+    log.recipient.toLowerCase().includes(search.toLowerCase()) || 
     log.subject.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -67,7 +66,7 @@ const AdminOutboxPage: React.FC = () => {
                         <div className="flex items-center space-x-4 text-slate-400 mt-1">
                            <div className="flex items-center space-x-1 text-[9px] font-black uppercase tracking-wider">
                               <UserIcon className="w-3.5 h-3.5" />
-                              <span className="truncate max-w-[150px]">{log.to}</span>
+                              <span className="truncate max-w-[150px]">{log.recipient}</span>
                            </div>
                            <span className="text-slate-200">|</span>
                            <div className="flex items-center space-x-1 text-[9px] font-black uppercase tracking-wider">
@@ -121,7 +120,7 @@ const AdminOutboxPage: React.FC = () => {
                    <div className="grid grid-cols-2 gap-6 mt-8 pt-8 border-t border-white/10">
                       <div>
                          <p className="text-[9px] font-black uppercase text-slate-500 mb-1">Recipient</p>
-                         <p className="text-sm font-bold truncate">{selectedLog.to}</p>
+                         <p className="text-sm font-bold truncate">{selectedLog.recipient}</p>
                       </div>
                       <div className="text-right">
                          <p className="text-[9px] font-black uppercase text-slate-500 mb-1">Time Stamp</p>

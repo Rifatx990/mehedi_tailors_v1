@@ -98,7 +98,7 @@ export interface SystemConfig {
 
 export interface EmailLog {
   id: string;
-  to: string;
+  recipient: string; // Renamed from 'to' to avoid SQL keyword conflict
   subject: string;
   body: string;
   timestamp: string;
