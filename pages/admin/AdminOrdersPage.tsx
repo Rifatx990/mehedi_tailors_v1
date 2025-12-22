@@ -29,7 +29,6 @@ const AdminOrdersPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [paymentInput, setPaymentInput] = useState<number>(0);
 
-  // Administrative Overrides state
   const [overrideDate, setOverrideDate] = useState('');
   const [overrideType, setOverrideType] = useState<BespokeType>('Normal');
   const [overrideNote, setOverrideNote] = useState('');
@@ -60,32 +59,35 @@ const AdminOrdersPage: React.FC = () => {
   const handleRecordReconciliation = async () => {
     if (!selectedOrder) return;
     
-    // FISCAL LOGIC REPAIR: Use explicit Number() casting to avoid JS string-addition quirks
-    const currentPaid = Number(selectedOrder.paidAmount || 0);
-    const addedPayment = Number(paymentInput || 0);
+    // FISCAL LOGIC REPAIR: Force numeric evaluation to avoid string concatenation errors
     const orderTotal = Number(selectedOrder.total || 0);
+    const existingPaid = Number(selectedOrder.paidAmount || 0);
+    const newPayment = Number(paymentInput || 0);
     
-    // Calculation of new realization
-    const newPaid = Number((currentPaid + addedPayment).toFixed(2));
-    const newDue = Number(Math.max(0, orderTotal - newPaid).toFixed(2));
+    // Correct Deduction: Paid sum increases, Due sum is what remains of total
+    const updatedPaid = Number((existingPaid + newPayment).toFixed(2));
+    const updatedDue = Number(Math.max(0, orderTotal - updatedPaid).toFixed(2));
     
-    const newStatus: PaymentStatus = newDue <= 0 ? 'Fully Paid' : 'Partially Paid';
+    const calculatedStatus: PaymentStatus = updatedDue <= 0 ? 'Fully Paid' : 'Partially Paid';
     
     const updated: Order = { 
       ...selectedOrder, 
-      paidAmount: newPaid, 
-      dueAmount: newDue, 
-      paymentStatus: newStatus,
+      paidAmount: updatedPaid, 
+      dueAmount: updatedDue, 
+      paymentStatus: calculatedStatus,
       deliveryDate: overrideDate || selectedOrder.deliveryDate,
       bespokeType: overrideType || selectedOrder.bespokeType,
       bespokeNote: overrideNote || selectedOrder.bespokeNote
     };
     
-    // Dispatch to API via Store Context
-    await updateOrder(updated);
-    setSelectedOrder(updated);
-    setPaymentInput(0);
-    setIsModalOpen(false);
+    try {
+        await updateOrder(updated);
+        setSelectedOrder(updated);
+        setPaymentInput(0);
+        setIsModalOpen(false);
+    } catch (err) {
+        alert("Ledger synchronization failed. Verify connection to archive.");
+    }
   };
 
   const statusOptions: OrderStatus[] = ['Pending', 'In Progress', 'Shipped', 'Delivered', 'Cancelled'];
@@ -122,7 +124,6 @@ const AdminOrdersPage: React.FC = () => {
           <p className="text-slate-400 mt-1 text-xs uppercase tracking-widest font-bold">{filteredOrders.length} Commissions in view</p>
         </header>
 
-        {/* Filter Container */}
         <div className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-slate-100 mb-8 space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
             <div className="relative col-span-1 lg:col-span-2">
@@ -260,7 +261,6 @@ const AdminOrdersPage: React.FC = () => {
               <h2 className="text-2xl md:text-3xl font-bold serif mb-6 text-slate-900 pr-10 text-center">Contract Reconciliation</h2>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                {/* Fiscal Recovery Column */}
                 <div className="space-y-6">
                     <div className="bg-slate-950 p-6 rounded-[2rem] text-white shadow-2xl relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-24 h-24 bg-amber-600/10 rounded-full -translate-y-8 translate-x-8 blur-2xl"></div>
@@ -286,11 +286,10 @@ const AdminOrdersPage: React.FC = () => {
                             className="w-full bg-white border border-slate-200 px-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-600/5 transition font-mono text-xl text-center font-black text-slate-900" 
                             placeholder="0.00" 
                         />
-                        <p className="text-[8px] text-slate-400 text-center uppercase font-bold tracking-widest">Enter amount to deduct from total due</p>
+                        <p className="text-[8px] text-slate-400 text-center uppercase font-bold tracking-widest">Enter amount to deduct from current due</p>
                     </div>
                 </div>
 
-                {/* Artisan Directives Column */}
                 <div className="space-y-6">
                     <div className="space-y-3">
                         <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1 flex items-center space-x-2">

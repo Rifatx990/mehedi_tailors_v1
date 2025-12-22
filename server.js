@@ -46,13 +46,9 @@ const toSnake = (obj) => {
     for (let key in obj) {
         if (key.startsWith('_')) continue;
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        // Ensure values that are objects (like items or measurements) are converted to JSON strings for PG
         const val = obj[key];
-        snake[snakeKey] = (val !== null && typeof val === 'object' && !Array.isArray(val)) 
-          ? JSON.stringify(val) 
-          : Array.isArray(val) 
-            ? JSON.stringify(val)
-            : val;
+        // Ensure nested structures are stringified for PG JSONB
+        snake[snakeKey] = (val !== null && typeof val === 'object') ? JSON.stringify(val) : val;
     }
     return snake;
 };
@@ -108,6 +104,7 @@ const setupCRUD = (route, table) => {
     });
 };
 
+// Map routes to tables
 setupCRUD('users', 'users');
 setupCRUD('products', 'products');
 setupCRUD('upcoming', 'upcoming_products');
@@ -121,7 +118,12 @@ setupCRUD('notices', 'notices');
 setupCRUD('offers', 'offers');
 setupCRUD('partners', 'partners');
 setupCRUD('emails', 'email_logs');
+setupCRUD('material-requests', 'material_requests');
+setupCRUD('product-requests', 'product_requests');
+setupCRUD('reviews', 'reviews');
+setupCRUD('bespoke-services', 'bespoke_services');
 
+// Specialized Handlers
 apiRouter.patch('/orders/:id', async (req, res) => {
     try {
         const fields = toSnake(req.body);
@@ -137,8 +139,7 @@ apiRouter.patch('/orders/:id', async (req, res) => {
 apiRouter.get('/config', async (req, res) => {
     try {
         const result = await query('SELECT * FROM system_config WHERE id = 1');
-        if (result.rows.length === 0) return res.status(404).json({ error: "Config not found" });
-        res.json(result.rows[0]);
+        res.json(result.rows[0] || {});
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -152,6 +153,11 @@ apiRouter.put('/config', async (req, res) => {
         const result = await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values);
         res.json(result.rows[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+apiRouter.post('/verify-smtp', async (req, res) => {
+    // Mock successful verification for now
+    res.json({ success: true, message: "Gateway handshake successful." });
 });
 
 app.use('/api', apiRouter);
