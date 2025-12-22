@@ -15,13 +15,13 @@ const poolConfig = process.env.DATABASE_URL
 const pool = new Pool(poolConfig);
 
 const SCHEMA = `
--- ATELIER ARCHITECTURAL SCHEMA V14.0
+-- ATELIER ARCHITECTURAL SCHEMA V15.0 (MIGRATION AWARE)
 CREATE TABLE IF NOT EXISTS system_config (
     id SERIAL PRIMARY KEY,
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '14.0.0-PG-PRO',
+    db_version TEXT DEFAULT '15.0.0-PG-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -65,33 +65,6 @@ CREATE TABLE IF NOT EXISTS products (
     is_featured BOOLEAN DEFAULT false
 );
 
-CREATE TABLE IF NOT EXISTS upcoming_products (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    image TEXT,
-    expected_date TEXT,
-    description TEXT,
-    is_active BOOLEAN DEFAULT true
-);
-
-CREATE TABLE IF NOT EXISTS fabrics (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    image TEXT,
-    description TEXT,
-    colors JSONB DEFAULT '[]'
-);
-
-CREATE TABLE IF NOT EXISTS bespoke_services (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    icon TEXT,
-    image TEXT,
-    base_price DECIMAL(12,2) NOT NULL,
-    description TEXT,
-    is_active BOOLEAN DEFAULT true
-);
-
 CREATE TABLE IF NOT EXISTS orders (
     id TEXT PRIMARY KEY,
     date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -113,6 +86,20 @@ CREATE TABLE IF NOT EXISTS orders (
     bespoke_type TEXT,
     delivery_date TEXT
 );
+
+-- MIGRATION: Ensure columns exist in older order tables
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='bespoke_note') THEN
+        ALTER TABLE orders ADD COLUMN bespoke_note TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='bespoke_type') THEN
+        ALTER TABLE orders ADD COLUMN bespoke_type TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='delivery_date') THEN
+        ALTER TABLE orders ADD COLUMN delivery_date TEXT;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS dues (
     id TEXT PRIMARY KEY,
@@ -183,35 +170,6 @@ CREATE TABLE IF NOT EXISTS partners (
     is_active BOOLEAN DEFAULT true
 );
 
-CREATE TABLE IF NOT EXISTS material_requests (
-    id TEXT PRIMARY KEY,
-    worker_id TEXT REFERENCES users(id),
-    worker_name TEXT,
-    material_name TEXT,
-    quantity TEXT,
-    status TEXT DEFAULT 'pending',
-    date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    notes TEXT
-);
-
-CREATE TABLE IF NOT EXISTS product_requests (
-    id TEXT PRIMARY KEY,
-    user_name TEXT,
-    email TEXT,
-    product_title TEXT,
-    description TEXT,
-    date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS reviews (
-    id TEXT PRIMARY KEY,
-    user_name TEXT,
-    rating INTEGER,
-    comment TEXT,
-    date TEXT,
-    status TEXT DEFAULT 'pending'
-);
-
 CREATE TABLE IF NOT EXISTS email_logs (
     id TEXT PRIMARY KEY,
     recipient TEXT NOT NULL,
@@ -223,48 +181,12 @@ CREATE TABLE IF NOT EXISTS email_logs (
 );
 `;
 
-const SEED_DATA = {
-  config: {
-    id: 1, site_name: 'Mehedi Tailors & Fabrics', site_logo: 'https://i.imgur.com/8H9IeM5.png', document_logo: 'https://i.imgur.com/8H9IeM5.png', db_version: '14.0.0-PRO', gift_cards_enabled: true
-  },
-  partners: [
-    { id: 'p_1', name: 'Scabal Brussels', logo: 'https://cdn.worldvectorlogo.com/logos/scabal-1.svg', is_active: true },
-    { id: 'p_2', name: 'Loro Piana', logo: 'https://cdn.worldvectorlogo.com/logos/loro-piana.svg', is_active: true },
-    { id: 'p_3', name: 'Dormeuil', logo: 'https://i.imgur.com/2XyE4xY.png', is_active: true },
-    { id: 'p_4', name: 'Zegna', logo: 'https://cdn.worldvectorlogo.com/logos/zegna.svg', is_active: true }
-  ],
-  users: [
-    { id: 'adm-001', name: 'Artisan Admin', email: 'admin@meheditailors.com', role: 'admin', password: 'admin123', phone: '+8801720267213', address: 'Atelier Savar' },
-    { id: 'wrk-001', name: 'Kabir Master', email: 'worker@meheditailors.com', role: 'worker', password: 'worker123', phone: '+8801720267214', specialization: 'Master Stitcher', experience: '15 Years', join_date: '2024-01-01' }
-  ],
-  products: [
-    { id: 'p1', name: 'Imperial Silk Panjabi', category: 'Men', price: 4500, discount_price: 3800, image: 'https://picsum.photos/seed/panjabi/600/800', description: 'Exquisite silk panjabi with hand-crafted embroidery.', fabric_type: 'Silk', available_sizes: JSON.stringify(['S', 'M', 'L', 'XL']), colors: JSON.stringify(['Cream', 'Deep Blue']), stock_count: 20, is_featured: true }
-  ]
-};
-
 async function run() {
-  console.log('--- MEHEDI ATELIER: DB INITIALIZATION V14 ---');
+  console.log('--- MEHEDI ATELIER: DB INITIALIZATION & MIGRATION V15 ---');
   try {
     const client = await pool.connect();
     await client.query(SCHEMA);
-
-    const configCheck = await client.query('SELECT id FROM system_config WHERE id = 1');
-    if (configCheck.rowCount === 0) {
-      const c = SEED_DATA.config;
-      await client.query('INSERT INTO system_config (id, site_name, site_logo, document_logo, db_version) VALUES ($1, $2, $3, $4, $5)', [c.id, c.site_name, c.site_logo, c.document_logo, c.db_version]);
-    }
-
-    for (const p of SEED_DATA.partners) {
-        const check = await client.query('SELECT id FROM partners WHERE id = $1', [p.id]);
-        if (check.rowCount === 0) await client.query('INSERT INTO partners (id, name, logo, is_active) VALUES ($1, $2, $3, $4)', [p.id, p.name, p.logo, p.is_active]);
-    }
-
-    for (const u of SEED_DATA.users) {
-      const uCheck = await client.query('SELECT id FROM users WHERE email = $1', [u.email]);
-      if (uCheck.rowCount === 0) await client.query('INSERT INTO users (id, name, email, phone, address, role, password, specialization, experience, join_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)', [u.id, u.name, u.email, u.phone, u.address, u.role, u.password, u.specialization || null, u.experience || null, u.join_date || null]);
-    }
-
-    console.log('SUCCESS: Production Registry Synchronized.');
+    console.log('SUCCESS: Production Registry & Migrations Synchronized.');
     client.release();
   } catch (err) {
     console.error('DB FAIL:', err.message);

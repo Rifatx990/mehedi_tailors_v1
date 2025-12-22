@@ -60,13 +60,14 @@ const AdminOrdersPage: React.FC = () => {
   const handleRecordReconciliation = async () => {
     if (!selectedOrder) return;
     
-    // MATHEMATICAL FIX: Force numeric evaluation for all calculations
+    // FISCAL LOGIC REPAIR: Use explicit Number() casting to avoid JS string-addition quirks
     const currentPaid = Number(selectedOrder.paidAmount || 0);
     const addedPayment = Number(paymentInput || 0);
     const orderTotal = Number(selectedOrder.total || 0);
     
-    const newPaid = currentPaid + addedPayment;
-    const newDue = Math.max(0, orderTotal - newPaid);
+    // Calculation of new realization
+    const newPaid = Number((currentPaid + addedPayment).toFixed(2));
+    const newDue = Number(Math.max(0, orderTotal - newPaid).toFixed(2));
     
     const newStatus: PaymentStatus = newDue <= 0 ? 'Fully Paid' : 'Partially Paid';
     
@@ -80,7 +81,7 @@ const AdminOrdersPage: React.FC = () => {
       bespokeNote: overrideNote || selectedOrder.bespokeNote
     };
     
-    // Persist to Central Ledger (PG Database via Context)
+    // Dispatch to API via Store Context
     await updateOrder(updated);
     setSelectedOrder(updated);
     setPaymentInput(0);
@@ -341,7 +342,7 @@ const AdminOrdersPage: React.FC = () => {
 
               <button 
                  onClick={handleRecordReconciliation} 
-                 className="w-full bg-slate-900 text-white py-6 rounded-2xl font-bold uppercase tracking-[0.2em] text-xs shadow-xl hover:bg-emerald-600 transition-all active:scale-95"
+                 className="w-full bg-slate-900 text-white py-6 rounded-[2.5rem] font-bold uppercase tracking-[0.2em] text-xs shadow-xl hover:bg-emerald-600 transition-all active:scale-95"
               >
                  Confirm Ledger Synchronisation
               </button>

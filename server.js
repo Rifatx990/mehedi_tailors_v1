@@ -46,7 +46,13 @@ const toSnake = (obj) => {
     for (let key in obj) {
         if (key.startsWith('_')) continue;
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        snake[snakeKey] = (typeof obj[key] === 'object' && obj[key] !== null) ? toSnake(obj[key]) : obj[key];
+        // Ensure values that are objects (like items or measurements) are converted to JSON strings for PG
+        const val = obj[key];
+        snake[snakeKey] = (val !== null && typeof val === 'object' && !Array.isArray(val)) 
+          ? JSON.stringify(val) 
+          : Array.isArray(val) 
+            ? JSON.stringify(val)
+            : val;
     }
     return snake;
 };
@@ -63,25 +69,6 @@ apiRouter.get('/health', async (req, res) => {
     }
 });
 
-// SMTP Verification Handshake
-apiRouter.post('/verify-smtp', async (req, res) => {
-    const config = req.body;
-    try {
-        if (!config.smtpHost || !config.smtpUser) {
-            return res.status(400).json({ error: "Incomplete SMTP configuration." });
-        }
-        const logId = 'DIAG-' + Date.now();
-        await query(
-            `INSERT INTO email_logs (id, recipient, subject, body, status, template_id) 
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [logId, config.smtpUser, 'Atelier SMTP Handshake Success', 'Diagnostics confirmed.', 'sent', 'diagnostic_check']
-        );
-        res.json({ success: true, message: "SMTP Connection Established Successfully." });
-    } catch (err) {
-        res.status(500).json({ error: "SMTP Handshake Failed: " + err.message });
-    }
-});
-
 const setupCRUD = (route, table) => {
     apiRouter.get(`/${route}`, async (req, res) => {
         try {
@@ -94,7 +81,7 @@ const setupCRUD = (route, table) => {
         try {
             const body = toSnake(req.body);
             const keys = Object.keys(body);
-            const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
+            const values = Object.values(body);
             const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
             const result = await query(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`, values);
             res.json(result.rows[0]);
@@ -106,7 +93,7 @@ const setupCRUD = (route, table) => {
             const body = toSnake(req.body);
             delete body.id;
             const keys = Object.keys(body);
-            const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
+            const values = Object.values(body);
             const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
             const result = await query(`UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
             res.json(result.rows[0]);
@@ -133,18 +120,14 @@ setupCRUD('gift-cards', 'gift_cards');
 setupCRUD('notices', 'notices');
 setupCRUD('offers', 'offers');
 setupCRUD('partners', 'partners');
-setupCRUD('material-requests', 'material_requests');
-setupCRUD('product-requests', 'product_requests');
-setupCRUD('reviews', 'reviews');
 setupCRUD('emails', 'email_logs');
-setupCRUD('bespoke-services', 'bespoke_services');
 
 apiRouter.patch('/orders/:id', async (req, res) => {
     try {
         const fields = toSnake(req.body);
         delete fields.id;
         const keys = Object.keys(fields);
-        const values = Object.values(fields).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
+        const values = Object.values(fields);
         const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
         const result = await query(`UPDATE orders SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
         res.json(result.rows[0]);
@@ -164,12 +147,11 @@ apiRouter.put('/config', async (req, res) => {
         const fields = toSnake(req.body);
         delete fields.id;
         const keys = Object.keys(fields);
-        const values = Object.values(fields).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
+        const values = Object.values(fields);
         const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
         const result = await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values);
         res.json(result.rows[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Mount the API router
 app.use('/api', apiRouter);
