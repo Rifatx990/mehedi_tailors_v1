@@ -18,7 +18,8 @@ import {
   HandThumbUpIcon,
   ClockIcon,
   FlagIcon,
-  PencilSquareIcon
+  PencilSquareIcon,
+  BanknotesIcon
 } from '@heroicons/react/24/outline';
 import { Order, PaymentStatus, OrderStatus, ProductionStep, BespokeType } from '../../types.ts';
 
@@ -43,7 +44,7 @@ const AdminOrdersPage: React.FC = () => {
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
       const matchesSearch = 
-        order.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (order.id || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
         (order.customerName || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'All' || order.status === statusFilter;
       let matchesDate = true;
@@ -56,9 +57,10 @@ const AdminOrdersPage: React.FC = () => {
     });
   }, [orders, searchTerm, statusFilter, startDate, endDate]);
 
-  const handleRecordPayment = async () => {
+  const handleRecordReconciliation = async () => {
     if (!selectedOrder) return;
     
+    // MATHEMATICAL FIX: Force numeric evaluation for all calculations
     const currentPaid = Number(selectedOrder.paidAmount || 0);
     const addedPayment = Number(paymentInput || 0);
     const orderTotal = Number(selectedOrder.total || 0);
@@ -68,7 +70,7 @@ const AdminOrdersPage: React.FC = () => {
     
     const newStatus: PaymentStatus = newDue <= 0 ? 'Fully Paid' : 'Partially Paid';
     
-    const updated = { 
+    const updated: Order = { 
       ...selectedOrder, 
       paidAmount: newPaid, 
       dueAmount: newDue, 
@@ -78,9 +80,11 @@ const AdminOrdersPage: React.FC = () => {
       bespokeNote: overrideNote || selectedOrder.bespokeNote
     };
     
+    // Persist to Central Ledger (PG Database via Context)
     await updateOrder(updated);
     setSelectedOrder(updated);
     setPaymentInput(0);
+    setIsModalOpen(false);
   };
 
   const statusOptions: OrderStatus[] = ['Pending', 'In Progress', 'Shipped', 'Delivered', 'Cancelled'];
@@ -100,6 +104,7 @@ const AdminOrdersPage: React.FC = () => {
     setOverrideDate(order.deliveryDate || '');
     setOverrideType(order.bespokeType || 'Normal');
     setOverrideNote(order.bespokeNote || '');
+    setPaymentInput(0);
     setIsModalOpen(true);
   };
 
@@ -251,7 +256,7 @@ const AdminOrdersPage: React.FC = () => {
           <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[2.5rem] md:rounded-[3.5rem] p-8 md:p-12 w-full max-w-3xl shadow-2xl relative animate-in zoom-in duration-300 max-h-[95vh] overflow-y-auto no-scrollbar">
               <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 md:top-8 md:right-8 text-slate-400 hover:text-slate-900 transition-transform hover:rotate-90"><XMarkIcon className="w-8 h-8" /></button>
-              <h2 className="text-2xl md:text-3xl font-bold serif mb-6 text-slate-900 pr-10">Commission Reconciliation</h2>
+              <h2 className="text-2xl md:text-3xl font-bold serif mb-6 text-slate-900 pr-10 text-center">Contract Reconciliation</h2>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                 {/* Fiscal Recovery Column */}
@@ -259,7 +264,7 @@ const AdminOrdersPage: React.FC = () => {
                     <div className="bg-slate-950 p-6 rounded-[2rem] text-white shadow-2xl relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-24 h-24 bg-amber-600/10 rounded-full -translate-y-8 translate-x-8 blur-2xl"></div>
                         <div className="relative z-10 flex justify-between items-center pb-4 border-b border-white/10 mb-4">
-                            <span className="text-[9px] font-black uppercase tracking-widest opacity-50">Valuation</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest opacity-50">Net Valuation</span>
                             <span className="text-xl font-bold font-mono">BDT {Number(selectedOrder.total).toLocaleString()}</span>
                         </div>
                         <div className="relative z-10 flex justify-between items-center">
@@ -268,15 +273,19 @@ const AdminOrdersPage: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="space-y-3">
-                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Receive Payment Credit</label>
+                    <div className="space-y-3 bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-inner">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1 flex items-center gap-2">
+                           <BanknotesIcon className="w-4 h-4" />
+                           Record Payment Credit
+                        </label>
                         <input 
                             type="number" 
                             value={paymentInput} 
                             onChange={e => setPaymentInput(Number(e.target.value))} 
-                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-600/5 transition font-mono text-xl text-center font-black text-slate-900" 
+                            className="w-full bg-white border border-slate-200 px-6 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-600/5 transition font-mono text-xl text-center font-black text-slate-900" 
                             placeholder="0.00" 
                         />
+                        <p className="text-[8px] text-slate-400 text-center uppercase font-bold tracking-widest">Enter amount to deduct from total due</p>
                     </div>
                 </div>
 
@@ -291,8 +300,9 @@ const AdminOrdersPage: React.FC = () => {
                             {(['Normal', 'Express', 'Urgent'] as BespokeType[]).map(t => (
                                 <button 
                                     key={t}
+                                    type="button"
                                     onClick={() => setOverrideType(t)}
-                                    className={`flex-1 py-2 rounded-lg text-[8px] font-black uppercase transition-all ${overrideType === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
+                                    className={`flex-1 py-2 rounded-lg text-[8px] font-black uppercase transition-all ${overrideType === t ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-400'}`}
                                 >
                                     {t}
                                 </button>
@@ -309,7 +319,7 @@ const AdminOrdersPage: React.FC = () => {
                             type="date"
                             value={overrideDate}
                             onChange={e => setOverrideDate(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-100 px-6 py-3 rounded-xl font-bold text-xs outline-none"
+                            className="w-full bg-slate-50 border border-slate-100 px-6 py-3 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-amber-500/10"
                         />
                     </div>
 
@@ -322,14 +332,19 @@ const AdminOrdersPage: React.FC = () => {
                             rows={3}
                             value={overrideNote}
                             onChange={e => setOverrideNote(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none font-medium text-xs resize-none"
-                            placeholder="Add or update artisan notes..."
+                            className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl outline-none font-medium text-xs resize-none focus:ring-2 focus:ring-amber-500/10"
+                            placeholder="Add or update artisan notes for the workshop..."
                         />
                     </div>
                 </div>
               </div>
 
-              <button onClick={handleRecordPayment} className="w-full bg-slate-900 text-white py-6 rounded-2xl font-bold uppercase tracking-[0.2em] text-xs shadow-xl hover:bg-emerald-600 transition-all active:scale-95">Commit Comprehensive Ledger Synchronisation</button>
+              <button 
+                 onClick={handleRecordReconciliation} 
+                 className="w-full bg-slate-900 text-white py-6 rounded-2xl font-bold uppercase tracking-[0.2em] text-xs shadow-xl hover:bg-emerald-600 transition-all active:scale-95"
+              >
+                 Confirm Ledger Synchronisation
+              </button>
             </div>
           </div>
         )}

@@ -15,13 +15,13 @@ const poolConfig = process.env.DATABASE_URL
 const pool = new Pool(poolConfig);
 
 const SCHEMA = `
--- ATELIER ARCHITECTURAL SCHEMA V13.0
+-- ATELIER ARCHITECTURAL SCHEMA V14.0
 CREATE TABLE IF NOT EXISTS system_config (
     id SERIAL PRIMARY KEY,
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '13.0.0-PG-PRO',
+    db_version TEXT DEFAULT '14.0.0-PG-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -108,7 +108,10 @@ CREATE TABLE IF NOT EXISTS orders (
     items JSONB NOT NULL,
     address TEXT,
     customer_name TEXT,
-    customer_email TEXT
+    customer_email TEXT,
+    bespoke_note TEXT,
+    bespoke_type TEXT,
+    delivery_date TEXT
 );
 
 CREATE TABLE IF NOT EXISTS dues (
@@ -222,7 +225,7 @@ CREATE TABLE IF NOT EXISTS email_logs (
 
 const SEED_DATA = {
   config: {
-    id: 1, site_name: 'Mehedi Tailors & Fabrics', site_logo: 'https://i.imgur.com/8H9IeM5.png', document_logo: 'https://i.imgur.com/8H9IeM5.png', db_version: '13.0.0-PRO', gift_cards_enabled: true
+    id: 1, site_name: 'Mehedi Tailors & Fabrics', site_logo: 'https://i.imgur.com/8H9IeM5.png', document_logo: 'https://i.imgur.com/8H9IeM5.png', db_version: '14.0.0-PRO', gift_cards_enabled: true
   },
   partners: [
     { id: 'p_1', name: 'Scabal Brussels', logo: 'https://cdn.worldvectorlogo.com/logos/scabal-1.svg', is_active: true },
@@ -240,7 +243,7 @@ const SEED_DATA = {
 };
 
 async function run() {
-  console.log('--- MEHEDI ATELIER: DB INITIALIZATION V13 ---');
+  console.log('--- MEHEDI ATELIER: DB INITIALIZATION V14 ---');
   try {
     const client = await pool.connect();
     await client.query(SCHEMA);
