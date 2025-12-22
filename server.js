@@ -41,7 +41,7 @@ const query = async (text, params) => {
     }
 };
 
-// --- RECURSIVE TRANSFORMERS (Ensures nested JSONB keys match frontend types) ---
+// --- RECURSIVE TRANSFORMERS ---
 const toSnake = (obj) => {
     if (obj === null || typeof obj !== 'object') return obj;
     if (Array.isArray(obj)) return obj.map(toSnake);
@@ -64,10 +64,10 @@ const sendMail = async ({ to, subject, html }) => {
     const transporter = nodemailer.createTransport({
       host: config.smtp_host || process.env.SMTP_HOST || "smtp.gmail.com",
       port: config.smtp_port || process.env.SMTP_PORT || 587,
-      secure: config.secure ?? false, 
-      connectionTimeout: 10000, // 10s Timeout
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
+      secure: config.secure ?? (config.smtp_port === 465), 
+      connectionTimeout: 15000, // 15s Timeout to handle slower handshakes
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
       auth: {
         user: config.smtp_user || process.env.SMTP_USER,
         pass: config.smtp_pass || process.env.SMTP_PASS
@@ -197,7 +197,10 @@ apiRouter.put('/config', async (req, res) => {
         const fields = toSnake(req.body);
         delete fields.id;
         const keys = Object.keys(fields);
-        const values = Object.values(fields);
+        // CRITICAL FIX: Ensure object values (like gift_card_denominations) are JSON.stringify'd
+        const values = Object.values(fields).map(v => 
+          (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+        );
         const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
         const result = await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values);
         res.json(result.rows[0]);
@@ -209,9 +212,9 @@ apiRouter.post('/verify-smtp', async (req, res) => {
         const transporter = nodemailer.createTransport({
             host: req.body.smtpHost,
             port: req.body.smtpPort,
-            secure: req.body.secure,
-            connectionTimeout: 5000, 
-            greetingTimeout: 5000,
+            secure: req.body.secure ?? (req.body.smtpPort === 465),
+            connectionTimeout: 15000, // 15s Timeout for verification
+            greetingTimeout: 15000,
             auth: { user: req.body.smtpUser, pass: req.body.smtpPass }
         });
         await transporter.verify();

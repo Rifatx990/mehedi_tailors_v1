@@ -35,9 +35,10 @@ const AdminReportsPage: React.FC = () => {
 
   const stats = useMemo(() => ({
     totalSales: reportData.length,
-    realizedRevenue: reportData.reduce((acc, curr) => acc + curr.paidAmount, 0),
-    outstandingDues: reportData.reduce((acc, curr) => acc + curr.dueAmount, 0),
-    grandTotal: reportData.reduce((acc, curr) => acc + curr.total, 0),
+    // FIX: Cast to Number to prevent string concatenation
+    realizedRevenue: reportData.reduce((acc, curr) => acc + Number(curr.paidAmount || 0), 0),
+    outstandingDues: reportData.reduce((acc, curr) => acc + Number(curr.dueAmount || 0), 0),
+    grandTotal: reportData.reduce((acc, curr) => acc + Number(curr.total || 0), 0),
   }), [reportData]);
 
   const formatDateLabel = () => {
@@ -155,8 +156,8 @@ const AdminReportsPage: React.FC = () => {
                                 <td className="py-5 px-2 font-bold">{order.customerName}</td>
                                 <td className="py-5 px-2 text-slate-500">{new Date(order.date).toLocaleDateString()}</td>
                                 <td className="py-5 px-2 font-medium">{order.items.length} Units</td>
-                                <td className="py-5 px-2 text-right font-black text-emerald-600">BDT {order.paidAmount.toLocaleString()}</td>
-                                <td className="py-5 px-2 text-right font-black text-slate-900">BDT {order.total.toLocaleString()}</td>
+                                <td className="py-5 px-2 text-right font-black text-emerald-600">BDT {Number(order.paidAmount || 0).toLocaleString()}</td>
+                                <td className="py-5 px-2 text-right font-black text-slate-900">BDT {Number(order.total || 0).toLocaleString()}</td>
                              </tr>
                           ))}
                           {reportData.length === 0 && (
