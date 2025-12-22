@@ -136,6 +136,13 @@ CREATE TABLE IF NOT EXISTS material_requests ( id TEXT PRIMARY KEY, worker_id TE
 CREATE TABLE IF NOT EXISTS product_requests ( id TEXT PRIMARY KEY, user_name TEXT, email TEXT, product_title TEXT, description TEXT, date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP );
 CREATE TABLE IF NOT EXISTS reviews ( id TEXT PRIMARY KEY, user_name TEXT, rating INTEGER, comment TEXT, date TEXT, status TEXT DEFAULT 'pending' );
 CREATE TABLE IF NOT EXISTS email_logs ( id TEXT PRIMARY KEY, recipient TEXT NOT NULL, subject TEXT, body TEXT, timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, status TEXT, template_id TEXT );
+
+-- FIX RESERVED KEYWORD 'TO'
+DO $$ BEGIN 
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='email_logs' AND column_name='to') THEN
+        ALTER TABLE email_logs RENAME COLUMN "to" TO recipient;
+    END IF;
+END $$;
 `;
 
 const SEED_DATA = {

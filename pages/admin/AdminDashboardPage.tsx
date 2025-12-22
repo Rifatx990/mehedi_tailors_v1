@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { useStore } from '../../context/StoreContext.tsx';
 import { Link } from 'react-router-dom';
@@ -22,8 +21,8 @@ const AdminDashboardPage: React.FC = () => {
   const { orders, products, allUsers, emailLogs, systemConfig, giftCards } = useStore();
 
   const stats = useMemo(() => ({
-    revenue: orders.reduce((acc, curr) => acc + (curr.paidAmount || 0), 0),
-    outstandingDues: orders.reduce((acc, curr) => acc + (curr.dueAmount || 0), 0),
+    revenue: orders.reduce((acc, curr) => acc + Number(curr.paidAmount || 0), 0),
+    outstandingDues: orders.reduce((acc, curr) => acc + Number(curr.dueAmount || 0), 0),
     activeOrders: orders.filter(o => o.status !== 'Delivered' && o.status !== 'Cancelled').length,
     totalProducts: products.length,
     totalCustomers: allUsers.filter(u => u.role === 'customer').length,

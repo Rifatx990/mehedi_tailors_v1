@@ -65,9 +65,9 @@ const sendMail = async ({ to, subject, html }) => {
       host: config.smtp_host || process.env.SMTP_HOST || "smtp.gmail.com",
       port: config.smtp_port || process.env.SMTP_PORT || 587,
       secure: config.secure ?? (config.smtp_port === 465), 
-      connectionTimeout: 15000, // 15s Timeout to handle slower handshakes
-      greetingTimeout: 15000,
-      socketTimeout: 20000,
+      connectionTimeout: 30000, // 30s Timeout to handle slower handshakes
+      greetingTimeout: 30000,
+      socketTimeout: 35000,
       auth: {
         user: config.smtp_user || process.env.SMTP_USER,
         pass: config.smtp_pass || process.env.SMTP_PASS
@@ -113,7 +113,7 @@ const setupCRUD = (route, table) => {
             const body = toSnake(req.body);
             const keys = Object.keys(body);
             const values = Object.values(body).map(v => 
-              (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+              (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null)
             );
             const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
             const result = await query(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`, values);
@@ -127,7 +127,7 @@ const setupCRUD = (route, table) => {
             delete body.id;
             const keys = Object.keys(body);
             const values = Object.values(body).map(v => 
-              (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+              (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null)
             );
             const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
             const result = await query(`UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
@@ -169,7 +169,7 @@ apiRouter.patch('/orders/:id', async (req, res) => {
         delete fields.id;
         const keys = Object.keys(fields);
         const values = Object.values(fields).map(v => 
-          (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+          (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null)
         );
         const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
         const result = await query(`UPDATE orders SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
@@ -197,9 +197,8 @@ apiRouter.put('/config', async (req, res) => {
         const fields = toSnake(req.body);
         delete fields.id;
         const keys = Object.keys(fields);
-        // CRITICAL FIX: Ensure object values (like gift_card_denominations) are JSON.stringify'd
         const values = Object.values(fields).map(v => 
-          (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+          (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null)
         );
         const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
         const result = await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values);
@@ -213,8 +212,8 @@ apiRouter.post('/verify-smtp', async (req, res) => {
             host: req.body.smtpHost,
             port: req.body.smtpPort,
             secure: req.body.secure ?? (req.body.smtpPort === 465),
-            connectionTimeout: 15000, // 15s Timeout for verification
-            greetingTimeout: 15000,
+            connectionTimeout: 30000, 
+            greetingTimeout: 30000,
             auth: { user: req.body.smtpUser, pass: req.body.smtpPass }
         });
         await transporter.verify();
