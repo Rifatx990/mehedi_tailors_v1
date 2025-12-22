@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
@@ -57,6 +56,9 @@ const CheckoutPage: React.FC = () => {
     
     setIsProcessing(true);
 
+    // Collect first bespoke item's parameters for root order tracking
+    const bespokeItem = cart.find(i => i.isCustomOrder);
+
     setTimeout(() => {
       const newOrder = {
         id: `MT-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -73,7 +75,10 @@ const CheckoutPage: React.FC = () => {
         paymentMethod: paymentMethod === 'cod' ? 'Cash on Delivery' : 'SSLCommerz',
         address: `${formData.address}, ${formData.area}, ${formData.city}`,
         customerName: formData.name,
-        customerEmail: formData.email
+        customerEmail: formData.email,
+        bespokeNote: bespokeItem?.bespokeNote,
+        bespokeType: bespokeItem?.bespokeType,
+        deliveryDate: bespokeItem?.deliveryDate
       };
 
       placeOrder(newOrder);

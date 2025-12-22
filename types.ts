@@ -1,4 +1,3 @@
-
 export enum Category {
   MEN = 'Men',
   WOMEN = 'Women',
@@ -10,6 +9,7 @@ export enum Category {
 export type OrderStatus = 'Pending' | 'In Progress' | 'Shipped' | 'Delivered' | 'Cancelled';
 export type PaymentStatus = 'Fully Paid' | 'Partially Paid' | 'Due' | 'Refunded';
 export type ProductionStep = 'Queue' | 'Cutting' | 'Stitching' | 'Finishing' | 'Ready';
+export type BespokeType = 'Normal' | 'Express' | 'Urgent';
 
 export interface GiftCard {
   id: string;
@@ -181,6 +181,9 @@ export interface CartItem {
   price: number;
   name: string;
   image: string;
+  bespokeNote?: string;
+  bespokeType?: BespokeType;
+  deliveryDate?: string;
 }
 
 export interface Order {
@@ -201,6 +204,9 @@ export interface Order {
   customerName?: string;
   customerEmail?: string;
   couponUsed?: string;
+  bespokeNote?: string;
+  bespokeType?: BespokeType;
+  deliveryDate?: string;
 }
 
 export interface User {

@@ -205,9 +205,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setFabrics(mapDbToCamel(fabs));
       setEmailLogs(mapDbToCamel(emails));
       
-      const cats = Array.from(new Set(prods.map((p: any) => p.category)));
-      setCategories(cats.length ? (cats as string[]) : ['Men', 'Women', 'Fabrics', 'Custom Tailoring']);
-      
       const storedUserId = localStorage.getItem('mt_user_id');
       if (storedUserId) {
         const fullUser = mapDbToCamel(users).find((u: any) => u.id === storedUserId);
@@ -249,8 +246,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const updateOrderStatus = async (id: string, status: OrderStatus) => { 
-    await dbService.saveOrder({ id, status }); 
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o)); 
+    const s = await dbService.saveOrder({ id, status }); 
+    setOrders(prev => prev.map(o => o.id === id ? mapDbToCamel(s) : o)); 
     
     const order = orders.find(o => o.id === id);
     if (order && order.customerEmail) {
@@ -263,8 +260,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const updateProductionStep = async (id: string, productionStep: ProductionStep) => { 
-    await dbService.saveOrder({ id, productionStep }); 
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, productionStep } : o)); 
+    const s = await dbService.saveOrder({ id, productionStep }); 
+    setOrders(prev => prev.map(o => o.id === id ? mapDbToCamel(s) : o)); 
     
     const order = orders.find(o => o.id === id);
     if (order && productionStep === 'Ready' && order.customerEmail) {
@@ -288,9 +285,16 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       adminUser, setAdminUser: (u) => { setAdminUser(u); u ? localStorage.setItem('mt_user_id', u.id) : localStorage.removeItem('mt_user_id'); },
       workerUser, setWorkerUser: (u) => { setWorkerUser(u); u ? localStorage.setItem('mt_user_id', u.id) : localStorage.removeItem('mt_user_id'); },
       allUsers, wishlist, toggleWishlist: (id) => setWishlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]),
-      orders, placeOrder, updateOrder: async (o) => { const s = await dbService.saveOrder(o); setOrders(prev => prev.map(curr => curr.id === o.id ? mapDbToCamel(s) : curr)); },
+      orders, placeOrder, 
+      updateOrder: async (o) => { 
+        const s = await dbService.saveOrder(o); 
+        setOrders(prev => prev.map(curr => curr.id === o.id ? mapDbToCamel(s) : curr)); 
+      },
       updateOrderStatus, updateProductionStep, removeOrder: async (id) => { await dbService.deleteOrder(id); setOrders(prev => prev.filter(o => o.id !== id)); }, 
-      assignWorker: async (id, workerId) => { await dbService.saveOrder({ id, assignedWorkerId: workerId }); setOrders(prev => prev.map(o => o.id === id ? { ...o, assignedWorkerId: workerId } : o)); },
+      assignWorker: async (id, workerId) => { 
+        const s = await dbService.saveOrder({ id, assignedWorkerId: workerId }); 
+        setOrders(prev => prev.map(o => o.id === id ? mapDbToCamel(s) : o)); 
+      },
       products, updateProduct, addProduct, removeProduct,
       upcomingProducts, addUpcomingProduct, updateUpcomingProduct, removeUpcomingProduct,
       fabrics, addFabric: async (f) => { const s = await dbService.saveFabric({...f, _isNew: true}); setFabrics(prev => [...prev, mapDbToCamel(s)]); }, 

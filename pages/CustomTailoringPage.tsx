@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -11,8 +10,12 @@ import {
   SwatchIcon,
   AdjustmentsHorizontalIcon,
   ChatBubbleLeftRightIcon,
-  ScissorsIcon
+  ScissorsIcon,
+  CalendarDaysIcon,
+  ClockIcon,
+  PencilSquareIcon
 } from '@heroicons/react/24/outline';
+import { BespokeType } from '../types.ts';
 
 const CustomTailoringPage: React.FC = () => {
   const { addToCart, fabrics, bespokeServices } = useStore();
@@ -22,6 +25,10 @@ const CustomTailoringPage: React.FC = () => {
   const [garmentType, setGarmentType] = useState('Shirt');
   const [selectedFabric, setSelectedFabric] = useState(fabrics[0]?.id || '');
   const [selectedColor, setSelectedColor] = useState('Navy');
+  const [bespokeType, setBespokeType] = useState<BespokeType>('Normal');
+  const [bespokeNote, setBespokeNote] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState('');
+  
   const [designOptions, setDesignOptions] = useState({
     collar: 'Classic',
     cuff: 'Single Button',
@@ -41,13 +48,16 @@ const CustomTailoringPage: React.FC = () => {
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
 
-  // Filter only active services
   const activeServices = bespokeServices.filter(s => s.isActive);
 
   useEffect(() => {
     if (location.state && (location.state as any).garmentType) {
       setGarmentType((location.state as any).garmentType);
     }
+    // Default delivery date: 10 days from now
+    const date = new Date();
+    date.setDate(date.getDate() + 10);
+    setDeliveryDate(date.toISOString().split('T')[0]);
   }, [location.state]);
 
   const handleNext = () => setStep(prev => prev + 1);
@@ -85,7 +95,10 @@ const CustomTailoringPage: React.FC = () => {
       designOptions: designOptions,
       selectedFabric: currentFabric?.name,
       selectedColor: selectedColor,
-      price: service?.basePrice || 2500
+      price: service?.basePrice || 2500,
+      bespokeNote,
+      bespokeType,
+      deliveryDate
     };
     addToCart(customItem);
     navigate('/cart');
@@ -108,7 +121,7 @@ const CustomTailoringPage: React.FC = () => {
                 { s: 1, l: 'Garment Style' },
                 { s: 2, l: 'Fabric & Color' },
                 { s: 3, l: 'Design Details' },
-                { s: 4, l: 'Measurements' },
+                { s: 4, l: 'Handover Specs' },
                 { s: 5, l: 'Final Review' }
               ].map(item => (
                 <div key={item.s} className="flex items-center space-x-4">
@@ -283,27 +296,66 @@ const CustomTailoringPage: React.FC = () => {
 
             {step === 4 && (
               <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-                <h2 className="text-3xl font-bold serif mb-2">Technical Specifications</h2>
-                <p className="text-slate-400 text-sm mb-10">Provide precise measurements in inches for a surgical fit.</p>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-                  {Object.keys(measurements).filter(k => k !== 'label').map(key => (
-                    <div key={key}>
-                      <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">{key}</label>
-                      <input
-                        type="number"
-                        placeholder="0.00"
-                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-amber-600/10 text-lg font-mono"
-                        value={(measurements as any)[key] || ''}
-                        onChange={(e) => setMeasurements({...measurements, [key]: parseFloat(e.target.value) || 0})}
+                <h2 className="text-3xl font-bold serif mb-2">Handover Specifications</h2>
+                <p className="text-slate-400 text-sm mb-10">Calibrate delivery priority and artisan directives.</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className="space-y-8">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-4 flex items-center space-x-2">
+                        <ClockIcon className="w-4 h-4" />
+                        <span>Commission Priority</span>
+                      </label>
+                      <div className="grid grid-cols-3 gap-3">
+                         {(['Normal', 'Express', 'Urgent'] as BespokeType[]).map(type => (
+                           <button
+                             key={type}
+                             onClick={() => setBespokeType(type)}
+                             className={`py-4 rounded-2xl font-bold uppercase text-[9px] tracking-widest border transition-all ${bespokeType === type ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-slate-200'}`}
+                           >
+                             {type}
+                           </button>
+                         ))}
+                      </div>
+                      <p className="text-[8px] text-slate-400 mt-2 italic">*Urgent & Express may incur artisan overtime surcharges.</p>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-4 flex items-center space-x-2">
+                        <CalendarDaysIcon className="w-4 h-4" />
+                        <span>Target Delivery Date</span>
+                      </label>
+                      <input 
+                        type="date" 
+                        value={deliveryDate}
+                        onChange={e => setDeliveryDate(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-amber-600/10" 
                       />
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="space-y-8">
+                     <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-4 flex items-center space-x-2">
+                          <PencilSquareIcon className="w-4 h-4" />
+                          <span>Artisan Directives (Notes)</span>
+                        </label>
+                        <textarea 
+                          value={bespokeNote}
+                          onChange={e => setBespokeNote(e.target.value)}
+                          rows={6}
+                          placeholder="e.g. Include hidden interior pocket for watch, extra long sleeves (+0.5 inch)..."
+                          className="w-full bg-slate-50 border border-slate-100 px-6 py-5 rounded-[2rem] outline-none focus:ring-2 focus:ring-amber-600/10 resize-none font-medium text-sm leading-relaxed"
+                        />
+                     </div>
+                  </div>
                 </div>
-                <div className="mt-12 p-8 bg-amber-50 rounded-[2rem] border border-amber-100 flex items-start space-x-6">
-                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm text-2xl flex-shrink-0">📏</div>
+
+                <div className="mt-12 p-8 bg-teal-50 rounded-[2.5rem] border border-teal-100 flex items-start space-x-6">
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm text-2xl flex-shrink-0">📜</div>
                   <div className="space-y-2">
-                    <h4 className="font-bold text-slate-900 text-sm">Need Measurement Assistance?</h4>
-                    <p className="text-xs text-slate-500 leading-relaxed">Schedule a virtual consultation with Mehedi personally, or visit our Ashulia studio for a session. We also support "Copy from Garment" via courier.</p>
+                    <h4 className="font-bold text-slate-900 text-sm">Direct Atelier Protocol</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed">Your special notes are printed directly on the artisan's cutting sheet. Precise directives ensure your unique vision is captured in every stitch.</p>
                   </div>
                 </div>
               </div>
@@ -327,12 +379,12 @@ const CustomTailoringPage: React.FC = () => {
                         <span className="text-sm font-bold text-slate-900">{fabrics.find(f => f.id === selectedFabric)?.name}</span>
                       </div>
                       <div className="flex justify-between border-b border-slate-200 pb-2">
-                        <span className="text-xs text-slate-400 font-bold uppercase">Color</span>
-                        <span className="text-sm font-bold text-slate-900">{selectedColor}</span>
+                        <span className="text-xs text-slate-400 font-bold uppercase">Priority</span>
+                        <span className={`text-sm font-black ${bespokeType === 'Urgent' ? 'text-rose-600' : 'text-slate-900'}`}>{bespokeType}</span>
                       </div>
                       <div className="flex justify-between pt-2">
-                        <span className="text-xs text-slate-400 font-bold uppercase">Fit</span>
-                        <span className="text-sm font-bold text-slate-900">{designOptions.fit}</span>
+                        <span className="text-xs text-slate-400 font-bold uppercase">Handover</span>
+                        <span className="text-sm font-bold text-slate-900">{new Date(deliveryDate).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </div>
