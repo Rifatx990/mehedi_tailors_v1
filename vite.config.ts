@@ -5,6 +5,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5000,
+    allowedHosts: true,
     // Port 5000 is default for Vite in this environment
   },
   plugins: [
