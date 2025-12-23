@@ -56,7 +56,12 @@ npm start
 ---
 
 ## 🔐 Fiscal Integrity & IPN
-This system employs a **Server-to-Server Validation** protocol. Browser redirects alone are never trusted. The backend verifies payment directly with the `validator/api` before committing to the ledger. **IPN (Instant Payment Notification)** ensure consistency even if a patron's session times out.
+This system employs a **Server-to-Server Validation** protocol. Browser redirects alone are never trusted. The backend verifies payment directly with the `validator/api` before committing to the ledger. **IPN (Instant Payment Notification)** ensure consistency even if a patron's session times out. 
+
+### Payment Flow Outcomes:
+- **Success**: Redirects to `/#/order-success/:id`
+- **Failure**: Redirects to `/#/payment-fail`
+- **Cancellation**: Redirects to `/#/payment-cancel`
 
 ## 🧵 Artisan Logic
 -   **Bespoke Silhouettes**: Measurements are stored as high-fidelity JSONB payloads.

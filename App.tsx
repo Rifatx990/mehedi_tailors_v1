@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { StoreProvider } from './context/StoreContext.tsx';
@@ -24,6 +23,8 @@ import GiftCardPage from './pages/GiftCardPage.tsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.tsx';
 import TermsPage from './pages/TermsPage.tsx';
 import InvoicePage from './pages/InvoicePage.tsx';
+import PaymentFailPage from './pages/PaymentFailPage.tsx';
+import PaymentCancelPage from './pages/PaymentCancelPage.tsx';
 
 // Admin Pages
 import AdminLoginPage from './pages/admin/AdminLoginPage.tsx';
@@ -108,6 +109,8 @@ const App: React.FC = () => {
                 <Route path="/login" element={<AuthPage />} />
                 <Route path="/checkout" element={<CheckoutPage />} />
                 <Route path="/order-success/:orderId" element={<OrderSuccessPage />} />
+                <Route path="/payment-fail" element={<PaymentFailPage />} />
+                <Route path="/payment-cancel" element={<PaymentCancelPage />} />
                 <Route path="/shipping" element={<ShippingPolicyPage />} />
                 <Route path="/returns" element={<ReturnsPage />} />
                 <Route path="/size-guide" element={<SizeGuidePage />} />

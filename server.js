@@ -4,7 +4,6 @@ const { Pool } = pg;
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import nodemailer from 'nodemailer';
-import axios from 'axios';
 import 'dotenv/config';
 
 export const app = express();
@@ -47,7 +46,7 @@ const query = async (text, params) => {
 const SSL_STORE_ID = process.env.SSL_STORE_ID;
 const SSL_STORE_PASS = process.env.SSL_STORE_PASS;
 const SSL_IS_LIVE = process.env.SSL_IS_LIVE === 'true';
-const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:5173';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:5000';
 
 const SSL_INIT_API = SSL_IS_LIVE 
   ? "https://securepay.sslcommerz.com/gwprocess/v4/api.php" 
@@ -107,16 +106,15 @@ const sendMail = async ({ to, subject, html }) => {
 
 const apiRouter = express.Router();
 
-// --- SSLCOMMERZ CORE SECURED LOGIC ---
+// --- SSLCOMMERZ CORE SECURED LOGIC (Using Native Fetch) ---
 
 const verifyAndFinalizePayment = async (orderId, valId) => {
     try {
         const validationURL = `${SSL_VALIDATION_API}?val_id=${valId}&store_id=${SSL_STORE_ID}&store_passwd=${SSL_STORE_PASS}&format=json`;
-        const response = await axios.get(validationURL);
-        const v = response.data;
+        const response = await fetch(validationURL);
+        const v = await response.json();
 
         if (v.status === 'VALID' || v.status === 'VALIDATED') {
-            // Fetch initial order state to see if it was an advance or full payment
             const orderRes = await query('SELECT total, paid_amount FROM orders WHERE id = $1', [orderId]);
             if (orderRes.rowCount === 0) throw new Error("Order lost in archive.");
             
@@ -149,7 +147,7 @@ apiRouter.post('/payment/init', async (req, res) => {
         const order = req.body;
         const tran_id = order.id;
 
-        const data = {
+        const details = {
             store_id: SSL_STORE_ID,
             store_passwd: SSL_STORE_PASS,
             total_amount: order.paidAmount,
@@ -173,20 +171,28 @@ apiRouter.post('/payment/init', async (req, res) => {
             cus_phone: order.phone || '01700000000',
         };
 
-        const response = await axios.post(SSL_INIT_API, data, {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        const formBody = Object.keys(details)
+            .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(details[key]))
+            .join('&');
+
+        const response = await fetch(SSL_INIT_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formBody
         });
 
-        if (response.data.status === 'SUCCESS') {
+        const data = await response.json();
+
+        if (data.status === 'SUCCESS') {
             const body = toSnake(order);
             const keys = Object.keys(body);
             const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
             const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
             await query(`INSERT INTO orders (${keys.join(', ')}, ssl_tran_id) VALUES (${placeholders}, $${keys.length + 1})`, [...values, tran_id]);
             
-            res.json({ url: response.data.GatewayPageURL });
+            res.json({ url: data.GatewayPageURL });
         } else {
-            throw new Error(response.data.failedreason || "SSL Initialization Failed");
+            throw new Error(data.failedreason || "SSL Initialization Failed");
         }
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -206,11 +212,11 @@ apiRouter.post('/payment/success', async (req, res) => {
 });
 
 apiRouter.post('/payment/fail', (req, res) => {
-    res.redirect(`${APP_BASE_URL}/#/checkout?error=payment_failed`);
+    res.redirect(`${APP_BASE_URL}/#/payment-fail`);
 });
 
 apiRouter.post('/payment/cancel', (req, res) => {
-    res.redirect(`${APP_BASE_URL}/#/checkout?error=payment_cancelled`);
+    res.redirect(`${APP_BASE_URL}/#/payment-cancel`);
 });
 
 apiRouter.post('/payment/ipn', async (req, res) => {
