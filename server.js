@@ -4,12 +4,14 @@ const { Pool } = pg;
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import nodemailer from 'nodemailer';
+import axios from 'axios';
 import 'dotenv/config';
 
 export const app = express();
 
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ extended: true })); // Important for SSLCommerz POST callbacks
 
 // Trace Middleware
 app.use((req, res, next) => {
@@ -41,6 +43,20 @@ const query = async (text, params) => {
     }
 };
 
+// --- SSLCOMMERZ CONFIG ---
+const SSL_STORE_ID = process.env.SSL_STORE_ID;
+const SSL_STORE_PASS = process.env.SSL_STORE_PASS;
+const SSL_IS_LIVE = process.env.SSL_IS_LIVE === 'true';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:5173';
+
+const SSL_INIT_API = SSL_IS_LIVE 
+  ? "https://securepay.sslcommerz.com/gwprocess/v4/api.php" 
+  : "https://sandbox.sslcommerz.com/gwprocess/v4/api.php";
+
+const SSL_VALIDATION_API = SSL_IS_LIVE
+  ? "https://securepay.sslcommerz.com/validator/api/validationserverAPI.php"
+  : "https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php";
+
 // --- RECURSIVE TRANSFORMERS ---
 const toSnake = (obj) => {
     if (obj === null || typeof obj !== 'object') return obj;
@@ -65,7 +81,7 @@ const sendMail = async ({ to, subject, html }) => {
       host: config.smtp_host || process.env.SMTP_HOST || "smtp.gmail.com",
       port: config.smtp_port || process.env.SMTP_PORT || 587,
       secure: config.secure ?? (config.smtp_port === 465), 
-      connectionTimeout: 30000, // 30s Timeout to handle slower handshakes
+      connectionTimeout: 30000, 
       greetingTimeout: 30000,
       socketTimeout: 35000,
       auth: {
@@ -98,6 +114,100 @@ apiRouter.get('/health', async (req, res) => {
     } catch (err) {
         res.status(500).json({ status: 'disconnected', error: err.message });
     }
+});
+
+// --- SSLCOMMERZ HANDLERS ---
+
+apiRouter.post('/payment/init', async (req, res) => {
+    try {
+        const order = req.body;
+        const tran_id = order.id;
+
+        const data = {
+            store_id: SSL_STORE_ID,
+            store_passwd: SSL_STORE_PASS,
+            total_amount: order.paidAmount,
+            currency: 'BDT',
+            tran_id: tran_id,
+            success_url: `${APP_BASE_URL}/api/payment/success?id=${tran_id}`,
+            fail_url: `${APP_BASE_URL}/api/payment/fail?id=${tran_id}`,
+            cancel_url: `${APP_BASE_URL}/api/payment/cancel?id=${tran_id}`,
+            ipn_url: `${APP_BASE_URL}/api/payment/ipn`,
+            shipping_method: 'Courier',
+            product_name: order.items.map(i => i.name).join(', '),
+            product_category: 'Apparel',
+            product_profile: 'general',
+            cus_name: order.customerName,
+            cus_email: order.customerEmail,
+            cus_add1: order.address,
+            cus_city: 'Dhaka',
+            cus_state: 'Dhaka',
+            cus_postcode: '1000',
+            cus_country: 'Bangladesh',
+            cus_phone: order.phone || '01700000000',
+        };
+
+        const response = await axios.post(SSL_INIT_API, data, {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+
+        if (response.data.status === 'SUCCESS') {
+            // Persist order as PENDING_PAYMENT
+            const body = toSnake(order);
+            const keys = Object.keys(body);
+            const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
+            const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+            await query(`INSERT INTO orders (${keys.join(', ')}, ssl_tran_id) VALUES (${placeholders}, $${keys.length + 1})`, [...values, tran_id]);
+            
+            res.json({ url: response.data.GatewayPageURL });
+        } else {
+            throw new Error(response.data.failedreason || "SSL Initialization Failed");
+        }
+    } catch (err) {
+        console.error("Payment Init Error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// SUCCESS CALLBACK
+apiRouter.post('/payment/success', async (req, res) => {
+    const { id } = req.query;
+    const { val_id } = req.body;
+
+    try {
+        // VALIDATE WITH SSL SERVER
+        const validationURL = `${SSL_VALIDATION_API}?val_id=${val_id}&store_id=${SSL_STORE_ID}&store_passwd=${SSL_STORE_PASS}&format=json`;
+        const response = await axios.get(validationURL);
+        const v = response.data;
+
+        if (v.status === 'VALID' || v.status === 'VALIDATED') {
+            await query(
+                `UPDATE orders SET payment_status = $1, ssl_val_id = $2, ssl_payment_details = $3, status = 'In Progress' WHERE id = $4`,
+                ['Fully Paid', val_id, JSON.stringify(v), id]
+            );
+            // Redirect to Success Page on Frontend
+            res.redirect(`${APP_BASE_URL}/#/order-success/${id}`);
+        } else {
+            res.redirect(`${APP_BASE_URL}/#/checkout?error=validation_failed`);
+        }
+    } catch (err) {
+        console.error("Payment Success Error:", err.message);
+        res.redirect(`${APP_BASE_URL}/#/checkout?error=internal_error`);
+    }
+});
+
+apiRouter.post('/payment/fail', (req, res) => {
+    res.redirect(`${APP_BASE_URL}/#/checkout?error=payment_failed`);
+});
+
+apiRouter.post('/payment/cancel', (req, res) => {
+    res.redirect(`${APP_BASE_URL}/#/checkout?error=payment_cancelled`);
+});
+
+apiRouter.post('/payment/ipn', async (req, res) => {
+    console.log("IPN Received:", req.body);
+    // Add logic here to verify if order is not already updated
+    res.status(200).send("IPN Received");
 });
 
 const setupCRUD = (route, table) => {

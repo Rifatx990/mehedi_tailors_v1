@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { dbService } from '../services/DatabaseService';
 import { 
   CreditCardIcon, 
   BanknotesIcon, 
@@ -8,7 +9,8 @@ import {
   ShieldCheckIcon,
   WalletIcon,
   ReceiptPercentIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
+  ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
 
 const CheckoutPage: React.FC = () => {
@@ -18,10 +20,19 @@ const CheckoutPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'sslcommerz'>('cod');
   const [paymentType, setPaymentType] = useState<'full' | 'advance'>('full');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const cartState = location.state || {};
   const discountAmount = cartState.discountAmount || 0;
   
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const error = params.get('error');
+    if (error === 'payment_failed') setErrorMessage('The payment transaction failed. Please try again.');
+    if (error === 'payment_cancelled') setErrorMessage('The payment was cancelled by the user.');
+    if (error === 'validation_failed') setErrorMessage('Payment verification failed. Please contact support.');
+  }, [location]);
+
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -48,20 +59,15 @@ const CheckoutPage: React.FC = () => {
     e.preventDefault();
     if (cart.length === 0) return;
     
-    // Guard for Digital Payment
-    if (paymentMethod === 'sslcommerz') {
-      alert("Digital Payment Gateway (SSLCommerz) is coming soon. Please select 'Cash on Delivery' to finalize your order.");
-      return;
-    }
-    
     setIsProcessing(true);
+    setErrorMessage('');
 
     // Collect first bespoke item's parameters for root order tracking
     const bespokeItem = cart.find(i => i.isCustomOrder);
+    const orderId = `MT-${Math.floor(100000 + Math.random() * 900000)}`;
 
-    setTimeout(() => {
-      const newOrder = {
-        id: `MT-${Math.floor(100000 + Math.random() * 900000)}`,
+    const newOrder = {
+        id: orderId,
         date: new Date().toISOString(),
         status: 'Pending' as const,
         productionStep: 'Queue' as const,
@@ -72,19 +78,36 @@ const CheckoutPage: React.FC = () => {
         paidAmount: currentPaymentRequirement,
         dueAmount: paymentType === 'full' ? 0 : dueAmount,
         items: [...cart],
-        paymentMethod: paymentMethod === 'cod' ? 'Cash on Delivery' : 'SSLCommerz',
+        paymentMethod: paymentMethod === 'cod' ? 'Cash on Delivery' : 'SSLCommerz Digital',
         address: `${formData.address}, ${formData.area}, ${formData.city}`,
         customerName: formData.name,
         customerEmail: formData.email,
+        phone: formData.phone,
         bespokeNote: bespokeItem?.bespokeNote,
         bespokeType: bespokeItem?.bespokeType,
         deliveryDate: bespokeItem?.deliveryDate
-      };
+    };
 
-      placeOrder(newOrder);
-      setIsProcessing(false);
-      navigate(`/order-success/${newOrder.id}`);
-    }, 1500);
+    if (paymentMethod === 'sslcommerz') {
+      try {
+        const response = await dbService.initPayment(newOrder);
+        if (response.url) {
+            window.location.href = response.url; // Redirect to SSL Gateway
+        } else {
+            throw new Error("Invalid response from gateway.");
+        }
+      } catch (err: any) {
+        setErrorMessage(err.message || "Failed to initiate digital payment.");
+        setIsProcessing(false);
+      }
+    } else {
+      // Standard COD Logic
+      setTimeout(async () => {
+        await placeOrder(newOrder);
+        setIsProcessing(false);
+        navigate(`/order-success/${newOrder.id}`);
+      }, 1500);
+    }
   };
 
   if (cart.length === 0) {
@@ -101,7 +124,8 @@ const CheckoutPage: React.FC = () => {
       {isProcessing && (
         <div className="fixed inset-0 z-[100] bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center">
           <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mb-6"></div>
-          <h2 className="text-2xl font-bold serif">Securing Bespoke Order...</h2>
+          <h2 className="text-2xl font-bold serif text-slate-900">Connecting to Secured Gateway...</h2>
+          <p className="text-slate-400 mt-2 text-sm uppercase tracking-widest font-black">Encryption Handshake Active</p>
         </div>
       )}
 
@@ -110,6 +134,13 @@ const CheckoutPage: React.FC = () => {
           <ChevronLeftIcon className="w-4 h-4 mr-1" />
           Back to Bag
         </Link>
+
+        {errorMessage && (
+            <div className="mb-8 p-6 bg-rose-50 border border-rose-100 rounded-3xl flex items-center space-x-4 text-rose-600 animate-in slide-in-from-top-4">
+                <ExclamationCircleIcon className="w-8 h-8 shrink-0" />
+                <p className="font-bold text-sm">{errorMessage}</p>
+            </div>
+        )}
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           <div className="lg:col-span-7 space-y-8">
@@ -182,8 +213,8 @@ const CheckoutPage: React.FC = () => {
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start space-x-3 animate-in fade-in zoom-in duration-300">
                     <InformationCircleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-[11px] font-bold uppercase text-amber-800 tracking-widest">Coming Soon</p>
-                      <p className="text-xs text-amber-700 leading-relaxed mt-1">Our digital payment gateway is under final security calibration. <strong>Please select 'Cash' method instead</strong> to finalize your artisan commission today.</p>
+                      <p className="text-[11px] font-bold uppercase text-amber-800 tracking-widest">Secured by SSLCommerz</p>
+                      <p className="text-xs text-amber-700 leading-relaxed mt-1">You will be redirected to the secure portal to complete your transaction via Card, bKash, Rocket, or Nagad.</p>
                     </div>
                   </div>
                 )}
@@ -213,7 +244,7 @@ const CheckoutPage: React.FC = () => {
               
               <div className="bg-white/5 p-6 rounded-2xl border border-white/10 mb-8">
                  <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500 mb-2">Requirement Today</p>
-                 <p className="text-4xl font-bold">BDT {paymentMethod === 'cod' ? (paymentType === 'full' ? total : advanceAmount) : '0'}</p>
+                 <p className="text-4xl font-bold">BDT {paymentType === 'full' ? total.toLocaleString() : advanceAmount.toLocaleString()}</p>
                  {paymentType === 'advance' && (
                     <p className="text-[10px] text-slate-400 mt-3 font-medium uppercase tracking-widest italic">Balance BDT {dueAmount.toLocaleString()} due on calibration fitting.</p>
                  )}
@@ -221,9 +252,9 @@ const CheckoutPage: React.FC = () => {
               
               <button 
                 type="submit" 
-                className={`w-full py-5 rounded-2xl font-bold uppercase tracking-widest transition shadow-xl flex items-center justify-center space-x-3 ${paymentMethod === 'sslcommerz' ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-amber-600 text-white hover:bg-amber-700 shadow-amber-600/20'}`}
+                className="w-full py-5 rounded-2xl font-bold uppercase tracking-widest transition shadow-xl flex items-center justify-center space-x-3 bg-amber-600 text-white hover:bg-amber-700 shadow-amber-600/20"
               >
-                <span>Finalize Contract</span>
+                <span>{paymentMethod === 'sslcommerz' ? 'Authorize Payment' : 'Finalize Contract'}</span>
                 <ShieldCheckIcon className="w-5 h-5" />
               </button>
             </div>

@@ -15,13 +15,13 @@ const poolConfig = process.env.DATABASE_URL
 const pool = new Pool(poolConfig);
 
 const SCHEMA = `
--- ATELIER ARCHITECTURAL SCHEMA V18.0
+-- ATELIER ARCHITECTURAL SCHEMA V19.0 (SSLCommerz Enhanced)
 CREATE TABLE IF NOT EXISTS system_config (
     id SERIAL PRIMARY KEY,
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '18.0.0-PRO',
+    db_version TEXT DEFAULT '19.0.0-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -84,14 +84,18 @@ CREATE TABLE IF NOT EXISTS orders (
     customer_email TEXT,
     bespoke_note TEXT,
     bespoke_type TEXT,
-    delivery_date TEXT
+    delivery_date TEXT,
+    -- SSLCommerz Audit Columns
+    ssl_tran_id TEXT,
+    ssl_val_id TEXT,
+    ssl_payment_details JSONB
 );
 
--- MIGRATION PROTOCOL V18
+-- MIGRATION PROTOCOL V19
 DO $$ BEGIN 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='bespoke_note') THEN ALTER TABLE orders ADD COLUMN bespoke_note TEXT; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='bespoke_type') THEN ALTER TABLE orders ADD COLUMN bespoke_type TEXT; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='delivery_date') THEN ALTER TABLE orders ADD COLUMN delivery_date TEXT; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='ssl_tran_id') THEN ALTER TABLE orders ADD COLUMN ssl_tran_id TEXT; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='ssl_val_id') THEN ALTER TABLE orders ADD COLUMN ssl_val_id TEXT; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='ssl_payment_details') THEN ALTER TABLE orders ADD COLUMN ssl_payment_details JSONB; END IF;
 END $$;
 
 CREATE TABLE IF NOT EXISTS dues (
@@ -146,7 +150,7 @@ END $$;
 `;
 
 const SEED_DATA = {
-    config: { id: 1, site_name: 'Mehedi Tailors & Fabrics', site_logo: 'https://i.imgur.com/8H9IeM5.png', document_logo: 'https://i.imgur.com/8H9IeM5.png', db_version: '18.0.0-PRO' },
+    config: { id: 1, site_name: 'Mehedi Tailors & Fabrics', site_logo: 'https://i.imgur.com/8H9IeM5.png', document_logo: 'https://i.imgur.com/8H9IeM5.png', db_version: '19.0.0-PRO' },
     users: [
         { id: 'adm-001', name: 'Master Admin', email: 'admin@meheditailors.com', role: 'admin', password: 'admin123', phone: '+8801720267213', address: 'Atelier Savar' },
         { id: 'wrk-001', name: 'Artisan Kabir', email: 'worker@meheditailors.com', role: 'worker', password: 'worker123', phone: '+8801720267214', specialization: 'Master Stitcher', experience: '15 Years', join_date: '2024-01-01' }
@@ -154,7 +158,7 @@ const SEED_DATA = {
 };
 
 async function run() {
-    console.log('--- MEHEDI ATELIER: DB INITIALIZATION V18 ---');
+    console.log('--- MEHEDI ATELIER: DB INITIALIZATION V19 ---');
     try {
         const client = await pool.connect();
         await client.query(SCHEMA);

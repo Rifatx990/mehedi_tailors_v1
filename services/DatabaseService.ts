@@ -45,6 +45,14 @@ export class DatabaseService {
     });
   }
 
+  // --- SSLCOMMERZ HANDSHAKE ---
+  async initPayment(order: any) {
+    return this.request<any>('/payment/init', {
+      method: 'POST',
+      body: JSON.stringify(order)
+    });
+  }
+
   async getUsers() { return this.request<any[]>('/users'); }
   async saveUser(user: any) { 
     return this.request<any>(`/users${user.id && !user._isNew ? `/${user.id}` : ''}`, {
