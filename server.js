@@ -11,7 +11,7 @@ export const app = express();
 
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
-app.use(bodyParser.urlencoded({ extended: true })); // Important for SSLCommerz POST callbacks
+app.use(bodyParser.urlencoded({ extended: true }));
 
 // Trace Middleware
 app.use((req, res, next) => {
@@ -107,16 +107,42 @@ const sendMail = async ({ to, subject, html }) => {
 
 const apiRouter = express.Router();
 
-apiRouter.get('/health', async (req, res) => {
-    try {
-        await query('SELECT 1');
-        res.json({ status: 'connected' });
-    } catch (err) {
-        res.status(500).json({ status: 'disconnected', error: err.message });
-    }
-});
+// --- SSLCOMMERZ CORE SECURED LOGIC ---
 
-// --- SSLCOMMERZ HANDLERS ---
+const verifyAndFinalizePayment = async (orderId, valId) => {
+    try {
+        const validationURL = `${SSL_VALIDATION_API}?val_id=${valId}&store_id=${SSL_STORE_ID}&store_passwd=${SSL_STORE_PASS}&format=json`;
+        const response = await axios.get(validationURL);
+        const v = response.data;
+
+        if (v.status === 'VALID' || v.status === 'VALIDATED') {
+            // Fetch initial order state to see if it was an advance or full payment
+            const orderRes = await query('SELECT total, paid_amount FROM orders WHERE id = $1', [orderId]);
+            if (orderRes.rowCount === 0) throw new Error("Order lost in archive.");
+            
+            const order = orderRes.rows[0];
+            const isFullPayment = Number(v.amount) >= Number(order.total);
+            const newPaymentStatus = isFullPayment ? 'Fully Paid' : 'Partially Paid';
+
+            await query(
+                `UPDATE orders SET payment_status = $1, ssl_val_id = $2, ssl_payment_details = $3, status = 'In Progress' WHERE id = $4`,
+                [newPaymentStatus, valId, JSON.stringify(v), orderId]
+            );
+
+            await sendMail({
+                to: v.cus_email,
+                subject: `Handshake Confirmed: Order #${orderId}`,
+                html: `<h2>Sartorial Confirmation</h2><p>Your payment of BDT ${v.amount} for Order #${orderId} has been verified.</p><p>Artisans have been notified to begin production.</p>`
+            });
+
+            return { success: true, orderId };
+        }
+        return { success: false, reason: v.status };
+    } catch (err) {
+        console.error("Finalization Error:", err.message);
+        return { success: false, error: err.message };
+    }
+};
 
 apiRouter.post('/payment/init', async (req, res) => {
     try {
@@ -152,7 +178,6 @@ apiRouter.post('/payment/init', async (req, res) => {
         });
 
         if (response.data.status === 'SUCCESS') {
-            // Persist order as PENDING_PAYMENT
             const body = toSnake(order);
             const keys = Object.keys(body);
             const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
@@ -164,35 +189,19 @@ apiRouter.post('/payment/init', async (req, res) => {
             throw new Error(response.data.failedreason || "SSL Initialization Failed");
         }
     } catch (err) {
-        console.error("Payment Init Error:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
-// SUCCESS CALLBACK
 apiRouter.post('/payment/success', async (req, res) => {
     const { id } = req.query;
     const { val_id } = req.body;
-
-    try {
-        // VALIDATE WITH SSL SERVER
-        const validationURL = `${SSL_VALIDATION_API}?val_id=${val_id}&store_id=${SSL_STORE_ID}&store_passwd=${SSL_STORE_PASS}&format=json`;
-        const response = await axios.get(validationURL);
-        const v = response.data;
-
-        if (v.status === 'VALID' || v.status === 'VALIDATED') {
-            await query(
-                `UPDATE orders SET payment_status = $1, ssl_val_id = $2, ssl_payment_details = $3, status = 'In Progress' WHERE id = $4`,
-                ['Fully Paid', val_id, JSON.stringify(v), id]
-            );
-            // Redirect to Success Page on Frontend
-            res.redirect(`${APP_BASE_URL}/#/order-success/${id}`);
-        } else {
-            res.redirect(`${APP_BASE_URL}/#/checkout?error=validation_failed`);
-        }
-    } catch (err) {
-        console.error("Payment Success Error:", err.message);
-        res.redirect(`${APP_BASE_URL}/#/checkout?error=internal_error`);
+    const result = await verifyAndFinalizePayment(id, val_id);
+    
+    if (result.success) {
+        res.redirect(`${APP_BASE_URL}/#/order-success/${id}`);
+    } else {
+        res.redirect(`${APP_BASE_URL}/#/checkout?error=validation_failed`);
     }
 });
 
@@ -205,10 +214,15 @@ apiRouter.post('/payment/cancel', (req, res) => {
 });
 
 apiRouter.post('/payment/ipn', async (req, res) => {
-    console.log("IPN Received:", req.body);
-    // Add logic here to verify if order is not already updated
-    res.status(200).send("IPN Received");
+    const { tran_id, val_id, status } = req.body;
+    if (status === 'VALID' || status === 'VALIDATED') {
+        console.log(`[IPN] Validating background transaction for ${tran_id}`);
+        await verifyAndFinalizePayment(tran_id, val_id);
+    }
+    res.status(200).send("IPN Processed");
 });
+
+// --- RESTFUL ENDPOINTS ---
 
 const setupCRUD = (route, table) => {
     apiRouter.get(`/${route}`, async (req, res) => {
@@ -253,7 +267,6 @@ const setupCRUD = (route, table) => {
     });
 };
 
-// Core Routes
 setupCRUD('users', 'users');
 setupCRUD('products', 'products');
 setupCRUD('upcoming', 'upcoming_products');
@@ -272,7 +285,6 @@ setupCRUD('product-requests', 'product_requests');
 setupCRUD('reviews', 'reviews');
 setupCRUD('bespoke-services', 'bespoke_services');
 
-// Custom Order Handlers (uses PATCH for partial updates)
 apiRouter.patch('/orders/:id', async (req, res) => {
     try {
         const fields = toSnake(req.body);
@@ -329,7 +341,6 @@ apiRouter.post('/verify-smtp', async (req, res) => {
         await transporter.verify();
         res.json({ success: true, message: "Handshake Successful" });
     } catch (err) {
-        console.error("SMTP Verify Failed:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });

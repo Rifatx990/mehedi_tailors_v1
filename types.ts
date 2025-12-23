@@ -207,6 +207,10 @@ export interface Order {
   bespokeNote?: string;
   bespokeType?: BespokeType;
   deliveryDate?: string;
+  // SSLCommerz Extended
+  sslTranId?: string;
+  sslValId?: string;
+  sslPaymentDetails?: any;
 }
 
 export interface User {
