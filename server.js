@@ -12,14 +12,6 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Trace Middleware
-app.use((req, res, next) => {
-    if (req.url.startsWith('/api')) {
-        console.log(`[GATEWAY] ${new Date().toLocaleTimeString()} | ${req.method} ${req.url}`);
-    }
-    next();
-});
-
 const poolConfig = process.env.DATABASE_URL 
   ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
   : {
@@ -42,7 +34,6 @@ const query = async (text, params) => {
     }
 };
 
-// --- SSLCOMMERZ CONFIG ---
 const SSL_STORE_ID = process.env.SSL_STORE_ID;
 const SSL_STORE_PASS = process.env.SSL_STORE_PASS;
 const SSL_IS_LIVE = process.env.SSL_IS_LIVE === 'true';
@@ -56,11 +47,9 @@ const SSL_VALIDATION_API = SSL_IS_LIVE
   ? "https://securepay.sslcommerz.com/validator/api/validationserverAPI.php"
   : "https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php";
 
-// --- RECURSIVE TRANSFORMERS ---
 const toSnake = (obj) => {
     if (obj === null || typeof obj !== 'object') return obj;
     if (Array.isArray(obj)) return obj.map(toSnake);
-    
     const snake = {};
     for (let key in obj) {
         if (key.startsWith('_')) continue;
@@ -70,83 +59,34 @@ const toSnake = (obj) => {
     return snake;
 };
 
-// --- ROBUST SMTP SYSTEM ---
-const sendMail = async ({ to, subject, html }) => {
-  try {
-    const configRes = await query('SELECT * FROM system_config WHERE id = 1');
-    const config = configRes.rows[0] || {};
-
-    const transporter = nodemailer.createTransport({
-      host: config.smtp_host || process.env.SMTP_HOST || "smtp.gmail.com",
-      port: config.smtp_port || process.env.SMTP_PORT || 587,
-      secure: config.secure ?? (config.smtp_port === 465), 
-      connectionTimeout: 30000, 
-      greetingTimeout: 30000,
-      socketTimeout: 35000,
-      auth: {
-        user: config.smtp_user || process.env.SMTP_USER,
-        pass: config.smtp_pass || process.env.SMTP_PASS
-      }
-    });
-
-    const info = await transporter.sendMail({
-      from: `"${config.site_name || 'Mehedi Tailors & Fabrics'}" <${config.smtp_user || process.env.SMTP_USER}>`,
-      to,
-      subject,
-      html
-    });
-
-    console.log("✅ Email Sent:", info.messageId);
-    return true;
-  } catch (err) {
-    console.error("❌ Email Failed:", err.message);
-    return false;
-  }
-};
-
-const apiRouter = express.Router();
-
-// --- SSLCOMMERZ CORE SECURED LOGIC (Using Native Fetch) ---
-
-const verifyAndFinalizePayment = async (orderId, valId) => {
+const validateAndUpdateOrder = async (orderId, valId) => {
     try {
         const validationURL = `${SSL_VALIDATION_API}?val_id=${valId}&store_id=${SSL_STORE_ID}&store_passwd=${SSL_STORE_PASS}&format=json`;
         const response = await fetch(validationURL);
         const v = await response.json();
 
         if (v.status === 'VALID' || v.status === 'VALIDATED') {
-            const orderRes = await query('SELECT total, paid_amount FROM orders WHERE id = $1', [orderId]);
-            if (orderRes.rowCount === 0) throw new Error("Order lost in archive.");
-            
-            const order = orderRes.rows[0];
-            const isFullPayment = Number(v.amount) >= Number(order.total);
-            const newPaymentStatus = isFullPayment ? 'Fully Paid' : 'Partially Paid';
-
             await query(
                 `UPDATE orders SET payment_status = $1, ssl_val_id = $2, ssl_payment_details = $3, status = 'In Progress' WHERE id = $4`,
-                [newPaymentStatus, valId, JSON.stringify(v), orderId]
+                ['Fully Paid', valId, JSON.stringify(v), orderId]
             );
-
-            await sendMail({
-                to: v.cus_email,
-                subject: `Handshake Confirmed: Order #${orderId}`,
-                html: `<h2>Sartorial Confirmation</h2><p>Your payment of BDT ${v.amount} for Order #${orderId} has been verified.</p><p>Artisans have been notified to begin production.</p>`
-            });
-
-            return { success: true, orderId };
+            return true;
         }
-        return { success: false, reason: v.status };
+        return false;
     } catch (err) {
-        console.error("Finalization Error:", err.message);
-        return { success: false, error: err.message };
+        console.error("SSL Validation Error:", err.message);
+        return false;
     }
 };
+
+const apiRouter = express.Router();
 
 apiRouter.post('/payment/init', async (req, res) => {
     try {
         const order = req.body;
         const tran_id = order.id;
 
+        // SSLCommerz Mandatory Payload V4
         const details = {
             store_id: SSL_STORE_ID,
             store_passwd: SSL_STORE_PASS,
@@ -157,18 +97,29 @@ apiRouter.post('/payment/init', async (req, res) => {
             fail_url: `${APP_BASE_URL}/api/payment/fail?id=${tran_id}`,
             cancel_url: `${APP_BASE_URL}/api/payment/cancel?id=${tran_id}`,
             ipn_url: `${APP_BASE_URL}/api/payment/ipn`,
-            shipping_method: 'Courier',
-            product_name: order.items.map(i => i.name).join(', '),
+            shipping_method: 'YES', // Set to YES for physical products
+            num_of_item: order.items.length,
+            product_name: order.items.map(i => i.name).join(', ').substring(0, 255),
             product_category: 'Apparel',
-            product_profile: 'general',
-            cus_name: order.customerName,
-            cus_email: order.customerEmail,
-            cus_add1: order.address,
+            product_profile: 'physical-goods',
+            // Customer Information (Mandatory)
+            cus_name: order.customerName || 'Anonymous Patron',
+            cus_email: order.customerEmail || 'patron@meheditailors.com',
+            cus_add1: order.address || 'Ashulia, Savar',
+            cus_add2: 'Dhaka',
             cus_city: 'Dhaka',
             cus_state: 'Dhaka',
             cus_postcode: '1000',
             cus_country: 'Bangladesh',
             cus_phone: order.phone || '01700000000',
+            // Shipping Information (MANDATORY FIX)
+            ship_name: order.customerName || 'Anonymous Patron',
+            ship_add1: order.address || 'Ashulia, Savar',
+            ship_add2: 'Dhaka',
+            ship_city: 'Dhaka',
+            ship_state: 'Dhaka',
+            ship_postcode: '1000',
+            ship_country: 'Bangladesh'
         };
 
         const formBody = Object.keys(details)
@@ -188,13 +139,16 @@ apiRouter.post('/payment/init', async (req, res) => {
             const keys = Object.keys(body);
             const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
             const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+            
             await query(`INSERT INTO orders (${keys.join(', ')}, ssl_tran_id) VALUES (${placeholders}, $${keys.length + 1})`, [...values, tran_id]);
             
             res.json({ url: data.GatewayPageURL });
         } else {
+            console.error("SSL Error Response:", data);
             throw new Error(data.failedreason || "SSL Initialization Failed");
         }
     } catch (err) {
+        console.error("Backend Payment Error:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -202,12 +156,11 @@ apiRouter.post('/payment/init', async (req, res) => {
 apiRouter.post('/payment/success', async (req, res) => {
     const { id } = req.query;
     const { val_id } = req.body;
-    const result = await verifyAndFinalizePayment(id, val_id);
-    
-    if (result.success) {
+    const isValid = await validateAndUpdateOrder(id, val_id);
+    if (isValid) {
         res.redirect(`${APP_BASE_URL}/#/order-success/${id}`);
     } else {
-        res.redirect(`${APP_BASE_URL}/#/checkout?error=validation_failed`);
+        res.redirect(`${APP_BASE_URL}/#/payment-fail?error=validation_failed`);
     }
 });
 
@@ -222,13 +175,10 @@ apiRouter.post('/payment/cancel', (req, res) => {
 apiRouter.post('/payment/ipn', async (req, res) => {
     const { tran_id, val_id, status } = req.body;
     if (status === 'VALID' || status === 'VALIDATED') {
-        console.log(`[IPN] Validating background transaction for ${tran_id}`);
-        await verifyAndFinalizePayment(tran_id, val_id);
+        await validateAndUpdateOrder(tran_id, val_id);
     }
     res.status(200).send("IPN Processed");
 });
-
-// --- RESTFUL ENDPOINTS ---
 
 const setupCRUD = (route, table) => {
     apiRouter.get(`/${route}`, async (req, res) => {
@@ -301,14 +251,6 @@ apiRouter.patch('/orders/:id', async (req, res) => {
         );
         const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
         const result = await query(`UPDATE orders SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
-        
-        if (req.body.status) {
-            await sendMail({
-                to: result.rows[0].customer_email,
-                subject: `Order Status Updated: #${req.params.id}`,
-                html: `<h2>Order Update</h2><p>Your artisan commission #${req.params.id} status is now: <strong>${req.body.status}</strong></p><p>View your dashboard for details.</p>`
-            });
-        }
         res.json(result.rows[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });

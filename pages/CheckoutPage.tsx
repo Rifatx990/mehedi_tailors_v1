@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useStore } from '../context/StoreContext';
+import { useStore } from '../context/StoreContext.tsx';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { dbService } from '../services/DatabaseService';
+import { dbService } from '../services/DatabaseService.ts';
 import { 
   CreditCardIcon, 
   BanknotesIcon, 
@@ -90,9 +90,10 @@ const CheckoutPage: React.FC = () => {
 
     if (paymentMethod === 'sslcommerz') {
       try {
-        const response = await dbService.initPayment(newOrder);
+        // HANDSHAKE: Call our API to initiate SSLCommerz
+        const response: any = await dbService.initPayment(newOrder);
         if (response.url) {
-            window.location.href = response.url;
+            window.location.href = response.url; // Redirect to Bank Gateway
         } else {
             throw new Error("Handshake rejected by SSLCommerz gateway.");
         }
@@ -101,6 +102,7 @@ const CheckoutPage: React.FC = () => {
         setIsProcessing(false);
       }
     } else {
+      // Standard COD Flow
       setTimeout(async () => {
         await placeOrder(newOrder);
         setIsProcessing(false);
