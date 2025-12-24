@@ -8,14 +8,19 @@ import 'dotenv/config';
 
 export const app = express();
 
+// Middleware
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Database configuration with enhanced resilience
 const poolConfig = process.env.DATABASE_URL 
   ? { 
       connectionString: process.env.DATABASE_URL, 
-      ssl: { rejectUnauthorized: false } 
+      ssl: { rejectUnauthorized: false },
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000
     }
   : {
       user: process.env.DB_USER || 'postgres',
@@ -24,17 +29,21 @@ const poolConfig = process.env.DATABASE_URL
       password: process.env.DB_PASSWORD || 'postgres',
       port: parseInt(process.env.DB_PORT || '5432'),
       ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 30000
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000
     };
 
 const pool = new Pool(poolConfig);
 
+// SQL Execution Wrapper
 const query = async (text, params) => {
+    const start = Date.now();
     try {
-        return await pool.query(text, params);
+        const res = await pool.query(text, params);
+        return res;
     } catch (err) {
-        console.error('SQL Ledger Error:', err.message);
+        console.error('PostgreSQL Connection Error:', err.message);
         throw err;
     }
 };
@@ -51,11 +60,13 @@ const toSnake = (obj) => {
     return snake;
 };
 
-// --- CORE ROUTES ---
-app.get('/health', async (req, res) => {
+// --- API ROUTER ---
+const router = express.Router();
+
+router.get('/health', async (req, res) => {
     try {
         await query('SELECT 1');
-        res.json({ status: 'connected', timestamp: new Date() });
+        res.json({ status: 'connected', timestamp: new Date(), engine: 'MT-POSTGRES-PRO-V2' });
     } catch (err) {
         res.status(503).json({ status: 'disconnected', error: err.message });
     }
@@ -85,12 +96,12 @@ async function getBkashToken() {
         );
         return response.data.id_token;
     } catch (err) {
-        console.error("bKash Token Grant Failure:", err.response?.data || err.message);
-        throw new Error("bKash Handshake Denied");
+        console.error("bKash Authentication Failure:", err.response?.data || err.message);
+        throw new Error("bKash Handshake Denied: Verify credentials in ENV.");
     }
 }
 
-app.post('/bkash/create', async (req, res) => {
+router.post('/bkash/create', async (req, res) => {
     try {
         const order = req.body;
         const token = await getBkashToken();
@@ -114,7 +125,7 @@ app.post('/bkash/create', async (req, res) => {
             }
         );
 
-        // Persistent Pre-save
+        // Record intent in DB before redirect
         const body = toSnake(order);
         const keys = Object.keys(body);
         const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
@@ -123,12 +134,12 @@ app.post('/bkash/create', async (req, res) => {
 
         res.json(response.data);
     } catch (err) {
-        console.error("bKash Payment Creation Failure:", err.response?.data || err.message);
-        res.status(500).json({ error: "bKash system rejected request" });
+        console.error("bKash Create Error:", err.response?.data || err.message);
+        res.status(500).json({ error: "Failed to initiate bKash payment." });
     }
 });
 
-app.get('/bkash/callback', async (req, res) => {
+router.get('/bkash/callback', async (req, res) => {
     const { id, paymentID, status } = req.query;
     if (status === 'success') {
         res.redirect(`${APP_BASE_URL}/#/checkout?bkash_status=execute&paymentID=${paymentID}&orderId=${id}`);
@@ -137,7 +148,7 @@ app.get('/bkash/callback', async (req, res) => {
     }
 });
 
-app.post('/bkash/execute', async (req, res) => {
+router.post('/bkash/execute', async (req, res) => {
     try {
         const { paymentID, orderId } = req.body;
         const token = await getBkashToken();
@@ -160,14 +171,14 @@ app.post('/bkash/execute', async (req, res) => {
             );
             return res.json({ success: true, trxID: response.data.trxID, paymentID });
         }
-        res.status(400).json({ error: "Authorization incomplete", status: response.data.transactionStatus });
+        res.status(400).json({ error: "Transaction verification incomplete.", status: response.data.transactionStatus });
     } catch (err) {
-        console.error("bKash Execution Failure:", err.response?.data || err.message);
-        res.status(500).json({ error: "bKash execute phase failed" });
+        console.error("bKash Execute Error:", err.response?.data || err.message);
+        res.status(500).json({ error: "bKash execution phase failed." });
     }
 });
 
-app.get('/bkash/verify/:paymentID', async (req, res) => {
+router.get('/bkash/verify/:paymentID', async (req, res) => {
     try {
         const token = await getBkashToken();
         const response = await axios.get(
@@ -182,60 +193,43 @@ app.get('/bkash/verify/:paymentID', async (req, res) => {
         );
         res.json(response.data);
     } catch (err) {
-        res.status(500).json({ error: "Verification protocol failed" });
+        res.status(500).json({ error: "External verification failed." });
     }
 });
 
-// --- SSLCOMMERZ GATEWAY ---
-const { SSL_STORE_ID, SSL_STORE_PASS, SSL_IS_LIVE } = process.env;
-const SSL_INIT_API = (SSL_IS_LIVE === 'true') ? "https://securepay.sslcommerz.com/gwprocess/v4/api.php" : "https://sandbox.sslcommerz.com/gwprocess/v4/api.php";
-
-app.post('/payment/init', async (req, res) => {
-    try {
-        const order = req.body;
-        const details = {
-            store_id: SSL_STORE_ID, store_passwd: SSL_STORE_PASS, total_amount: order.paidAmount, currency: 'BDT', tran_id: order.id,
-            success_url: `${APP_BASE_URL}/api/payment/success?id=${order.id}`,
-            fail_url: `${APP_BASE_URL}/api/payment/fail?id=${order.id}`,
-            cancel_url: `${APP_BASE_URL}/api/payment/cancel?id=${order.id}`,
-            shipping_method: 'YES', num_of_item: order.items.length, product_name: order.items.map(i => i.name).join(', '),
-            product_category: 'Apparel', product_profile: 'physical-goods',
-            cus_name: order.customerName, cus_email: order.customerEmail, cus_add1: order.address, cus_city: 'Dhaka', cus_country: 'Bangladesh', cus_phone: order.phone
-        };
-        const formBody = Object.keys(details).map(key => encodeURIComponent(key) + '=' + encodeURIComponent(details[key])).join('&');
-        const response = await axios.post(SSL_INIT_API, formBody, {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-        });
-        if (response.data.status === 'SUCCESS') res.json({ url: response.data.GatewayPageURL });
-        else throw new Error(response.data.failedreason || "SSL Initialization Error");
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// --- CRUD ENGINE ---
+// --- CORE CRUD HANDLERS ---
 const setupCRUD = (route, table) => {
-    app.get(`/${route}`, async (req, res) => {
-        try { res.json((await query(`SELECT * FROM ${table} ORDER BY id DESC`)).rows); } catch (e) { res.status(500).json({ error: e.message }); }
+    router.get(`/${route}`, async (req, res) => {
+        try { 
+            const result = await query(`SELECT * FROM ${table} ORDER BY id DESC`);
+            res.json(result.rows); 
+        } catch (e) { res.status(500).json({ error: e.message }); }
     });
-    app.post(`/${route}`, async (req, res) => {
+    router.post(`/${route}`, async (req, res) => {
         try {
             const body = toSnake(req.body);
             const keys = Object.keys(body);
             const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null));
             const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-            res.json((await query(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`, values)).rows[0]);
+            const result = await query(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`, values);
+            res.json(result.rows[0]);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
-    app.put(`/${route}/:id`, async (req, res) => {
+    router.put(`/${route}/:id`, async (req, res) => {
         try {
             const body = toSnake(req.body); delete body.id;
             const keys = Object.keys(body);
             const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null));
             const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
-            res.json((await query(`UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values])).rows[0]);
+            const result = await query(`UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
+            res.json(result.rows[0]);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
-    app.delete(`/${route}/:id`, async (req, res) => {
-        try { await query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]); res.json({ success: true }); } catch (e) { res.status(500).json({ error: e.message }); }
+    router.delete(`/${route}/:id`, async (req, res) => {
+        try { 
+            await query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]); 
+            res.json({ success: true }); 
+        } catch (e) { res.status(500).json({ error: e.message }); }
     });
 };
 
@@ -253,13 +247,23 @@ setupCRUD('offers', 'offers');
 setupCRUD('partners', 'partners');
 setupCRUD('upcoming', 'upcoming_products');
 
-app.get('/config', async (req, res) => { res.json((await query('SELECT * FROM system_config WHERE id = 1')).rows[0] || {}); });
-app.put('/config', async (req, res) => {
+router.get('/config', async (req, res) => { 
+    try {
+        const result = await query('SELECT * FROM system_config WHERE id = 1');
+        res.json(result.rows[0] || {}); 
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.put('/config', async (req, res) => {
     try {
         const fields = toSnake(req.body); delete fields.id;
         const keys = Object.keys(fields);
         const values = Object.values(fields).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null));
         const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
-        res.json((await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values)).rows[0]);
+        const result = await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values);
+        res.json(result.rows[0]);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// Final mounting: Vite strips the /api prefix before reaching this handler.
+app.use('/', router);

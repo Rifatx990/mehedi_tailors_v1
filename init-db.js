@@ -3,7 +3,11 @@ const { Pool } = pg;
 import 'dotenv/config';
 
 const poolConfig = process.env.DATABASE_URL 
-  ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
+  ? { 
+      connectionString: process.env.DATABASE_URL, 
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000
+    }
   : {
       user: process.env.DB_USER || 'postgres',
       host: process.env.DB_HOST || '127.0.0.1',
@@ -107,18 +111,23 @@ CREATE TABLE IF NOT EXISTS product_requests ( id TEXT PRIMARY KEY, user_name TEX
 CREATE TABLE IF NOT EXISTS reviews ( id TEXT PRIMARY KEY, user_name TEXT, rating INTEGER, comment TEXT, date TEXT, status TEXT DEFAULT 'pending' );
 CREATE TABLE IF NOT EXISTS email_logs ( id TEXT PRIMARY KEY, recipient TEXT NOT NULL, subject TEXT, body TEXT, timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, status TEXT, template_id TEXT );
 CREATE TABLE IF NOT EXISTS partners ( id TEXT PRIMARY KEY, name TEXT NOT NULL, logo TEXT, is_active BOOLEAN DEFAULT true );
+
+-- Performance Indices
+CREATE INDEX IF NOT EXISTS idx_orders_customer_email ON orders(customer_email);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 `;
 
 async function run() {
+    console.log('Initiating Relational Ledger Handshake...');
     let client;
     try {
         client = await pool.connect();
         await client.query(SCHEMA);
         await client.query('INSERT INTO system_config (id, site_name) VALUES (1, $1) ON CONFLICT DO NOTHING', ['Mehedi Tailors & Fabrics']);
         await client.query(`INSERT INTO users (id, name, email, role, password) VALUES ('adm-001', 'System Admin', 'admin@meheditailors.com', 'admin', 'admin123') ON CONFLICT DO NOTHING`);
-        console.log('PostgreSQL Synchronized.');
+        console.log('Relational Database Architecture Synchronized.');
     } catch (err) {
-        console.error('DATABASE INIT ERROR:', err.message);
+        console.error('DATABASE INIT CRITICAL FAILURE:', err.message);
         process.exit(1);
     } finally {
         if (client) client.release();

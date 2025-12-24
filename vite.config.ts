@@ -12,8 +12,8 @@ export default defineConfig({
     {
       name: 'express-api-middleware',
       configureServer(server) {
-        // This mounts the Express app to /api. 
-        // Requests to /api/health will reach Express as /health.
+        // Mount Express app to /api prefix.
+        // Frontend calls to /api/health will strip /api and reach Express as /health.
         server.middlewares.use('/api', app);
       },
     },
