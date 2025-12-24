@@ -9,7 +9,8 @@ import {
   ScissorsIcon,
   AdjustmentsHorizontalIcon,
   ShieldCheckIcon,
-  CreditCardIcon
+  CreditCardIcon,
+  DevicePhoneMobileIcon
 } from '@heroicons/react/24/outline';
 
 const OrderSuccessPage: React.FC = () => {
@@ -66,7 +67,14 @@ const OrderSuccessPage: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Dispatch Protocol</span>
-                  <p className="text-sm font-bold text-slate-900">{order.paymentMethod}</p>
+                  <div className="flex items-center space-x-2 mt-1">
+                    {order.paymentMethod.includes('bKash') ? (
+                      <DevicePhoneMobileIcon className="w-4 h-4 text-rose-600" />
+                    ) : order.paymentMethod.includes('SSL') ? (
+                      <CreditCardIcon className="w-4 h-4 text-amber-600" />
+                    ) : null}
+                    <p className="text-sm font-bold text-slate-900">{order.paymentMethod}</p>
+                  </div>
                 </div>
               </div>
               <div className="space-y-6 text-left md:text-right">
@@ -76,8 +84,14 @@ const OrderSuccessPage: React.FC = () => {
                 </div>
                 {order.sslTranId && (
                   <div>
-                    <span className="text-[9px] font-black uppercase text-emerald-600 tracking-widest">Gateway Auth ID</span>
+                    <span className="text-[9px] font-black uppercase text-emerald-600 tracking-widest">SSLCommerz Auth ID</span>
                     <p className="text-sm font-mono font-bold text-slate-900">{order.sslTranId}</p>
+                  </div>
+                )}
+                {order.bkashTrxId && (
+                  <div>
+                    <span className="text-[9px] font-black uppercase text-rose-600 tracking-widest">bKash TrxID</span>
+                    <p className="text-sm font-mono font-bold text-slate-900">{order.bkashTrxId}</p>
                   </div>
                 )}
               </div>
@@ -115,7 +129,7 @@ const OrderSuccessPage: React.FC = () => {
                   <span className="text-[10px] font-black uppercase tracking-widest">Settled Today</span>
                   <div className="text-right">
                     <span className="text-2xl font-black font-mono">BDT {order.paidAmount.toLocaleString()}</span>
-                    <p className="text-[8px] font-bold uppercase tracking-widest mt-1">Verified via SSLCommerz Secured Network</p>
+                    <p className="text-[8px] font-bold uppercase tracking-widest mt-1">Verified via Global Digital Gateway</p>
                   </div>
                </div>
                {order.dueAmount > 0 && (

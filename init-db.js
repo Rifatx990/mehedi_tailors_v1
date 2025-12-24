@@ -15,13 +15,13 @@ const poolConfig = process.env.DATABASE_URL
 const pool = new Pool(poolConfig);
 
 const SCHEMA = `
--- ATELIER ARCHITECTURAL SCHEMA V19.0 (SSLCommerz Enhanced)
+-- ATELIER ARCHITECTURAL SCHEMA V21.0 (SSLCommerz + bKash Secure Storage)
 CREATE TABLE IF NOT EXISTS system_config (
     id SERIAL PRIMARY KEY,
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '19.0.0-PRO',
+    db_version TEXT DEFAULT '21.0.0-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -85,17 +85,21 @@ CREATE TABLE IF NOT EXISTS orders (
     bespoke_note TEXT,
     bespoke_type TEXT,
     delivery_date TEXT,
-    -- SSLCommerz Audit Columns
+    -- Audit Columns (Gateways)
     ssl_tran_id TEXT,
     ssl_val_id TEXT,
-    ssl_payment_details JSONB
+    ssl_payment_details JSONB,
+    bkash_trx_id TEXT,
+    bkash_payment_details JSONB
 );
 
--- MIGRATION PROTOCOL V19
+-- MIGRATION PROTOCOL V21 (Ensuring all audit columns exist)
 DO $$ BEGIN 
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='ssl_tran_id') THEN ALTER TABLE orders ADD COLUMN ssl_tran_id TEXT; END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='ssl_val_id') THEN ALTER TABLE orders ADD COLUMN ssl_val_id TEXT; END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='ssl_payment_details') THEN ALTER TABLE orders ADD COLUMN ssl_payment_details JSONB; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='bkash_trx_id') THEN ALTER TABLE orders ADD COLUMN bkash_trx_id TEXT; END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='bkash_payment_details') THEN ALTER TABLE orders ADD COLUMN bkash_payment_details JSONB; END IF;
 END $$;
 
 CREATE TABLE IF NOT EXISTS dues (
@@ -140,17 +144,10 @@ CREATE TABLE IF NOT EXISTS material_requests ( id TEXT PRIMARY KEY, worker_id TE
 CREATE TABLE IF NOT EXISTS product_requests ( id TEXT PRIMARY KEY, user_name TEXT, email TEXT, product_title TEXT, description TEXT, date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP );
 CREATE TABLE IF NOT EXISTS reviews ( id TEXT PRIMARY KEY, user_name TEXT, rating INTEGER, comment TEXT, date TEXT, status TEXT DEFAULT 'pending' );
 CREATE TABLE IF NOT EXISTS email_logs ( id TEXT PRIMARY KEY, recipient TEXT NOT NULL, subject TEXT, body TEXT, timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, status TEXT, template_id TEXT );
-
--- FIX RESERVED KEYWORD 'TO'
-DO $$ BEGIN 
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='email_logs' AND column_name='to') THEN
-        ALTER TABLE email_logs RENAME COLUMN "to" TO recipient;
-    END IF;
-END $$;
 `;
 
 const SEED_DATA = {
-    config: { id: 1, site_name: 'Mehedi Tailors & Fabrics', site_logo: 'https://i.imgur.com/8H9IeM5.png', document_logo: 'https://i.imgur.com/8H9IeM5.png', db_version: '19.0.0-PRO' },
+    config: { id: 1, site_name: 'Mehedi Tailors & Fabrics', site_logo: 'https://i.imgur.com/8H9IeM5.png', document_logo: 'https://i.imgur.com/8H9IeM5.png', db_version: '21.0.0-PRO' },
     users: [
         { id: 'adm-001', name: 'Master Admin', email: 'admin@meheditailors.com', role: 'admin', password: 'admin123', phone: '+8801720267213', address: 'Atelier Savar' },
         { id: 'wrk-001', name: 'Artisan Kabir', email: 'worker@meheditailors.com', role: 'worker', password: 'worker123', phone: '+8801720267214', specialization: 'Master Stitcher', experience: '15 Years', join_date: '2024-01-01' }
@@ -158,7 +155,7 @@ const SEED_DATA = {
 };
 
 async function run() {
-    console.log('--- MEHEDI ATELIER: DB INITIALIZATION V19 ---');
+    console.log('--- MEHEDI ATELIER: DB INITIALIZATION V21 ---');
     try {
         const client = await pool.connect();
         await client.query(SCHEMA);

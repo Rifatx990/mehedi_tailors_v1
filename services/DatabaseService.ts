@@ -53,6 +53,21 @@ export class DatabaseService {
     });
   }
 
+  // --- BKASH HANDSHAKE ---
+  async createBkashPayment(order: any) {
+    return this.request<any>('/bkash/create', {
+      method: 'POST',
+      body: JSON.stringify(order)
+    });
+  }
+
+  async executeBkashPayment(paymentID: string, orderId: string) {
+    return this.request<any>('/bkash/execute', {
+      method: 'POST',
+      body: JSON.stringify({ paymentID, orderId })
+    });
+  }
+
   async getUsers() { return this.request<any[]>('/users'); }
   async saveUser(user: any) { 
     return this.request<any>(`/users${user.id && !user._isNew ? `/${user.id}` : ''}`, {

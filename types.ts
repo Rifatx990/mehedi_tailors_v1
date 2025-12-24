@@ -98,7 +98,7 @@ export interface SystemConfig {
 
 export interface EmailLog {
   id: string;
-  recipient: string; // Renamed from 'to' to avoid SQL keyword conflict
+  recipient: string;
   subject: string;
   body: string;
   timestamp: string;
@@ -207,10 +207,12 @@ export interface Order {
   bespokeNote?: string;
   bespokeType?: BespokeType;
   deliveryDate?: string;
-  // SSLCommerz Extended
+  // Payment Gateway Details
   sslTranId?: string;
   sslValId?: string;
   sslPaymentDetails?: any;
+  bkashTrxId?: string;
+  bkashPaymentDetails?: any;
 }
 
 export interface User {
