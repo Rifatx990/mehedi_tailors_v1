@@ -1,10 +1,12 @@
 import pg from 'pg';
 const { Pool } = pg;
 import 'dotenv/config';
-import fs from 'fs';
 
 const poolConfig = process.env.DATABASE_URL 
-  ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
+  ? { 
+      connectionString: process.env.DATABASE_URL, 
+      ssl: { rejectUnauthorized: false } 
+    }
   : {
       user: process.env.DB_USER || 'postgres',
       host: process.env.DB_HOST || '127.0.0.1',
@@ -12,19 +14,19 @@ const poolConfig = process.env.DATABASE_URL
       password: process.env.DB_PASSWORD || 'postgres',
       port: parseInt(process.env.DB_PORT || '5432'),
       ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 10000
+      connectionTimeoutMillis: 10000, // 10s timeout
     };
 
 const pool = new Pool(poolConfig);
 
 const SCHEMA = `
--- ATELIER ARCHITECTURAL SCHEMA V24.0 (Enhanced Connectivity)
+-- ATELIER ARCHITECTURAL SCHEMA V25.0
 CREATE TABLE IF NOT EXISTS system_config (
     id SERIAL PRIMARY KEY,
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '24.0.0-PRO',
+    db_version TEXT DEFAULT '25.0.0-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -95,25 +97,8 @@ CREATE TABLE IF NOT EXISTS orders (
     bkash_payment_details JSONB
 );
 
-CREATE TABLE IF NOT EXISTS upcoming_products (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    image TEXT,
-    expected_date TEXT,
-    description TEXT,
-    is_active BOOLEAN DEFAULT true
-);
-
-CREATE TABLE IF NOT EXISTS bespoke_services (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    icon TEXT,
-    image TEXT,
-    base_price DECIMAL(12,2) NOT NULL,
-    description TEXT,
-    is_active BOOLEAN DEFAULT true
-);
-
+CREATE TABLE IF NOT EXISTS upcoming_products ( id TEXT PRIMARY KEY, name TEXT NOT NULL, image TEXT, expected_date TEXT, description TEXT, is_active BOOLEAN DEFAULT true );
+CREATE TABLE IF NOT EXISTS bespoke_services ( id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT, image TEXT, base_price DECIMAL(12,2) NOT NULL, description TEXT, is_active BOOLEAN DEFAULT true );
 CREATE TABLE IF NOT EXISTS coupons ( id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, discount_percent INTEGER NOT NULL, is_active BOOLEAN DEFAULT true, usage_limit INTEGER, usage_count INTEGER DEFAULT 0, expiry_date TIMESTAMPTZ );
 CREATE TABLE IF NOT EXISTS notices ( id TEXT PRIMARY KEY, content TEXT NOT NULL, type TEXT DEFAULT 'info', is_active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP );
 CREATE TABLE IF NOT EXISTS offers ( id TEXT PRIMARY KEY, title TEXT, description TEXT, discount_tag TEXT, image_url TEXT, link_url TEXT, is_active BOOLEAN DEFAULT true );
@@ -129,20 +114,19 @@ CREATE TABLE IF NOT EXISTS partners ( id TEXT PRIMARY KEY, name TEXT NOT NULL, l
 `;
 
 async function run() {
-    console.log('--- ATELIER DB INIT V24 ---');
+    console.log('--- ATELIER DB INITIALIZATION ---');
     let client;
     try {
         client = await pool.connect();
+        console.log('Connection Established to PostgreSQL Ledger.');
         await client.query(SCHEMA);
-        console.log('PostgreSQL: Authority Established.');
-
-        // Initial Data Seeding
+        
         await client.query('INSERT INTO system_config (id, site_name) VALUES (1, $1) ON CONFLICT DO NOTHING', ['Mehedi Tailors & Fabrics']);
         await client.query(`INSERT INTO users (id, name, email, role, password) VALUES ('adm-001', 'System Admin', 'admin@meheditailors.com', 'admin', 'admin123') ON CONFLICT DO NOTHING`);
 
-        console.log('SUCCESS: Ledger Sync Complete.');
+        console.log('DB Schema Synchronized Successfully.');
     } catch (err) {
-        console.error('DATABASE ERROR:', err.message);
+        console.error('DATABASE CONNECTION FAILURE:', err.message);
         process.exit(1);
     } finally {
         if (client) client.release();

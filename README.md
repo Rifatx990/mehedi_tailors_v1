@@ -18,9 +18,14 @@ DB_NAME=mehedi_atelier
 # Or use a full URL:
 # DATABASE_URL=postgres://user:pass@host:port/dbname
 
-# bKash Configuration (Sandbox/Beta)
-BKASH_BASE_URL=https://checkout.sandbox.bka.sh/v1.2.0-beta
-BKASH_APP_LIVE=false
+# Toggle bKash payment mode
+BKASH_IS_LIVE=false   # true = LIVE | false = SANDBOX
+
+# bKash URLs
+BKASH_SANDBOX_URL=https://checkout.sandbox.bka.sh/v1.2.0-beta
+BKASH_LIVE_URL=https://checkout.pay.bka.sh/v1.2.0-beta
+
+# bKash Credentials
 BKASH_APP_KEY=your_app_key
 BKASH_APP_SECRET=your_app_secret
 BKASH_USERNAME=your_username
@@ -32,7 +37,7 @@ SSL_STORE_PASS=your_pass
 SSL_IS_LIVE=false
 
 # App Base (For callbacks)
-APP_BASE_URL=http://localhost:5000
+APP_BASE_URL=http://localhost:3000
 ```
 
 ## 🚀 Ignition
