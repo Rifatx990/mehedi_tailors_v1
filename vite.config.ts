@@ -5,14 +5,15 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5000,
-    allowedHosts: true, // Allows all hosts to prevent 403 on various environments
+    allowedHosts: true,
+    strictPort: true
   },
   plugins: [
     {
       name: 'express-api-middleware',
       configureServer(server) {
-        // Mount the Express app to /api path.
-        // Incoming /api/health becomes /health in the Express app.
+        // This mounts the Express app to /api. 
+        // Requests to /api/health will reach Express as /health.
         server.middlewares.use('/api', app);
       },
     },

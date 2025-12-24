@@ -12,9 +12,11 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Database configuration
 const poolConfig = process.env.DATABASE_URL 
-  ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
+  ? { 
+      connectionString: process.env.DATABASE_URL, 
+      ssl: { rejectUnauthorized: false } 
+    }
   : {
       user: process.env.DB_USER || 'postgres',
       host: process.env.DB_HOST || '127.0.0.1',
@@ -49,7 +51,7 @@ const toSnake = (obj) => {
     return snake;
 };
 
-// --- CORE SYSTEM ROUTES ---
+// --- CORE ROUTES ---
 app.get('/health', async (req, res) => {
     try {
         await query('SELECT 1');
@@ -59,7 +61,7 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// --- BKASH TOKENIZED GATEWAY (AXIOS IMPLEMENTATION) ---
+// --- BKASH TOKENIZED GATEWAY (AXIOS) ---
 const { 
   BKASH_IS_LIVE, BKASH_SANDBOX_URL, BKASH_LIVE_URL, 
   BKASH_APP_KEY, BKASH_APP_SECRET, BKASH_USERNAME, BKASH_PASSWORD,
@@ -74,14 +76,17 @@ async function getBkashToken() {
             `${BKASH_BASE_URL}/checkout/token/grant`,
             { app_key: BKASH_APP_KEY, app_secret: BKASH_APP_SECRET },
             {
-                headers: { username: BKASH_USERNAME, password: BKASH_PASSWORD },
+                headers: { 
+                    username: BKASH_USERNAME, 
+                    password: BKASH_PASSWORD 
+                },
                 timeout: 15000
             }
         );
         return response.data.id_token;
     } catch (err) {
-        console.error("bKash Token Error:", err.response?.data || err.message);
-        throw new Error("bKash Token Handshake Failed");
+        console.error("bKash Token Grant Failure:", err.response?.data || err.message);
+        throw new Error("bKash Handshake Denied");
     }
 }
 
@@ -89,6 +94,7 @@ app.post('/bkash/create', async (req, res) => {
     try {
         const order = req.body;
         const token = await getBkashToken();
+        const invoice = "INV_" + Date.now();
         
         const response = await axios.post(
             `${BKASH_BASE_URL}/checkout/payment/create`,
@@ -96,16 +102,19 @@ app.post('/bkash/create', async (req, res) => {
                 amount: Number(order.paidAmount).toFixed(2),
                 currency: "BDT",
                 intent: "sale",
-                merchantInvoiceNumber: order.id,
+                merchantInvoiceNumber: order.id || invoice,
                 callbackURL: `${APP_BASE_URL}/api/bkash/callback?id=${order.id}`
             },
             {
-                headers: { Authorization: token, 'X-APP-Key': BKASH_APP_KEY },
+                headers: { 
+                    Authorization: token, 
+                    'X-APP-Key': BKASH_APP_KEY 
+                },
                 timeout: 15000
             }
         );
 
-        // Persistent Intent Logging
+        // Persistent Pre-save
         const body = toSnake(order);
         const keys = Object.keys(body);
         const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
@@ -114,8 +123,8 @@ app.post('/bkash/create', async (req, res) => {
 
         res.json(response.data);
     } catch (err) {
-        console.error("bKash Create Error:", err.response?.data || err.message);
-        res.status(500).json({ error: "bKash payment create failed" });
+        console.error("bKash Payment Creation Failure:", err.response?.data || err.message);
+        res.status(500).json({ error: "bKash system rejected request" });
     }
 });
 
@@ -137,7 +146,10 @@ app.post('/bkash/execute', async (req, res) => {
             `${BKASH_BASE_URL}/checkout/payment/execute/${paymentID}`,
             {},
             {
-                headers: { Authorization: token, 'X-APP-Key': BKASH_APP_KEY },
+                headers: { 
+                    Authorization: token, 
+                    'X-APP-Key': BKASH_APP_KEY 
+                },
                 timeout: 15000
             }
         );
@@ -148,11 +160,10 @@ app.post('/bkash/execute', async (req, res) => {
             );
             return res.json({ success: true, trxID: response.data.trxID, paymentID });
         }
-        
-        res.status(400).json({ error: "Payment not completed", status: response.data.transactionStatus });
+        res.status(400).json({ error: "Authorization incomplete", status: response.data.transactionStatus });
     } catch (err) {
-        console.error("bKash Execute Error:", err.response?.data || err.message);
-        res.status(500).json({ error: "bKash execute failed" });
+        console.error("bKash Execution Failure:", err.response?.data || err.message);
+        res.status(500).json({ error: "bKash execute phase failed" });
     }
 });
 
@@ -162,14 +173,16 @@ app.get('/bkash/verify/:paymentID', async (req, res) => {
         const response = await axios.get(
             `${BKASH_BASE_URL}/checkout/payment/query/${req.params.paymentID}`,
             {
-                headers: { Authorization: token, 'X-APP-Key': BKASH_APP_KEY },
+                headers: { 
+                    Authorization: token, 
+                    'X-APP-Key': BKASH_APP_KEY 
+                },
                 timeout: 15000
             }
         );
         res.json(response.data);
     } catch (err) {
-        console.error("bKash Verify Error:", err.response?.data || err.message);
-        res.status(500).json({ error: "Verification failed" });
+        res.status(500).json({ error: "Verification protocol failed" });
     }
 });
 
@@ -198,7 +211,7 @@ app.post('/payment/init', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- CRUD GENERATORS ---
+// --- CRUD ENGINE ---
 const setupCRUD = (route, table) => {
     app.get(`/${route}`, async (req, res) => {
         try { res.json((await query(`SELECT * FROM ${table} ORDER BY id DESC`)).rows); } catch (e) { res.status(500).json({ error: e.message }); }

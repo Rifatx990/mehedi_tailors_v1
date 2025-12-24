@@ -3,10 +3,7 @@ const { Pool } = pg;
 import 'dotenv/config';
 
 const poolConfig = process.env.DATABASE_URL 
-  ? { 
-      connectionString: process.env.DATABASE_URL, 
-      ssl: { rejectUnauthorized: false } 
-    }
+  ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
   : {
       user: process.env.DB_USER || 'postgres',
       host: process.env.DB_HOST || '127.0.0.1',
@@ -14,19 +11,18 @@ const poolConfig = process.env.DATABASE_URL
       password: process.env.DB_PASSWORD || 'postgres',
       port: parseInt(process.env.DB_PORT || '5432'),
       ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 10000, // 10s timeout
+      connectionTimeoutMillis: 10000
     };
 
 const pool = new Pool(poolConfig);
 
 const SCHEMA = `
--- ATELIER ARCHITECTURAL SCHEMA V25.0
 CREATE TABLE IF NOT EXISTS system_config (
     id SERIAL PRIMARY KEY,
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '25.0.0-PRO',
+    db_version TEXT DEFAULT '25.0.1-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -114,19 +110,15 @@ CREATE TABLE IF NOT EXISTS partners ( id TEXT PRIMARY KEY, name TEXT NOT NULL, l
 `;
 
 async function run() {
-    console.log('--- ATELIER DB INITIALIZATION ---');
     let client;
     try {
         client = await pool.connect();
-        console.log('Connection Established to PostgreSQL Ledger.');
         await client.query(SCHEMA);
-        
         await client.query('INSERT INTO system_config (id, site_name) VALUES (1, $1) ON CONFLICT DO NOTHING', ['Mehedi Tailors & Fabrics']);
         await client.query(`INSERT INTO users (id, name, email, role, password) VALUES ('adm-001', 'System Admin', 'admin@meheditailors.com', 'admin', 'admin123') ON CONFLICT DO NOTHING`);
-
-        console.log('DB Schema Synchronized Successfully.');
+        console.log('PostgreSQL Synchronized.');
     } catch (err) {
-        console.error('DATABASE CONNECTION FAILURE:', err.message);
+        console.error('DATABASE INIT ERROR:', err.message);
         process.exit(1);
     } finally {
         if (client) client.release();
