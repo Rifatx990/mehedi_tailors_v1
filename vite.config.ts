@@ -5,7 +5,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5000,
-    allowedHosts: true,
+    allowedHosts: true, // Crucial for Render/Cloud access
     strictPort: true
   },
   plugins: [
@@ -13,7 +13,7 @@ export default defineConfig({
       name: 'express-api-middleware',
       configureServer(server) {
         // Mount Express app to /api prefix.
-        // Frontend calls to /api/health will strip /api and reach Express as /health.
+        // Frontend calls to /api/health will reach Express as /health.
         server.middlewares.use('/api', app);
       },
     },

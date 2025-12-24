@@ -13,14 +13,16 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Database configuration with enhanced resilience
+// Database configuration with production-grade resilience
+const isProduction = process.env.NODE_ENV === 'production' || !!process.env.DATABASE_URL;
+
 const poolConfig = process.env.DATABASE_URL 
   ? { 
       connectionString: process.env.DATABASE_URL, 
       ssl: { rejectUnauthorized: false },
-      max: 20,
+      connectionTimeoutMillis: 20000,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000
+      max: 20
     }
   : {
       user: process.env.DB_USER || 'postgres',
@@ -28,22 +30,18 @@ const poolConfig = process.env.DATABASE_URL
       database: process.env.DB_NAME || 'mehedi_atelier',
       password: process.env.DB_PASSWORD || 'postgres',
       port: parseInt(process.env.DB_PORT || '5432'),
-      ssl: { rejectUnauthorized: false },
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000
+      ssl: isProduction ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: 20000
     };
 
 const pool = new Pool(poolConfig);
 
-// SQL Execution Wrapper
+// SQL Execution Wrapper with better error reporting
 const query = async (text, params) => {
-    const start = Date.now();
     try {
-        const res = await pool.query(text, params);
-        return res;
+        return await pool.query(text, params);
     } catch (err) {
-        console.error('PostgreSQL Connection Error:', err.message);
+        console.error('Relational Ledger SQL Error:', err.message);
         throw err;
     }
 };
@@ -60,14 +58,15 @@ const toSnake = (obj) => {
     return snake;
 };
 
-// --- API ROUTER ---
-const router = express.Router();
-
-router.get('/health', async (req, res) => {
+// --- CORE ROUTES ---
+app.get('/health', async (req, res) => {
     try {
-        await query('SELECT 1');
-        res.json({ status: 'connected', timestamp: new Date(), engine: 'MT-POSTGRES-PRO-V2' });
+        const client = await pool.connect();
+        await client.query('SELECT 1');
+        client.release();
+        res.json({ status: 'connected', timestamp: new Date(), engine: 'MT-PG-PRO-V3' });
     } catch (err) {
+        console.error("Health Check Failed:", err.message);
         res.status(503).json({ status: 'disconnected', error: err.message });
     }
 });
@@ -87,25 +86,21 @@ async function getBkashToken() {
             `${BKASH_BASE_URL}/checkout/token/grant`,
             { app_key: BKASH_APP_KEY, app_secret: BKASH_APP_SECRET },
             {
-                headers: { 
-                    username: BKASH_USERNAME, 
-                    password: BKASH_PASSWORD 
-                },
+                headers: { username: BKASH_USERNAME, password: BKASH_PASSWORD },
                 timeout: 15000
             }
         );
         return response.data.id_token;
     } catch (err) {
-        console.error("bKash Authentication Failure:", err.response?.data || err.message);
-        throw new Error("bKash Handshake Denied: Verify credentials in ENV.");
+        console.error("bKash Handshake Failure:", err.response?.data || err.message);
+        throw new Error("bKash Authentication Denied");
     }
 }
 
-router.post('/bkash/create', async (req, res) => {
+app.post('/bkash/create', async (req, res) => {
     try {
         const order = req.body;
         const token = await getBkashToken();
-        const invoice = "INV_" + Date.now();
         
         const response = await axios.post(
             `${BKASH_BASE_URL}/checkout/payment/create`,
@@ -113,19 +108,16 @@ router.post('/bkash/create', async (req, res) => {
                 amount: Number(order.paidAmount).toFixed(2),
                 currency: "BDT",
                 intent: "sale",
-                merchantInvoiceNumber: order.id || invoice,
+                merchantInvoiceNumber: order.id,
                 callbackURL: `${APP_BASE_URL}/api/bkash/callback?id=${order.id}`
             },
             {
-                headers: { 
-                    Authorization: token, 
-                    'X-APP-Key': BKASH_APP_KEY 
-                },
+                headers: { Authorization: token, 'X-APP-Key': BKASH_APP_KEY },
                 timeout: 15000
             }
         );
 
-        // Record intent in DB before redirect
+        // Persistent Order Intent
         const body = toSnake(order);
         const keys = Object.keys(body);
         const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
@@ -134,12 +126,12 @@ router.post('/bkash/create', async (req, res) => {
 
         res.json(response.data);
     } catch (err) {
-        console.error("bKash Create Error:", err.response?.data || err.message);
-        res.status(500).json({ error: "Failed to initiate bKash payment." });
+        console.error("bKash Creation Error:", err.response?.data || err.message);
+        res.status(500).json({ error: "Gateway initiation failed" });
     }
 });
 
-router.get('/bkash/callback', async (req, res) => {
+app.get('/bkash/callback', async (req, res) => {
     const { id, paymentID, status } = req.query;
     if (status === 'success') {
         res.redirect(`${APP_BASE_URL}/#/checkout?bkash_status=execute&paymentID=${paymentID}&orderId=${id}`);
@@ -148,7 +140,7 @@ router.get('/bkash/callback', async (req, res) => {
     }
 });
 
-router.post('/bkash/execute', async (req, res) => {
+app.post('/bkash/execute', async (req, res) => {
     try {
         const { paymentID, orderId } = req.body;
         const token = await getBkashToken();
@@ -157,10 +149,7 @@ router.post('/bkash/execute', async (req, res) => {
             `${BKASH_BASE_URL}/checkout/payment/execute/${paymentID}`,
             {},
             {
-                headers: { 
-                    Authorization: token, 
-                    'X-APP-Key': BKASH_APP_KEY 
-                },
+                headers: { Authorization: token, 'X-APP-Key': BKASH_APP_KEY },
                 timeout: 15000
             }
         );
@@ -171,65 +160,61 @@ router.post('/bkash/execute', async (req, res) => {
             );
             return res.json({ success: true, trxID: response.data.trxID, paymentID });
         }
-        res.status(400).json({ error: "Transaction verification incomplete.", status: response.data.transactionStatus });
+        res.status(400).json({ error: "Payment Incomplete", status: response.data.transactionStatus });
     } catch (err) {
-        console.error("bKash Execute Error:", err.response?.data || err.message);
-        res.status(500).json({ error: "bKash execution phase failed." });
+        console.error("bKash Execution Error:", err.response?.data || err.message);
+        res.status(500).json({ error: "Execution phase failure" });
     }
 });
 
-router.get('/bkash/verify/:paymentID', async (req, res) => {
+// --- SSLCOMMERZ ---
+app.post('/payment/init', async (req, res) => {
+    const { SSL_STORE_ID, SSL_STORE_PASS, SSL_IS_LIVE } = process.env;
+    const SSL_API = (SSL_IS_LIVE === 'true') ? "https://securepay.sslcommerz.com/gwprocess/v4/api.php" : "https://sandbox.sslcommerz.com/gwprocess/v4/api.php";
+    
     try {
-        const token = await getBkashToken();
-        const response = await axios.get(
-            `${BKASH_BASE_URL}/checkout/payment/query/${req.params.paymentID}`,
-            {
-                headers: { 
-                    Authorization: token, 
-                    'X-APP-Key': BKASH_APP_KEY 
-                },
-                timeout: 15000
-            }
-        );
-        res.json(response.data);
-    } catch (err) {
-        res.status(500).json({ error: "External verification failed." });
-    }
+        const order = req.body;
+        const details = {
+            store_id: SSL_STORE_ID, store_passwd: SSL_STORE_PASS, total_amount: order.paidAmount, currency: 'BDT', tran_id: order.id,
+            success_url: `${APP_BASE_URL}/api/payment/success?id=${order.id}`,
+            fail_url: `${APP_BASE_URL}/api/payment/fail?id=${order.id}`,
+            cancel_url: `${APP_BASE_URL}/api/payment/cancel?id=${order.id}`,
+            shipping_method: 'YES', num_of_item: order.items.length, product_name: 'Bespoke Item',
+            product_category: 'Apparel', product_profile: 'physical-goods',
+            cus_name: order.customerName, cus_email: order.customerEmail, cus_add1: order.address, cus_city: 'Dhaka', cus_country: 'Bangladesh', cus_phone: order.phone
+        };
+        const formBody = Object.keys(details).map(key => encodeURIComponent(key) + '=' + encodeURIComponent(details[key])).join('&');
+        const response = await axios.post(SSL_API, formBody, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+        if (response.data.status === 'SUCCESS') res.json({ url: response.data.GatewayPageURL });
+        else throw new Error(response.data.failedreason || "SSL Initialization Error");
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- CORE CRUD HANDLERS ---
+// --- CRUD ENGINE ---
 const setupCRUD = (route, table) => {
-    router.get(`/${route}`, async (req, res) => {
-        try { 
-            const result = await query(`SELECT * FROM ${table} ORDER BY id DESC`);
-            res.json(result.rows); 
-        } catch (e) { res.status(500).json({ error: e.message }); }
+    app.get(`/${route}`, async (req, res) => {
+        try { res.json((await query(`SELECT * FROM ${table} ORDER BY id DESC`)).rows); } catch (e) { res.status(500).json({ error: e.message }); }
     });
-    router.post(`/${route}`, async (req, res) => {
+    app.post(`/${route}`, async (req, res) => {
         try {
             const body = toSnake(req.body);
             const keys = Object.keys(body);
             const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null));
             const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-            const result = await query(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`, values);
-            res.json(result.rows[0]);
+            res.json((await query(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`, values)).rows[0]);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
-    router.put(`/${route}/:id`, async (req, res) => {
+    app.put(`/${route}/:id`, async (req, res) => {
         try {
             const body = toSnake(req.body); delete body.id;
             const keys = Object.keys(body);
             const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null));
             const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
-            const result = await query(`UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
-            res.json(result.rows[0]);
+            res.json((await query(`UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values])).rows[0]);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
-    router.delete(`/${route}/:id`, async (req, res) => {
-        try { 
-            await query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]); 
-            res.json({ success: true }); 
-        } catch (e) { res.status(500).json({ error: e.message }); }
+    app.delete(`/${route}/:id`, async (req, res) => {
+        try { await query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]); res.json({ success: true }); } catch (e) { res.status(500).json({ error: e.message }); }
     });
 };
 
@@ -247,23 +232,13 @@ setupCRUD('offers', 'offers');
 setupCRUD('partners', 'partners');
 setupCRUD('upcoming', 'upcoming_products');
 
-router.get('/config', async (req, res) => { 
-    try {
-        const result = await query('SELECT * FROM system_config WHERE id = 1');
-        res.json(result.rows[0] || {}); 
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-router.put('/config', async (req, res) => {
+app.get('/config', async (req, res) => { res.json((await query('SELECT * FROM system_config WHERE id = 1')).rows[0] || {}); });
+app.put('/config', async (req, res) => {
     try {
         const fields = toSnake(req.body); delete fields.id;
         const keys = Object.keys(fields);
         const values = Object.values(fields).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null));
         const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
-        const result = await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values);
-        res.json(result.rows[0]);
+        res.json((await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values)).rows[0]);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
-
-// Final mounting: Vite strips the /api prefix before reaching this handler.
-app.use('/', router);
