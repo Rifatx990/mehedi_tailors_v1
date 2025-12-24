@@ -7,7 +7,7 @@ Industrial-grade tailoring suite with PostgreSQL persistence and dual-gateway (S
 Create a `.env` file in the project root:
 
 ```env
-PORT=3000
+PORT=5000
 
 # PostgreSQL Configuration
 DB_USER=postgres
@@ -37,7 +37,7 @@ SSL_STORE_PASS=your_pass
 SSL_IS_LIVE=false
 
 # App Base (For callbacks)
-APP_BASE_URL=http://localhost:3000
+APP_BASE_URL=http://localhost:5000
 ```
 
 ## 🚀 Ignition

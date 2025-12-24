@@ -51,6 +51,10 @@ export class DatabaseService {
     return this.request<any>('/bkash/execute', { method: 'POST', body: JSON.stringify({ paymentID, orderId }) });
   }
 
+  async verifyBkashPayment(paymentID: string) {
+    return this.request<any>(`/bkash/verify/${paymentID}`);
+  }
+
   // --- PRODUCT ENTITIES ---
   async getProducts() { return this.request<any[]>('/products'); }
   async saveProduct(p: any) {

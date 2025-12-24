@@ -3,6 +3,7 @@ import pg from 'pg';
 const { Pool } = pg;
 import cors from 'cors';
 import bodyParser from 'body-parser';
+import axios from 'axios';
 import 'dotenv/config';
 
 export const app = express();
@@ -11,6 +12,7 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Database configuration
 const poolConfig = process.env.DATABASE_URL 
   ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
   : {
@@ -47,10 +49,8 @@ const toSnake = (obj) => {
     return snake;
 };
 
-// Route Controller (Relative to root because Vite mounts at /api)
-const router = express.Router();
-
-router.get('/health', async (req, res) => {
+// --- CORE SYSTEM ROUTES ---
+app.get('/health', async (req, res) => {
     try {
         await query('SELECT 1');
         res.json({ status: 'connected', timestamp: new Date() });
@@ -59,63 +59,67 @@ router.get('/health', async (req, res) => {
     }
 });
 
-// --- BKASH TOKENIZED GATEWAY ---
+// --- BKASH TOKENIZED GATEWAY (AXIOS IMPLEMENTATION) ---
 const { 
   BKASH_IS_LIVE, BKASH_SANDBOX_URL, BKASH_LIVE_URL, 
   BKASH_APP_KEY, BKASH_APP_SECRET, BKASH_USERNAME, BKASH_PASSWORD,
   APP_BASE_URL 
 } = process.env;
 
-const BKASH_URL = (BKASH_IS_LIVE === 'true') ? BKASH_LIVE_URL : BKASH_SANDBOX_URL;
+const BKASH_BASE_URL = (BKASH_IS_LIVE === 'true') ? BKASH_LIVE_URL : BKASH_SANDBOX_URL;
 
 async function getBkashToken() {
-    const response = await fetch(`${BKASH_URL}/checkout/token/grant`, {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'username': BKASH_USERNAME,
-            'password': BKASH_PASSWORD
-        },
-        body: JSON.stringify({ app_key: BKASH_APP_KEY, app_secret: BKASH_APP_SECRET })
-    });
-    const data = await response.json();
-    if (!data.id_token) throw new Error(data.statusMessage || "bKash Token Handshake Failed");
-    return data.id_token;
+    try {
+        const response = await axios.post(
+            `${BKASH_BASE_URL}/checkout/token/grant`,
+            { app_key: BKASH_APP_KEY, app_secret: BKASH_APP_SECRET },
+            {
+                headers: { username: BKASH_USERNAME, password: BKASH_PASSWORD },
+                timeout: 15000
+            }
+        );
+        return response.data.id_token;
+    } catch (err) {
+        console.error("bKash Token Error:", err.response?.data || err.message);
+        throw new Error("bKash Token Handshake Failed");
+    }
 }
 
-router.post('/bkash/create', async (req, res) => {
+app.post('/bkash/create', async (req, res) => {
     try {
         const order = req.body;
         const token = await getBkashToken();
-        const response = await fetch(`${BKASH_URL}/checkout/payment/create`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': token,
-                'X-APP-Key': BKASH_APP_KEY
-            },
-            body: JSON.stringify({
+        
+        const response = await axios.post(
+            `${BKASH_BASE_URL}/checkout/payment/create`,
+            {
                 amount: Number(order.paidAmount).toFixed(2),
                 currency: "BDT",
                 intent: "sale",
                 merchantInvoiceNumber: order.id,
                 callbackURL: `${APP_BASE_URL}/api/bkash/callback?id=${order.id}`
-            })
-        });
-        const data = await response.json();
-        
-        // Log Preliminary Intent
+            },
+            {
+                headers: { Authorization: token, 'X-APP-Key': BKASH_APP_KEY },
+                timeout: 15000
+            }
+        );
+
+        // Persistent Intent Logging
         const body = toSnake(order);
         const keys = Object.keys(body);
         const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
         const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
         await query(`INSERT INTO orders (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT (id) DO NOTHING`, values);
 
-        res.json(data);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+        res.json(response.data);
+    } catch (err) {
+        console.error("bKash Create Error:", err.response?.data || err.message);
+        res.status(500).json({ error: "bKash payment create failed" });
+    }
 });
 
-router.get('/bkash/callback', async (req, res) => {
+app.get('/bkash/callback', async (req, res) => {
     const { id, paymentID, status } = req.query;
     if (status === 'success') {
         res.redirect(`${APP_BASE_URL}/#/checkout?bkash_status=execute&paymentID=${paymentID}&orderId=${id}`);
@@ -124,33 +128,56 @@ router.get('/bkash/callback', async (req, res) => {
     }
 });
 
-router.post('/bkash/execute', async (req, res) => {
+app.post('/bkash/execute', async (req, res) => {
     try {
         const { paymentID, orderId } = req.body;
         const token = await getBkashToken();
-        const response = await fetch(`${BKASH_URL}/checkout/payment/execute`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': token,
-                'X-APP-Key': BKASH_APP_KEY
-            },
-            body: JSON.stringify({ paymentID })
-        });
-        const data = await response.json();
-        if (data.transactionStatus === "Completed") {
-            await query(`UPDATE orders SET payment_status = $1, bkash_trx_id = $2, bkash_payment_details = $3, status = 'In Progress' WHERE id = $4`, ['Fully Paid', data.trxID, JSON.stringify(data), orderId]);
-            return res.json({ success: true, trxID: data.trxID });
+
+        const response = await axios.post(
+            `${BKASH_BASE_URL}/checkout/payment/execute/${paymentID}`,
+            {},
+            {
+                headers: { Authorization: token, 'X-APP-Key': BKASH_APP_KEY },
+                timeout: 15000
+            }
+        );
+
+        if (response.data.transactionStatus === "Completed") {
+            await query(`UPDATE orders SET payment_status = $1, bkash_trx_id = $2, bkash_payment_details = $3, status = 'In Progress' WHERE id = $4`, 
+                ['Fully Paid', response.data.trxID, JSON.stringify(response.data), orderId]
+            );
+            return res.json({ success: true, trxID: response.data.trxID, paymentID });
         }
-        res.status(400).json({ error: data.statusMessage || "Execution Failed" });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+        
+        res.status(400).json({ error: "Payment not completed", status: response.data.transactionStatus });
+    } catch (err) {
+        console.error("bKash Execute Error:", err.response?.data || err.message);
+        res.status(500).json({ error: "bKash execute failed" });
+    }
+});
+
+app.get('/bkash/verify/:paymentID', async (req, res) => {
+    try {
+        const token = await getBkashToken();
+        const response = await axios.get(
+            `${BKASH_BASE_URL}/checkout/payment/query/${req.params.paymentID}`,
+            {
+                headers: { Authorization: token, 'X-APP-Key': BKASH_APP_KEY },
+                timeout: 15000
+            }
+        );
+        res.json(response.data);
+    } catch (err) {
+        console.error("bKash Verify Error:", err.response?.data || err.message);
+        res.status(500).json({ error: "Verification failed" });
+    }
 });
 
 // --- SSLCOMMERZ GATEWAY ---
 const { SSL_STORE_ID, SSL_STORE_PASS, SSL_IS_LIVE } = process.env;
 const SSL_INIT_API = (SSL_IS_LIVE === 'true') ? "https://securepay.sslcommerz.com/gwprocess/v4/api.php" : "https://sandbox.sslcommerz.com/gwprocess/v4/api.php";
 
-router.post('/payment/init', async (req, res) => {
+app.post('/payment/init', async (req, res) => {
     try {
         const order = req.body;
         const details = {
@@ -163,19 +190,20 @@ router.post('/payment/init', async (req, res) => {
             cus_name: order.customerName, cus_email: order.customerEmail, cus_add1: order.address, cus_city: 'Dhaka', cus_country: 'Bangladesh', cus_phone: order.phone
         };
         const formBody = Object.keys(details).map(key => encodeURIComponent(key) + '=' + encodeURIComponent(details[key])).join('&');
-        const response = await fetch(SSL_INIT_API, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formBody });
-        const data = await response.json();
-        if (data.status === 'SUCCESS') res.json({ url: data.GatewayPageURL });
-        else throw new Error(data.failedreason || "SSL Initialization Error");
+        const response = await axios.post(SSL_INIT_API, formBody, {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+        if (response.data.status === 'SUCCESS') res.json({ url: response.data.GatewayPageURL });
+        else throw new Error(response.data.failedreason || "SSL Initialization Error");
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// CRUD Logic Utility
+// --- CRUD GENERATORS ---
 const setupCRUD = (route, table) => {
-    router.get(`/${route}`, async (req, res) => {
+    app.get(`/${route}`, async (req, res) => {
         try { res.json((await query(`SELECT * FROM ${table} ORDER BY id DESC`)).rows); } catch (e) { res.status(500).json({ error: e.message }); }
     });
-    router.post(`/${route}`, async (req, res) => {
+    app.post(`/${route}`, async (req, res) => {
         try {
             const body = toSnake(req.body);
             const keys = Object.keys(body);
@@ -184,7 +212,7 @@ const setupCRUD = (route, table) => {
             res.json((await query(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`, values)).rows[0]);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
-    router.put(`/${route}/:id`, async (req, res) => {
+    app.put(`/${route}/:id`, async (req, res) => {
         try {
             const body = toSnake(req.body); delete body.id;
             const keys = Object.keys(body);
@@ -193,7 +221,7 @@ const setupCRUD = (route, table) => {
             res.json((await query(`UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values])).rows[0]);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
-    router.delete(`/${route}/:id`, async (req, res) => {
+    app.delete(`/${route}/:id`, async (req, res) => {
         try { await query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]); res.json({ success: true }); } catch (e) { res.status(500).json({ error: e.message }); }
     });
 };
@@ -212,8 +240,8 @@ setupCRUD('offers', 'offers');
 setupCRUD('partners', 'partners');
 setupCRUD('upcoming', 'upcoming_products');
 
-router.get('/config', async (req, res) => { res.json((await query('SELECT * FROM system_config WHERE id = 1')).rows[0] || {}); });
-router.put('/config', async (req, res) => {
+app.get('/config', async (req, res) => { res.json((await query('SELECT * FROM system_config WHERE id = 1')).rows[0] || {}); });
+app.put('/config', async (req, res) => {
     try {
         const fields = toSnake(req.body); delete fields.id;
         const keys = Object.keys(fields);
@@ -222,6 +250,3 @@ router.put('/config', async (req, res) => {
         res.json((await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values)).rows[0]);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
-
-// Mount router at root (Vite middleware adds the /api prefix)
-app.use('/', router);
