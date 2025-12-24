@@ -36,13 +36,21 @@ const poolConfig = process.env.DATABASE_URL
 
 const pool = new Pool(poolConfig);
 
-// SQL Execution Wrapper with better error reporting
+// SQL Execution Wrapper with better error reporting and resource management
 const query = async (text, params) => {
+    const client = await pool.connect();
     try {
-        return await pool.query(text, params);
+        const res = await client.query(text, params);
+        return res;
     } catch (err) {
-        console.error('Relational Ledger SQL Error:', err.message);
+        if (err.code === '23505') {
+            console.warn('Constraint Violation Managed:', err.detail);
+        } else {
+            console.error('Relational Ledger SQL Error:', err.message);
+        }
         throw err;
+    } finally {
+        client.release();
     }
 };
 
@@ -61,10 +69,8 @@ const toSnake = (obj) => {
 // --- CORE ROUTES ---
 app.get('/health', async (req, res) => {
     try {
-        const client = await pool.connect();
-        await client.query('SELECT 1');
-        client.release();
-        res.json({ status: 'connected', timestamp: new Date(), engine: 'MT-PG-PRO-V3' });
+        await query('SELECT 1');
+        res.json({ status: 'connected', timestamp: new Date(), engine: 'MT-PG-PRO-V3.1' });
     } catch (err) {
         console.error("Health Check Failed:", err.message);
         res.status(503).json({ status: 'disconnected', error: err.message });
@@ -193,7 +199,10 @@ app.post('/payment/init', async (req, res) => {
 // --- CRUD ENGINE ---
 const setupCRUD = (route, table) => {
     app.get(`/${route}`, async (req, res) => {
-        try { res.json((await query(`SELECT * FROM ${table} ORDER BY id DESC`)).rows); } catch (e) { res.status(500).json({ error: e.message }); }
+        try { 
+            const result = await query(`SELECT * FROM ${table} ORDER BY id DESC`);
+            res.json(result.rows); 
+        } catch (e) { res.status(500).json({ error: e.message }); }
     });
     app.post(`/${route}`, async (req, res) => {
         try {
@@ -201,8 +210,14 @@ const setupCRUD = (route, table) => {
             const keys = Object.keys(body);
             const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null));
             const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-            res.json((await query(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`, values)).rows[0]);
-        } catch (e) { res.status(500).json({ error: e.message }); }
+            const result = await query(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`, values);
+            res.json(result.rows[0]);
+        } catch (e) { 
+            if (e.code === '23505') {
+                return res.status(409).json({ error: 'Duplicate record identified in ledger.' });
+            }
+            res.status(500).json({ error: e.message }); 
+        }
     });
     app.put(`/${route}/:id`, async (req, res) => {
         try {
@@ -210,11 +225,25 @@ const setupCRUD = (route, table) => {
             const keys = Object.keys(body);
             const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null));
             const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
-            res.json((await query(`UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values])).rows[0]);
+            const result = await query(`UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
+            res.json(result.rows[0]);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    app.patch(`/${route}/:id`, async (req, res) => {
+        try {
+            const body = toSnake(req.body); delete body.id;
+            const keys = Object.keys(body);
+            const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null));
+            const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
+            const result = await query(`UPDATE ${table} SET ${setClause} WHERE id = $1 RETURNING *`, [req.params.id, ...values]);
+            res.json(result.rows[0]);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
     app.delete(`/${route}/:id`, async (req, res) => {
-        try { await query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]); res.json({ success: true }); } catch (e) { res.status(500).json({ error: e.message }); }
+        try { 
+            await query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]); 
+            res.json({ success: true }); 
+        } catch (e) { res.status(500).json({ error: e.message }); }
     });
 };
 
@@ -232,13 +261,20 @@ setupCRUD('offers', 'offers');
 setupCRUD('partners', 'partners');
 setupCRUD('upcoming', 'upcoming_products');
 
-app.get('/config', async (req, res) => { res.json((await query('SELECT * FROM system_config WHERE id = 1')).rows[0] || {}); });
+app.get('/config', async (req, res) => { 
+    try {
+        const result = await query('SELECT * FROM system_config WHERE id = 1');
+        res.json(result.rows[0] || {}); 
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.put('/config', async (req, res) => {
     try {
         const fields = toSnake(req.body); delete fields.id;
         const keys = Object.keys(fields);
         const values = Object.values(fields).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : (v ?? null));
         const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
-        res.json((await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values)).rows[0]);
+        const result = await query(`UPDATE system_config SET ${setClause} WHERE id = 1 RETURNING *`, values);
+        res.json(result.rows[0]);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });

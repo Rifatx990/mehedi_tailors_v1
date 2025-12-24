@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS system_config (
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '25.0.1-PRO',
+    db_version TEXT DEFAULT '25.0.2-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -121,8 +121,15 @@ async function run() {
     try {
         client = await pool.connect();
         await client.query(SCHEMA);
-        await client.query('INSERT INTO system_config (id, site_name) VALUES (1, $1) ON CONFLICT DO NOTHING', ['Mehedi Tailors & Fabrics']);
-        await client.query(`INSERT INTO users (id, name, email, role, password) VALUES ('adm-001', 'System Admin', 'admin@meheditailors.com', 'admin', 'admin123') ON CONFLICT DO NOTHING`);
+        await client.query('INSERT INTO system_config (id, site_name) VALUES (1, $1) ON CONFLICT (id) DO NOTHING', ['Mehedi Tailors & Fabrics']);
+        
+        // CRITICAL FIX: Handle conflict specifically on email for the admin seed
+        await client.query(`
+            INSERT INTO users (id, name, email, role, password) 
+            VALUES ('adm-001', 'System Admin', 'admin@meheditailors.com', 'admin', 'admin123') 
+            ON CONFLICT (email) DO NOTHING
+        `);
+        
         console.log('Relational Database Synchronized Successfully.');
     } catch (err) {
         console.error('DATABASE INIT CRITICAL FAILURE:', err.message);
