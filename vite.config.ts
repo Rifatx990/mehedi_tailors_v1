@@ -5,16 +5,14 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5000,
-    allowedHosts: true,
-    // Port 5000 is default for Vite in this environment
   },
   plugins: [
     {
       name: 'express-api-middleware',
       configureServer(server) {
-        // Express app is mounted directly to the dev server
-        // This handles /api routes without needing a separate proxy block
-        server.middlewares.use(app);
+        // This mounts the Express app to /api. 
+        // Requests like /api/health will reach Express as /health.
+        server.middlewares.use('/api', app);
       },
     },
   ],

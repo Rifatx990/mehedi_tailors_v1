@@ -1,57 +1,44 @@
-# Mehedi Tailors & Fabrics | Bespoke ERP & Artisan Gateway
+# Mehedi Tailors & Fabrics | Bespoke ERP
 
-An industrial-grade Enterprise Resource Planning (ERP) suite tailored for high-end bespoke studios. Powered by a **PostgreSQL** relational engine, **SSLCommerz** + **bKash** digital gateways, and **Gemini AI** for sartorial intelligence.
+Industrial-grade tailoring suite with PostgreSQL persistence and dual-gateway (SSLCommerz + bKash) payments.
 
----
+## ⚙️ Environment Configuration
 
-## 🏛️ Architectural Stack
+Create a `.env` file in the project root:
 
--   **Frontend**: React 19 (ESM) + Tailwind CSS 3
--   **Backend**: Node.js + Express (RESTful Gateway)
--   **Database**: PostgreSQL 14+ (Relational Persistence)
--   **Payment**: SSLCommerz V4 + bKash Tokenized Checkout
--   **AI Intelligence**: Google Gemini API
--   **Infrastructure**: Vite 6 Proxy Architecture
-
-## 🚀 Rapid Deployment
-
-### 1. Prerequisite Checklist
--   Node.js (LTS recommended)
--   PostgreSQL Server
--   Gemini API Key
--   SSLCommerz & bKash Credentials
-
-### 2. Environment Configuration
-Create a `.env` file in the root directory:
 ```env
-# Database Credentials
+PORT=3000
+
+# PostgreSQL Configuration
 DB_USER=postgres
-DB_PASSWORD=your_secure_password
-DB_HOST=localhost
+DB_PASSWORD=your_password
+DB_HOST=127.0.0.1
 DB_PORT=5432
 DB_NAME=mehedi_atelier
+# Or use a full URL:
+# DATABASE_URL=postgres://user:pass@host:port/dbname
 
-# SSLCommerz Configuration
-SSL_STORE_ID=your_store_id
-SSL_STORE_PASS=your_store_password
-SSL_IS_LIVE=false
-APP_BASE_URL=http://localhost:5000
-
-# bKash Configuration
+# bKash Configuration (Sandbox/Beta)
 BKASH_BASE_URL=https://checkout.sandbox.bka.sh/v1.2.0-beta
+BKASH_APP_LIVE=false
 BKASH_APP_KEY=your_app_key
 BKASH_APP_SECRET=your_app_secret
 BKASH_USERNAME=your_username
 BKASH_PASSWORD=your_password
 
-# AI Core
-API_KEY=your_gemini_api_key
+# SSLCommerz Configuration
+SSL_STORE_ID=your_id
+SSL_STORE_PASS=your_pass
+SSL_IS_LIVE=false
+
+# App Base (For callbacks)
+APP_BASE_URL=http://localhost:5000
 ```
 
-### 3. Ignition Sequence
-```bash
-npm install
-npm start
-```
+## 🚀 Ignition
+
+1. **Initialize Database**: `npm run db:init`
+2. **Start Dev Server**: `npm run dev`
+
 ---
-*Engineered for Sartorial Sovereignty. Handcrafted in Ashulia, Savar.*
+*Engineered for Sartorial Sovereignty.*
