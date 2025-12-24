@@ -11,18 +11,19 @@ const poolConfig = process.env.DATABASE_URL
       database: process.env.DB_NAME || 'mehedi_atelier',
       password: process.env.DB_PASSWORD || 'postgres',
       port: parseInt(process.env.DB_PORT || '5432'),
+      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
     };
 
 const pool = new Pool(poolConfig);
 
 const SCHEMA = `
--- ATELIER ARCHITECTURAL SCHEMA V22.0 (Resilient Migration Engine)
+-- ATELIER ARCHITECTURAL SCHEMA V23.0 (Dual Gateway Support)
 CREATE TABLE IF NOT EXISTS system_config (
     id SERIAL PRIMARY KEY,
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '22.0.0-PRO',
+    db_version TEXT DEFAULT '23.0.0-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -86,6 +87,7 @@ CREATE TABLE IF NOT EXISTS orders (
     bespoke_note TEXT,
     bespoke_type TEXT,
     delivery_date TEXT,
+    -- Enhanced Fiscal Audit
     ssl_tran_id TEXT,
     ssl_val_id TEXT,
     ssl_payment_details JSONB,
@@ -138,22 +140,16 @@ CREATE TABLE IF NOT EXISTS partners ( id TEXT PRIMARY KEY, name TEXT NOT NULL, l
 `;
 
 async function run() {
-    console.log('--- MEHEDI ATELIER: DB INITIALIZATION V22 ---');
+    console.log('--- MEHEDI ATELIER: DB INITIALIZATION V23 ---');
     let client;
     try {
         client = await pool.connect();
-        console.log('Handshake Successful: Connected to PostgreSQL.');
-        
         await client.query(SCHEMA);
-        console.log('Schema Verification Complete.');
-
-        // DATA MIGRATION FROM database.json
+        
+        // Check if migration from JSON is needed
         if (fs.existsSync('./database.json')) {
-            console.log('Migration Source Detected: database.json');
             const raw = fs.readFileSync('./database.json');
             const dbJson = JSON.parse(raw);
-
-            // 1. Migrate Products
             if (dbJson.products) {
                 for (const p of dbJson.products) {
                     await client.query(
@@ -163,39 +159,15 @@ async function run() {
                     );
                 }
             }
-
-            // 2. Migrate Users
-            if (dbJson.users) {
-                for (const u of dbJson.users) {
-                    await client.query(
-                        `INSERT INTO users (id, name, email, phone, address, role, password, specialization, experience, join_date, measurements) 
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (id) DO NOTHING`,
-                        [u.id, u.name, u.email, u.phone, u.address, u.role, u.password, u.specialization || null, u.experience || null, u.joinDate || null, JSON.stringify(u.measurements || [])]
-                    );
-                }
-            }
-
-            // 3. Migrate System Config
-            if (dbJson.config) {
-                const c = dbJson.config;
-                await client.query(
-                    `INSERT INTO system_config (id, site_name, site_logo, document_logo, db_version, gift_card_denominations, gift_cards_enabled, smtp_host, smtp_port, is_enabled) 
-                     VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO UPDATE SET site_name = EXCLUDED.site_name`,
-                    [c.siteName, c.siteLogo, c.documentLogo, c.dbVersion, JSON.stringify(c.giftCardDenominations || [2000, 5000]), c.giftCardsEnabled, c.smtpHost, c.smtpPort, c.isEnabled]
-                );
-            }
-
-            console.log('Migration Sequence Finished.');
-        } else {
-            // Default seeding if no database.json
-            await client.query('INSERT INTO system_config (id, site_name) VALUES (1, $1) ON CONFLICT DO NOTHING', ['Mehedi Tailors & Fabrics']);
-            await client.query(`INSERT INTO users (id, name, email, role, password) VALUES ('adm-001', 'Master Admin', 'admin@meheditailors.com', 'admin', 'admin123') ON CONFLICT DO NOTHING`);
         }
 
-        console.log('SUCCESS: Production Registry Ready.');
+        // Default seeding
+        await client.query('INSERT INTO system_config (id, site_name) VALUES (1, $1) ON CONFLICT DO NOTHING', ['Mehedi Tailors & Fabrics']);
+        await client.query(`INSERT INTO users (id, name, email, role, password) VALUES ('adm-001', 'System Admin', 'admin@meheditailors.com', 'admin', 'admin123') ON CONFLICT DO NOTHING`);
+
+        console.log('SUCCESS: Central Ledger Sync Complete.');
     } catch (err) {
-        console.error('CRITICAL DB ERROR:', err.message);
-        process.exit(1); // Exit if DB fails to init
+        console.error('DATABASE FAILURE:', err.message);
     } finally {
         if (client) client.release();
         await pool.end();

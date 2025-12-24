@@ -17,21 +17,17 @@ export class DatabaseService {
       });
 
       if (!response.ok) {
-        let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+        let errorMessage = `API Error: ${response.status}`;
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorData.message || errorMessage;
-        } catch (e) {
-          if (response.status === 404) {
-            errorMessage = "Service Endpoint Not Found (Check Backend Proxy)";
-          }
-        }
+        } catch (e) {}
         throw new Error(errorMessage);
       }
 
       return response.json();
     } catch (err: any) {
-      console.error(`Atelier API Handshake Error [${path}]:`, err.message);
+      console.error(`API Error [${path}]:`, err.message);
       throw err;
     }
   }
@@ -45,27 +41,17 @@ export class DatabaseService {
     });
   }
 
-  // --- SSLCOMMERZ HANDSHAKE ---
   async initPayment(order: any) {
-    return this.request<any>('/payment/init', {
-      method: 'POST',
-      body: JSON.stringify(order)
-    });
+    return this.request<any>('/payment/init', { method: 'POST', body: JSON.stringify(order) });
   }
 
-  // --- BKASH HANDSHAKE ---
+  // --- bKash Handshake ---
   async createBkashPayment(order: any) {
-    return this.request<any>('/bkash/create', {
-      method: 'POST',
-      body: JSON.stringify(order)
-    });
+    return this.request<any>('/bkash/create', { method: 'POST', body: JSON.stringify(order) });
   }
 
   async executeBkashPayment(paymentID: string, orderId: string) {
-    return this.request<any>('/bkash/execute', {
-      method: 'POST',
-      body: JSON.stringify({ paymentID, orderId })
-    });
+    return this.request<any>('/bkash/execute', { method: 'POST', body: JSON.stringify({ paymentID, orderId }) });
   }
 
   async getUsers() { return this.request<any[]>('/users'); }
@@ -86,24 +72,6 @@ export class DatabaseService {
   }
   async deleteProduct(id: string) { return this.request(`/products/${id}`, { method: 'DELETE' }); }
 
-  async getUpcoming() { return this.request<any[]>('/upcoming'); }
-  async saveUpcoming(p: any) {
-    return this.request<any>(`/upcoming${p.id && !p._isNew ? `/${p.id}` : ''}`, {
-      method: p.id && !p._isNew ? 'PUT' : 'POST',
-      body: JSON.stringify(p)
-    });
-  }
-  async deleteUpcoming(id: string) { return this.request(`/upcoming/${id}`, { method: 'DELETE' }); }
-
-  async getFabrics() { return this.request<any[]>('/fabrics'); }
-  async saveFabric(f: any) {
-    return this.request<any>(`/fabrics${f.id && !f._isNew ? `/${f.id}` : ''}`, {
-      method: f.id && !f._isNew ? 'PUT' : 'POST',
-      body: JSON.stringify(f)
-    });
-  }
-  async deleteFabric(id: string) { return this.request(`/fabrics/${id}`, { method: 'DELETE' }); }
-
   async getOrders() { return this.request<any[]>('/orders'); }
   async saveOrder(order: any) {
     return this.request<any>(`/orders${order.id && !order._isNew ? `/${order.id}` : ''}`, {
@@ -121,24 +89,6 @@ export class DatabaseService {
     });
   }
   async deleteDue(id: string) { return this.request(`/dues/${id}`, { method: 'DELETE' }); }
-
-  async getCoupons() { return this.request<any[]>('/coupons'); }
-  async saveCoupon(c: any) {
-    return this.request<any>(`/coupons${c.id && !c._isNew ? `/${c.id}` : ''}`, {
-      method: c.id && !c._isNew ? 'PUT' : 'POST',
-      body: JSON.stringify(c)
-    });
-  }
-  async deleteCoupon(id: string) { return this.request(`/coupons/${id}`, { method: 'DELETE' }); }
-
-  async getGiftCards() { return this.request<any[]>('/gift-cards'); }
-  async saveGiftCard(gc: any) {
-    return this.request<any>(`/gift-cards${gc.id && !gc._isNew ? `/${gc.id}` : ''}`, {
-      method: gc.id && !gc._isNew ? 'PUT' : 'POST',
-      body: JSON.stringify(gc)
-    });
-  }
-  async deleteGiftCard(id: string) { return this.request(`/gift-cards/${id}`, { method: 'DELETE' }); }
 
   async getConfig() { return this.request<any>('/config'); }
   async updateConfig(config: any) {
@@ -213,6 +163,54 @@ export class DatabaseService {
   async deleteReview(id: string) { return this.request(`/reviews/${id}`, { method: 'DELETE' }); }
 
   async getEmails() { return this.request<any[]>('/emails'); }
+
+  // FIX: Added missing getFabrics method
+  async getFabrics() { return this.request<any[]>('/fabrics'); }
+  // FIX: Added missing saveFabric method
+  async saveFabric(f: any) {
+    return this.request<any>(`/fabrics${f.id && !f._isNew ? `/${f.id}` : ''}`, {
+      method: f.id && !f._isNew ? 'PUT' : 'POST',
+      body: JSON.stringify(f)
+    });
+  }
+  // FIX: Added missing deleteFabric method
+  async deleteFabric(id: string) { return this.request(`/fabrics/${id}`, { method: 'DELETE' }); }
+
+  // FIX: Added missing getCoupons method
+  async getCoupons() { return this.request<any[]>('/coupons'); }
+  // FIX: Added missing saveCoupon method
+  async saveCoupon(c: any) {
+    return this.request<any>(`/coupons${c.id && !c._isNew ? `/${c.id}` : ''}`, {
+      method: c.id && !c._isNew ? 'PUT' : 'POST',
+      body: JSON.stringify(c)
+    });
+  }
+  // FIX: Added missing deleteCoupon method
+  async deleteCoupon(id: string) { return this.request(`/coupons/${id}`, { method: 'DELETE' }); }
+
+  // FIX: Added missing getGiftCards method
+  async getGiftCards() { return this.request<any[]>('/gift-cards'); }
+  // FIX: Added missing saveGiftCard method
+  async saveGiftCard(gc: any) {
+    return this.request<any>(`/gift-cards${gc.id && !gc._isNew ? `/${gc.id}` : ''}`, {
+      method: gc.id && !gc._isNew ? 'PUT' : 'POST',
+      body: JSON.stringify(gc)
+    });
+  }
+  // FIX: Added missing deleteGiftCard method
+  async deleteGiftCard(id: string) { return this.request(`/gift-cards/${id}`, { method: 'DELETE' }); }
+
+  // FIX: Added missing getUpcoming method
+  async getUpcoming() { return this.request<any[]>('/upcoming'); }
+  // FIX: Added missing saveUpcoming method
+  async saveUpcoming(p: any) {
+    return this.request<any>(`/upcoming${p.id && !p._isNew ? `/${p.id}` : ''}`, {
+      method: p.id && !p._isNew ? 'PUT' : 'POST',
+      body: JSON.stringify(p)
+    });
+  }
+  // FIX: Added missing deleteUpcoming method
+  async deleteUpcoming(id: string) { return this.request(`/upcoming/${id}`, { method: 'DELETE' }); }
 }
 
 export const dbService = new DatabaseService();

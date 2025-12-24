@@ -148,13 +148,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const health = await dbService.checkHealth();
       console.log("Atelier Ledger Status:", health.status);
 
-      const [users, prods, ords, conf, bans, nats, offs, coups, gcs, ds, svcs, pats, preqs, mreqs, revs, fabs, emails] = await Promise.all([
+      // FIX: Added getUpcoming() to Promise.all in bootstrap to synchronize all entities
+      const [users, prods, ords, conf, bans, nats, offs, coups, gcs, ds, svcs, pats, preqs, mreqs, revs, fabs, emails, upcoming] = await Promise.all([
         dbService.getUsers(), dbService.getProducts(), dbService.getOrders(),
         dbService.getConfig(), dbService.getBanners(), dbService.getNotices(),
         dbService.getOffers(), dbService.getCoupons(), dbService.getGiftCards(),
         dbService.getDues(), dbService.getBespokeServices(), dbService.getPartners(),
         dbService.getProductRequests(), dbService.getMaterialRequests(), dbService.getReviews(),
-        dbService.getFabrics(), dbService.getEmails()
+        dbService.getFabrics(), dbService.getEmails(), dbService.getUpcoming()
       ]);
 
       setAllUsers(mapDbToCamel(users));
@@ -174,6 +175,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setReviews(mapDbToCamel(revs));
       setFabrics(mapDbToCamel(fabs));
       setEmailLogs(mapDbToCamel(emails));
+      // FIX: Set upcoming products state from bootstrap data
+      setUpcomingProducts(mapDbToCamel(upcoming));
       
       const storedUserId = localStorage.getItem('mt_user_id');
       if (storedUserId) {
