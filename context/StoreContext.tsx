@@ -131,11 +131,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     siteName: 'Mehedi Tailors & Fabrics', dbVersion: 'REST-SQL-18.0', giftCardDenominations: [2000, 5000, 10000], giftCardsEnabled: true
   });
 
-  // DEEP CAMEL MAPPING (Recursively handles arrays and objects)
   const mapDbToCamel = (obj: any): any => {
     if (obj === null || typeof obj !== 'object') return obj;
     if (Array.isArray(obj)) return obj.map(mapDbToCamel);
-    
     const newObj: any = {};
     for (let key in obj) {
       const camelKey = key.replace(/(_\w)/g, (m) => m[1].toUpperCase());
@@ -146,8 +144,12 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const bootstrap = useCallback(async () => {
     try {
-      const [users, prods, upcs, ords, conf, bans, nats, offs, coups, gcs, ds, svcs, pats, preqs, mreqs, revs, fabs, emails] = await Promise.all([
-        dbService.getUsers(), dbService.getProducts(), dbService.getUpcoming(), dbService.getOrders(),
+      // Diagnostic Check
+      const health = await dbService.checkHealth();
+      console.log("Atelier Ledger Status:", health.status);
+
+      const [users, prods, ords, conf, bans, nats, offs, coups, gcs, ds, svcs, pats, preqs, mreqs, revs, fabs, emails] = await Promise.all([
+        dbService.getUsers(), dbService.getProducts(), dbService.getOrders(),
         dbService.getConfig(), dbService.getBanners(), dbService.getNotices(),
         dbService.getOffers(), dbService.getCoupons(), dbService.getGiftCards(),
         dbService.getDues(), dbService.getBespokeServices(), dbService.getPartners(),
@@ -157,7 +159,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
       setAllUsers(mapDbToCamel(users));
       setProducts(mapDbToCamel(prods));
-      setUpcomingProducts(mapDbToCamel(upcs));
       setOrders(mapDbToCamel(ords));
       if (conf) setSystemConfig(mapDbToCamel(conf));
       setBanners(mapDbToCamel(bans));
@@ -186,7 +187,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
       setIsHydrated(true);
     } catch (err) {
-      console.error("Central Ledger Connection Failed:", err);
+      console.error("Central Ledger Sync Failed:", err);
       setIsHydrated(true);
     }
   }, []);

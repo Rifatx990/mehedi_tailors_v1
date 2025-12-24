@@ -1,6 +1,7 @@
 import pg from 'pg';
 const { Pool } = pg;
 import 'dotenv/config';
+import fs from 'fs';
 
 const poolConfig = process.env.DATABASE_URL 
   ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
@@ -15,13 +16,13 @@ const poolConfig = process.env.DATABASE_URL
 const pool = new Pool(poolConfig);
 
 const SCHEMA = `
--- ATELIER ARCHITECTURAL SCHEMA V21.0 (SSLCommerz + bKash Secure Storage)
+-- ATELIER ARCHITECTURAL SCHEMA V22.0 (Resilient Migration Engine)
 CREATE TABLE IF NOT EXISTS system_config (
     id SERIAL PRIMARY KEY,
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '21.0.0-PRO',
+    db_version TEXT DEFAULT '22.0.0-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -85,22 +86,12 @@ CREATE TABLE IF NOT EXISTS orders (
     bespoke_note TEXT,
     bespoke_type TEXT,
     delivery_date TEXT,
-    -- Audit Columns (Gateways)
     ssl_tran_id TEXT,
     ssl_val_id TEXT,
     ssl_payment_details JSONB,
     bkash_trx_id TEXT,
     bkash_payment_details JSONB
 );
-
--- MIGRATION PROTOCOL V21 (Ensuring all audit columns exist)
-DO $$ BEGIN 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='ssl_tran_id') THEN ALTER TABLE orders ADD COLUMN ssl_tran_id TEXT; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='ssl_val_id') THEN ALTER TABLE orders ADD COLUMN ssl_val_id TEXT; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='ssl_payment_details') THEN ALTER TABLE orders ADD COLUMN ssl_payment_details JSONB; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='bkash_trx_id') THEN ALTER TABLE orders ADD COLUMN bkash_trx_id TEXT; END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='bkash_payment_details') THEN ALTER TABLE orders ADD COLUMN bkash_payment_details JSONB; END IF;
-END $$;
 
 CREATE TABLE IF NOT EXISTS dues (
     id TEXT PRIMARY KEY,
@@ -133,51 +124,80 @@ CREATE TABLE IF NOT EXISTS bespoke_services (
     is_active BOOLEAN DEFAULT true
 );
 
-CREATE TABLE IF NOT EXISTS banners ( id TEXT PRIMARY KEY, title TEXT, subtitle TEXT, image_url TEXT, link_url TEXT, is_active BOOLEAN DEFAULT true );
 CREATE TABLE IF NOT EXISTS coupons ( id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, discount_percent INTEGER NOT NULL, is_active BOOLEAN DEFAULT true, usage_limit INTEGER, usage_count INTEGER DEFAULT 0, expiry_date TIMESTAMPTZ );
-CREATE TABLE IF NOT EXISTS upcoming_products ( id TEXT PRIMARY KEY, name TEXT NOT NULL, image TEXT, expected_date TEXT, description TEXT, is_active BOOLEAN DEFAULT true );
-CREATE TABLE IF NOT EXISTS gift_cards ( id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, balance DECIMAL(12,2) NOT NULL, initial_amount DECIMAL(12,2) NOT NULL, customer_email TEXT, customer_name TEXT, is_active BOOLEAN DEFAULT true, expiry_date TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP );
 CREATE TABLE IF NOT EXISTS notices ( id TEXT PRIMARY KEY, content TEXT NOT NULL, type TEXT DEFAULT 'info', is_active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP );
 CREATE TABLE IF NOT EXISTS offers ( id TEXT PRIMARY KEY, title TEXT, description TEXT, discount_tag TEXT, image_url TEXT, link_url TEXT, is_active BOOLEAN DEFAULT true );
-CREATE TABLE IF NOT EXISTS partners ( id TEXT PRIMARY KEY, name TEXT NOT NULL, logo TEXT, is_active BOOLEAN DEFAULT true );
-CREATE TABLE IF NOT EXISTS material_requests ( id TEXT PRIMARY KEY, worker_id TEXT REFERENCES users(id), worker_name TEXT, material_name TEXT, quantity TEXT, status TEXT DEFAULT 'pending', date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, notes TEXT );
+CREATE TABLE IF NOT EXISTS banners ( id TEXT PRIMARY KEY, title TEXT, subtitle TEXT, image_url TEXT, link_url TEXT, is_active BOOLEAN DEFAULT true );
 CREATE TABLE IF NOT EXISTS product_requests ( id TEXT PRIMARY KEY, user_name TEXT, email TEXT, product_title TEXT, description TEXT, date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP );
-CREATE TABLE IF NOT EXISTS reviews ( id TEXT PRIMARY KEY, user_name TEXT, rating INTEGER, comment TEXT, date TEXT, status TEXT DEFAULT 'pending' );
+CREATE TABLE IF NOT EXISTS material_requests ( id TEXT PRIMARY KEY, worker_id TEXT REFERENCES users(id), worker_name TEXT, material_name TEXT, quantity TEXT, status TEXT DEFAULT 'pending', date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, notes TEXT );
 CREATE TABLE IF NOT EXISTS email_logs ( id TEXT PRIMARY KEY, recipient TEXT NOT NULL, subject TEXT, body TEXT, timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, status TEXT, template_id TEXT );
+CREATE TABLE IF NOT EXISTS reviews ( id TEXT PRIMARY KEY, user_name TEXT, rating INTEGER, comment TEXT, date TEXT, status TEXT DEFAULT 'pending' );
+CREATE TABLE IF NOT EXISTS gift_cards ( id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, balance DECIMAL(12,2) NOT NULL, initial_amount DECIMAL(12,2) NOT NULL, customer_email TEXT, customer_name TEXT, is_active BOOLEAN DEFAULT true, expiry_date TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP );
+CREATE TABLE IF NOT EXISTS upcoming_products ( id TEXT PRIMARY KEY, name TEXT NOT NULL, image TEXT, expected_date TEXT, description TEXT, is_active BOOLEAN DEFAULT true );
+CREATE TABLE IF NOT EXISTS partners ( id TEXT PRIMARY KEY, name TEXT NOT NULL, logo TEXT, is_active BOOLEAN DEFAULT true );
 `;
 
-const SEED_DATA = {
-    config: { id: 1, site_name: 'Mehedi Tailors & Fabrics', site_logo: 'https://i.imgur.com/8H9IeM5.png', document_logo: 'https://i.imgur.com/8H9IeM5.png', db_version: '21.0.0-PRO' },
-    users: [
-        { id: 'adm-001', name: 'Master Admin', email: 'admin@meheditailors.com', role: 'admin', password: 'admin123', phone: '+8801720267213', address: 'Atelier Savar' },
-        { id: 'wrk-001', name: 'Artisan Kabir', email: 'worker@meheditailors.com', role: 'worker', password: 'worker123', phone: '+8801720267214', specialization: 'Master Stitcher', experience: '15 Years', join_date: '2024-01-01' }
-    ]
-};
-
 async function run() {
-    console.log('--- MEHEDI ATELIER: DB INITIALIZATION V21 ---');
+    console.log('--- MEHEDI ATELIER: DB INITIALIZATION V22 ---');
+    let client;
     try {
-        const client = await pool.connect();
-        await client.query(SCHEMA);
+        client = await pool.connect();
+        console.log('Handshake Successful: Connected to PostgreSQL.');
         
-        const configCheck = await client.query('SELECT id FROM system_config WHERE id = 1');
-        if (configCheck.rowCount === 0) {
-            const c = SEED_DATA.config;
-            await client.query('INSERT INTO system_config (id, site_name, site_logo, document_logo, db_version) VALUES ($1, $2, $3, $4, $5)', [c.id, c.site_name, c.site_logo, c.document_logo, c.db_version]);
-        }
+        await client.query(SCHEMA);
+        console.log('Schema Verification Complete.');
 
-        for (const u of SEED_DATA.users) {
-            const uCheck = await client.query('SELECT id FROM users WHERE email = $1', [u.email]);
-            if (uCheck.rowCount === 0) {
-                await client.query('INSERT INTO users (id, name, email, phone, address, role, password, specialization, experience, join_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)', [u.id, u.name, u.email, u.phone, u.address, u.role, u.password, u.specialization || null, u.experience || null, u.join_date || null]);
+        // DATA MIGRATION FROM database.json
+        if (fs.existsSync('./database.json')) {
+            console.log('Migration Source Detected: database.json');
+            const raw = fs.readFileSync('./database.json');
+            const dbJson = JSON.parse(raw);
+
+            // 1. Migrate Products
+            if (dbJson.products) {
+                for (const p of dbJson.products) {
+                    await client.query(
+                        `INSERT INTO products (id, name, category, price, discount_price, image, images, description, fabric_type, available_sizes, colors, in_stock, stock_count, is_featured) 
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) ON CONFLICT (id) DO NOTHING`,
+                        [p.id, p.name, p.category, p.price, p.discountPrice || null, p.image, JSON.stringify(p.images || []), p.description, p.fabricType, JSON.stringify(p.availableSizes || []), JSON.stringify(p.colors || []), p.inStock, p.stockCount || 0, p.isFeatured || false]
+                    );
+                }
             }
+
+            // 2. Migrate Users
+            if (dbJson.users) {
+                for (const u of dbJson.users) {
+                    await client.query(
+                        `INSERT INTO users (id, name, email, phone, address, role, password, specialization, experience, join_date, measurements) 
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (id) DO NOTHING`,
+                        [u.id, u.name, u.email, u.phone, u.address, u.role, u.password, u.specialization || null, u.experience || null, u.joinDate || null, JSON.stringify(u.measurements || [])]
+                    );
+                }
+            }
+
+            // 3. Migrate System Config
+            if (dbJson.config) {
+                const c = dbJson.config;
+                await client.query(
+                    `INSERT INTO system_config (id, site_name, site_logo, document_logo, db_version, gift_card_denominations, gift_cards_enabled, smtp_host, smtp_port, is_enabled) 
+                     VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO UPDATE SET site_name = EXCLUDED.site_name`,
+                    [c.siteName, c.siteLogo, c.documentLogo, c.dbVersion, JSON.stringify(c.giftCardDenominations || [2000, 5000]), c.giftCardsEnabled, c.smtpHost, c.smtpPort, c.isEnabled]
+                );
+            }
+
+            console.log('Migration Sequence Finished.');
+        } else {
+            // Default seeding if no database.json
+            await client.query('INSERT INTO system_config (id, site_name) VALUES (1, $1) ON CONFLICT DO NOTHING', ['Mehedi Tailors & Fabrics']);
+            await client.query(`INSERT INTO users (id, name, email, role, password) VALUES ('adm-001', 'Master Admin', 'admin@meheditailors.com', 'admin', 'admin123') ON CONFLICT DO NOTHING`);
         }
 
-        console.log('SUCCESS: Production Registry Synchronized.');
-        client.release();
+        console.log('SUCCESS: Production Registry Ready.');
     } catch (err) {
-        console.error('DB FAIL:', err.message);
+        console.error('CRITICAL DB ERROR:', err.message);
+        process.exit(1); // Exit if DB fails to init
     } finally {
+        if (client) client.release();
         await pool.end();
     }
 }
