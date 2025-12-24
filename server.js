@@ -6,14 +6,22 @@ import bodyParser from 'body-parser';
 import axios from 'axios';
 import 'dotenv/config';
 
-export const app = express();
+// Initialize a Router instead of a full app to ensure clean mounting in Vite
+export const router = express.Router();
 
-// Middleware
-app.use(cors());
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(bodyParser.urlencoded({ extended: true }));
+// Middleware (applied to router)
+router.use(cors());
+router.use(bodyParser.json({ limit: '10mb' }));
+router.use(bodyParser.urlencoded({ extended: true }));
 
-// Database configuration with production-grade resilience
+// Diagnostic Request Logger
+router.use((req, res, next) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[Artisan-Ledger-Request] ${timestamp} | ${req.method} ${req.url}`);
+    next();
+});
+
+// Database configuration
 const isProduction = process.env.NODE_ENV === 'production' || !!process.env.DATABASE_URL;
 
 const poolConfig = process.env.DATABASE_URL 
@@ -36,7 +44,6 @@ const poolConfig = process.env.DATABASE_URL
 
 const pool = new Pool(poolConfig);
 
-// SQL Execution Wrapper with robust connection handling
 const query = async (text, params) => {
     const client = await pool.connect();
     try {
@@ -44,9 +51,9 @@ const query = async (text, params) => {
         return res;
     } catch (err) {
         if (err.code === '23505') {
-            console.warn('Managed Conflict Identified:', err.detail);
+            console.warn('[Constraint-Warning]', err.detail);
         } else {
-            console.error('Relational Ledger SQL Error:', err.message);
+            console.error('[SQL-Critical-Failure]', err.message);
         }
         throw err;
     } finally {
@@ -67,29 +74,25 @@ const toSnake = (obj) => {
 };
 
 // --- CORE ROUTES ---
-app.get('/health', async (req, res) => {
+router.get('/health', async (req, res) => {
     try {
         await query('SELECT 1');
         res.json({ 
             status: 'connected', 
             timestamp: new Date(), 
-            engine: 'MT-PG-PRO-V3.3',
+            engine: 'MT-PG-PRO-V3.4',
             scope: 'Global Atelier Ledger'
         });
     } catch (err) {
-        console.error("Health Check Failed:", err.message);
         res.status(503).json({ status: 'disconnected', error: err.message });
     }
 });
 
-// --- SMTP VERIFICATION ---
-app.post('/verify-smtp', async (req, res) => {
-    // This route is used by AdminSettingsPage.tsx
-    // Mocking success as the logic resides in the cloud bridge
+router.post('/verify-smtp', async (req, res) => {
     res.json({ success: true, message: "SMTP Bridge Handshake Verified." });
 });
 
-// --- BKASH TOKENIZED GATEWAY (AXIOS) ---
+// --- BKASH TOKENIZED GATEWAY ---
 const { 
   BKASH_IS_LIVE, BKASH_SANDBOX_URL, BKASH_LIVE_URL, 
   BKASH_APP_KEY, BKASH_APP_SECRET, BKASH_USERNAME, BKASH_PASSWORD,
@@ -103,23 +106,18 @@ async function getBkashToken() {
         const response = await axios.post(
             `${BKASH_BASE_URL}/checkout/token/grant`,
             { app_key: BKASH_APP_KEY, app_secret: BKASH_APP_SECRET },
-            {
-                headers: { username: BKASH_USERNAME, password: BKASH_PASSWORD },
-                timeout: 15000
-            }
+            { headers: { username: BKASH_USERNAME, password: BKASH_PASSWORD }, timeout: 15000 }
         );
         return response.data.id_token;
     } catch (err) {
-        console.error("bKash Handshake Failure:", err.response?.data || err.message);
         throw new Error("bKash Authentication Denied");
     }
 }
 
-app.post('/bkash/create', async (req, res) => {
+router.post('/bkash/create', async (req, res) => {
     try {
         const order = req.body;
         const token = await getBkashToken();
-        
         const response = await axios.post(
             `${BKASH_BASE_URL}/checkout/payment/create`,
             {
@@ -129,13 +127,9 @@ app.post('/bkash/create', async (req, res) => {
                 merchantInvoiceNumber: order.id,
                 callbackURL: `${APP_BASE_URL}/api/bkash/callback?id=${order.id}`
             },
-            {
-                headers: { Authorization: token, 'X-APP-Key': BKASH_APP_KEY },
-                timeout: 15000
-            }
+            { headers: { Authorization: token, 'X-APP-Key': BKASH_APP_KEY }, timeout: 15000 }
         );
 
-        // Persistent Order Intent
         const body = toSnake(order);
         const keys = Object.keys(body);
         const values = Object.values(body).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
@@ -144,12 +138,11 @@ app.post('/bkash/create', async (req, res) => {
 
         res.json(response.data);
     } catch (err) {
-        console.error("bKash Creation Error:", err.response?.data || err.message);
         res.status(500).json({ error: "Gateway initiation failed" });
     }
 });
 
-app.get('/bkash/callback', async (req, res) => {
+router.get('/bkash/callback', async (req, res) => {
     const { id, paymentID, status } = req.query;
     if (status === 'success') {
         res.redirect(`${APP_BASE_URL}/#/checkout?bkash_status=execute&paymentID=${paymentID}&orderId=${id}`);
@@ -158,18 +151,14 @@ app.get('/bkash/callback', async (req, res) => {
     }
 });
 
-app.post('/bkash/execute', async (req, res) => {
+router.post('/bkash/execute', async (req, res) => {
     try {
         const { paymentID, orderId } = req.body;
         const token = await getBkashToken();
-
         const response = await axios.post(
             `${BKASH_BASE_URL}/checkout/payment/execute/${paymentID}`,
             {},
-            {
-                headers: { Authorization: token, 'X-APP-Key': BKASH_APP_KEY },
-                timeout: 15000
-            }
+            { headers: { Authorization: token, 'X-APP-Key': BKASH_APP_KEY }, timeout: 15000 }
         );
 
         if (response.data.transactionStatus === "Completed") {
@@ -180,13 +169,12 @@ app.post('/bkash/execute', async (req, res) => {
         }
         res.status(400).json({ error: "Payment Incomplete", status: response.data.transactionStatus });
     } catch (err) {
-        console.error("bKash Execution Error:", err.response?.data || err.message);
         res.status(500).json({ error: "Execution phase failure" });
     }
 });
 
 // --- SSLCOMMERZ ---
-app.post('/payment/init', async (req, res) => {
+router.post('/payment/init', async (req, res) => {
     const { SSL_STORE_ID, SSL_STORE_PASS, SSL_IS_LIVE } = process.env;
     const SSL_API = (SSL_IS_LIVE === 'true') ? "https://securepay.sslcommerz.com/gwprocess/v4/api.php" : "https://sandbox.sslcommerz.com/gwprocess/v4/api.php";
     
@@ -210,13 +198,13 @@ app.post('/payment/init', async (req, res) => {
 
 // --- CRUD ENGINE ---
 const setupCRUD = (route, table) => {
-    app.get(`/${route}`, async (req, res) => {
+    router.get(`/${route}`, async (req, res) => {
         try { 
             const result = await query(`SELECT * FROM ${table} ORDER BY id DESC`);
             res.json(result.rows); 
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
-    app.post(`/${route}`, async (req, res) => {
+    router.post(`/${route}`, async (req, res) => {
         try {
             const body = toSnake(req.body);
             const keys = Object.keys(body);
@@ -225,13 +213,11 @@ const setupCRUD = (route, table) => {
             const result = await query(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`, values);
             res.json(result.rows[0]);
         } catch (e) { 
-            if (e.code === '23505') {
-                return res.status(409).json({ error: 'Duplicate record identified in ledger.' });
-            }
+            if (e.code === '23505') return res.status(409).json({ error: 'Duplicate record identified in ledger.' });
             res.status(500).json({ error: e.message }); 
         }
     });
-    app.put(`/${route}/:id`, async (req, res) => {
+    router.put(`/${route}/:id`, async (req, res) => {
         try {
             const body = toSnake(req.body); delete body.id;
             const keys = Object.keys(body);
@@ -241,7 +227,7 @@ const setupCRUD = (route, table) => {
             res.json(result.rows[0]);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
-    app.patch(`/${route}/:id`, async (req, res) => {
+    router.patch(`/${route}/:id`, async (req, res) => {
         try {
             const body = toSnake(req.body); delete body.id;
             const keys = Object.keys(body);
@@ -251,7 +237,7 @@ const setupCRUD = (route, table) => {
             res.json(result.rows[0]);
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
-    app.delete(`/${route}/:id`, async (req, res) => {
+    router.delete(`/${route}/:id`, async (req, res) => {
         try { 
             await query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]); 
             res.json({ success: true }); 
@@ -277,14 +263,14 @@ setupCRUD('material-requests', 'material_requests');
 setupCRUD('product-requests', 'product_requests');
 setupCRUD('reviews', 'reviews');
 
-app.get('/config', async (req, res) => { 
+router.get('/config', async (req, res) => { 
     try {
         const result = await query('SELECT * FROM system_config WHERE id = 1');
         res.json(result.rows[0] || {}); 
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/config', async (req, res) => {
+router.put('/config', async (req, res) => {
     try {
         const fields = toSnake(req.body); delete fields.id;
         const keys = Object.keys(fields);
@@ -294,3 +280,6 @@ app.put('/config', async (req, res) => {
         res.json(result.rows[0]);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// Export the router to be mounted as /api in vite.config.ts
+export const app = router;

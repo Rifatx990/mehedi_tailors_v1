@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS system_config (
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '25.0.4-PRO',
+    db_version TEXT DEFAULT '25.0.6-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -89,6 +89,8 @@ CREATE TABLE IF NOT EXISTS orders (
     address TEXT,
     customer_name TEXT,
     customer_email TEXT,
+    phone TEXT,
+    coupon_used TEXT,
     bespoke_note TEXT,
     bespoke_type TEXT,
     delivery_date TEXT,
@@ -115,24 +117,46 @@ CREATE TABLE IF NOT EXISTS email_logs ( id TEXT PRIMARY KEY, recipient TEXT NOT 
 CREATE TABLE IF NOT EXISTS partners ( id TEXT PRIMARY KEY, name TEXT NOT NULL, logo TEXT, is_active BOOLEAN DEFAULT true );
 `;
 
+const MIGRATIONS = [
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS phone TEXT",
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_used TEXT",
+    "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS document_logo TEXT",
+    "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]'",
+    "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS gift_cards_enabled BOOLEAN DEFAULT true"
+];
+
 async function run() {
     console.log('Initiating Relational Ledger Handshake...');
     let client;
     try {
         client = await pool.connect();
+        
+        // Phase 1: Ensure Base Schema
         await client.query(SCHEMA);
         
-        // Seed initial config
+        // Phase 2: Run Migrations for Existing Tables
+        for (const sql of MIGRATIONS) {
+            try {
+                await client.query(sql);
+            } catch (migErr) {
+                console.warn(`Migration skip/fail: ${sql.substring(0, 30)}... | ${migErr.message}`);
+            }
+        }
+        
+        // Phase 3: Synchronize Config Seed
         await client.query('INSERT INTO system_config (id, site_name) VALUES (1, $1) ON CONFLICT (id) DO NOTHING', ['Mehedi Tailors & Fabrics']);
         
-        // Seed default admin
+        // Phase 4: Synchronize Administrative Identity
         await client.query(`
             INSERT INTO users (id, name, email, role, password) 
             VALUES ('adm-001', 'System Admin', 'admin@meheditailors.com', 'admin', 'admin123') 
-            ON CONFLICT (id) DO NOTHING
+            ON CONFLICT (id) DO UPDATE SET 
+                email = EXCLUDED.email,
+                name = EXCLUDED.name,
+                role = EXCLUDED.role
         `);
         
-        console.log('Relational Database Synchronized Successfully.');
+        console.log('Relational Database Synchronized and Patched Successfully.');
     } catch (err) {
         console.error('DATABASE INIT CRITICAL FAILURE:', err.message);
         process.exit(1);
