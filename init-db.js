@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS system_config (
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '25.0.3-PRO',
+    db_version TEXT DEFAULT '25.0.4-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -121,9 +121,11 @@ async function run() {
     try {
         client = await pool.connect();
         await client.query(SCHEMA);
+        
+        // Seed initial config
         await client.query('INSERT INTO system_config (id, site_name) VALUES (1, $1) ON CONFLICT (id) DO NOTHING', ['Mehedi Tailors & Fabrics']);
         
-        // Pivot on ID for Conflict Resolution to prevent unique constraint errors on existing emails
+        // Seed default admin
         await client.query(`
             INSERT INTO users (id, name, email, role, password) 
             VALUES ('adm-001', 'System Admin', 'admin@meheditailors.com', 'admin', 'admin123') 
