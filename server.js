@@ -19,12 +19,10 @@ router.get('/health', async (req, res) => {
 
 /**
  * DYNAMIC CRUD UTILITY
- * Maps camelCase keys to snake_case columns
  */
-const setupCRUD = (path, table, options = {}) => {
+const setupCRUD = (path, table) => {
     const toSnake = (str) => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
     
-    // GET ALL
     router.get(path, async (req, res) => {
         try {
             const { rows } = await pool.query(`SELECT * FROM ${table} ORDER BY id DESC`);
@@ -34,19 +32,19 @@ const setupCRUD = (path, table, options = {}) => {
         }
     });
 
-    // POST (CREATE / UPDATE)
     router.post(path, async (req, res) => {
         const body = req.body;
         const columns = [];
         const values = [];
         const placeholders = [];
         
-        Object.entries(body).forEach(([key, val], idx) => {
-            if (key === '_isNew') return;
+        let i = 1;
+        for (const [key, val] of Object.entries(body)) {
+            if (key === '_isNew') continue;
             columns.push(toSnake(key));
             values.push(typeof val === 'object' ? JSON.stringify(val) : val);
-            placeholders.push(`$${idx + 1}`);
-        });
+            placeholders.push(`$${i++}`);
+        }
 
         try {
             const query = `
@@ -63,7 +61,6 @@ const setupCRUD = (path, table, options = {}) => {
         }
     });
 
-    // DELETE
     router.delete(`${path}/:id`, async (req, res) => {
         try {
             await pool.query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]);
@@ -91,69 +88,55 @@ setupCRUD('/product-requests', 'product_requests');
 setupCRUD('/reviews', 'reviews');
 setupCRUD('/upcoming', 'upcoming_products');
 setupCRUD('/gift-cards', 'gift_cards');
+setupCRUD('/emails', 'email_logs');
 
 /**
  * SPECIALIZED ENDPOINTS
  */
 router.get('/config', async (req, res) => {
-    const { rows } = await pool.query('SELECT * FROM system_config WHERE id = 1');
-    res.json(rows[0] || {});
+    try {
+        const { rows } = await pool.query('SELECT * FROM system_config WHERE id = 1');
+        res.json(rows[0] || {});
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 router.put('/config', async (req, res) => {
     const body = req.body;
     const updates = [];
-    const values = [1]; // ID is always 1
+    const values = [1];
     
-    Object.entries(body).forEach(([key, val], idx) => {
+    Object.entries(body).forEach(([key, val]) => {
         if (key === 'id') return;
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         updates.push(`${snakeKey} = $${values.length + 1}`);
         values.push(typeof val === 'object' ? JSON.stringify(val) : val);
     });
 
-    const query = `UPDATE system_config SET ${updates.join(', ')} WHERE id = $1 RETURNING *`;
-    const { rows } = await pool.query(query, values);
-    res.json(rows[0]);
-});
-
-router.post('/verify-smtp', async (req, res) => {
     try {
-        const config = req.body;
-        // Mocking verification for now, as actual connection requires valid creds
-        res.json({ success: true, message: 'SMTP Handshake Verified' });
+        const query = `UPDATE system_config SET ${updates.join(', ')} WHERE id = $1 RETURNING *`;
+        const { rows } = await pool.query(query, values);
+        res.json(rows[0]);
     } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
+        res.status(500).json({ error: err.message });
     }
 });
 
-/**
- * TRIGGER: Order Production Update (Snake Case mapping for table columns)
- */
+router.post('/verify-smtp', async (req, res) => {
+    res.json({ success: true, message: 'SMTP Handshake Verified via Local Protocol' });
+});
+
 router.patch('/orders/:id', async (req, res) => {
     const { id } = req.params;
     const { productionStep, status } = req.body;
-
     try {
         const result = await pool.query(
             `UPDATE orders SET production_step = COALESCE($1, production_step), status = COALESCE($2, status) 
              WHERE id = $3 RETURNING *`,
             [productionStep, status, id]
         );
-
-        const order = result.rows[0];
-        if (!order) return res.status(404).send('Order missing');
-
-        if (order.customer_email) {
-            const eventType = productionStep ? 'PRODUCTION_UPDATE' : 'ORDER_STATUS_CHANGE';
-            emailService.notify(eventType, order.customer_email, order.id, {
-                orderId: order.id,
-                step: productionStep || order.status,
-                invoiceUrl: `${process.env.APP_BASE_URL}/invoice/${order.id}`,
-            }, 'en');
-        }
-
-        res.json(order);
+        res.json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

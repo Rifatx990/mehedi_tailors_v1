@@ -31,6 +31,23 @@ CREATE TABLE IF NOT EXISTS users (
     measurements JSONB DEFAULT '[]'
 );
 
+CREATE TABLE IF NOT EXISTS products (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    category TEXT,
+    price DECIMAL(12,2) NOT NULL,
+    discount_price DECIMAL(12,2),
+    image TEXT,
+    images JSONB DEFAULT '[]',
+    description TEXT,
+    fabric_type TEXT,
+    available_sizes JSONB DEFAULT '[]',
+    colors JSONB DEFAULT '[]',
+    in_stock BOOLEAN DEFAULT true,
+    stock_count INTEGER DEFAULT 0,
+    is_featured BOOLEAN DEFAULT false
+);
+
 CREATE TABLE IF NOT EXISTS orders (
     id TEXT PRIMARY KEY,
     date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -52,7 +69,134 @@ CREATE TABLE IF NOT EXISTS orders (
     coupon_used TEXT,
     bespoke_note TEXT,
     bespoke_type TEXT,
-    delivery_date TEXT
+    delivery_date TEXT,
+    ssl_tran_id TEXT,
+    bkash_trx_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS fabrics (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    image TEXT,
+    description TEXT,
+    colors JSONB DEFAULT '[]'
+);
+
+CREATE TABLE IF NOT EXISTS coupons (
+    id TEXT PRIMARY KEY,
+    code TEXT UNIQUE NOT NULL,
+    discount_percent INTEGER NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    usage_limit INTEGER,
+    usage_count INTEGER DEFAULT 0,
+    expiry_date TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS banners (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    subtitle TEXT,
+    image_url TEXT,
+    link_url TEXT,
+    is_active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE IF NOT EXISTS notices (
+    id TEXT PRIMARY KEY,
+    content TEXT,
+    type TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS offers (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    description TEXT,
+    discount_tag TEXT,
+    image_url TEXT,
+    link_url TEXT,
+    is_active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE IF NOT EXISTS bespoke_services (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    icon TEXT,
+    image TEXT,
+    base_price DECIMAL(12,2),
+    description TEXT,
+    is_active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE IF NOT EXISTS partners (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    logo TEXT,
+    is_active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE IF NOT EXISTS dues (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES users(id),
+    customer_name TEXT,
+    customer_email TEXT,
+    amount DECIMAL(12,2),
+    reason TEXT,
+    status TEXT DEFAULT 'pending',
+    date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    settled_date TIMESTAMPTZ,
+    last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS material_requests (
+    id TEXT PRIMARY KEY,
+    worker_id TEXT REFERENCES users(id),
+    worker_name TEXT,
+    material_name TEXT,
+    quantity TEXT,
+    status TEXT DEFAULT 'pending',
+    date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT
+);
+
+CREATE TABLE IF NOT EXISTS product_requests (
+    id TEXT PRIMARY KEY,
+    user_name TEXT,
+    email TEXT,
+    product_title TEXT,
+    description TEXT,
+    date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS reviews (
+    id TEXT PRIMARY KEY,
+    user_name TEXT,
+    rating INTEGER,
+    comment TEXT,
+    date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'pending'
+);
+
+CREATE TABLE IF NOT EXISTS upcoming_products (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    image TEXT,
+    expected_date TEXT,
+    description TEXT,
+    is_active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE IF NOT EXISTS gift_cards (
+    id TEXT PRIMARY KEY,
+    code TEXT UNIQUE NOT NULL,
+    balance DECIMAL(12,2),
+    initial_amount DECIMAL(12,2),
+    customer_email TEXT,
+    customer_name TEXT,
+    is_active BOOLEAN DEFAULT true,
+    expiry_date TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS email_logs (
@@ -61,7 +205,7 @@ CREATE TABLE IF NOT EXISTS email_logs (
     event_type TEXT NOT NULL,
     recipient TEXT NOT NULL,
     payload JSONB,
-    status TEXT CHECK (status IN ('PENDING', 'SENT', 'FAILED', 'SKIPPED')),
+    status TEXT DEFAULT 'PENDING',
     error_reason TEXT,
     retry_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -69,61 +213,29 @@ CREATE TABLE IF NOT EXISTS email_logs (
 );
 `;
 
-const MIGRATIONS = [
-    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS bespoke_note TEXT",
-    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS bespoke_type TEXT",
-    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_date TEXT",
-    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS phone TEXT",
-    "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS gift_cards_enabled BOOLEAN DEFAULT true"
-];
-
 async function run() {
-    console.log('[Init] Negotiating with PostgreSQL host...');
+    console.log('[Init] Establishing PostgreSQL Master Ledger Schema...');
     let client;
-    let attempts = 0;
-    const maxAttempts = 5;
+    try {
+        client = await pool.connect();
+        await client.query(SCHEMA);
+        
+        // Ensure Primary Admin
+        await client.query(`
+            INSERT INTO users (id, name, email, role, password) 
+            VALUES ('adm-001', 'System Admin', 'admin@meheditailors.com', 'admin', 'admin123') 
+            ON CONFLICT (id) DO NOTHING
+        `);
 
-    while (attempts < maxAttempts) {
-        try {
-            client = await pool.connect();
-            console.log('[Init] Connection established. Applying schema...');
-            
-            await client.query(SCHEMA);
-            
-            for (const migration of MIGRATIONS) {
-                try {
-                    await client.query(migration);
-                } catch (mErr) {
-                    // Silently ignore already-applied migrations
-                }
-            }
+        // Ensure Initial System Config
+        await client.query('INSERT INTO system_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING');
 
-            // Ensure Admin User
-            await client.query(`
-                INSERT INTO users (id, name, email, role, password) 
-                VALUES ('adm-001', 'System Admin', 'admin@meheditailors.com', 'admin', 'admin123') 
-                ON CONFLICT (id) DO NOTHING
-            `);
-
-            // Ensure Config
-            await client.query('INSERT INTO system_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING');
-
-            console.log('[Init] Authoritative Ledger Synchronized Successfully.');
-            return;
-
-        } catch (err) {
-            attempts++;
-            console.error(`[Init] Handshake attempt ${attempts} failed: ${err.message}`);
-            if (attempts < maxAttempts) {
-                console.log('[Init] Retrying in 3 seconds...');
-                await new Promise(res => setTimeout(res, 3000));
-            } else {
-                console.error('[Init] CRITICAL: Maximum connection attempts reached. Termination enforced.');
-                process.exit(1);
-            }
-        } finally {
-            if (client) client.release();
-        }
+        console.log('[Init] Authoritative Ledger Ready.');
+    } catch (err) {
+        console.error(`[Init] CRITICAL FAILURE: ${err.message}`);
+        process.exit(1);
+    } finally {
+        if (client) client.release();
     }
 }
 

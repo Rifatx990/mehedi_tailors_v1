@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { 
   CartItem, Product, User, Order, OrderStatus, Fabric, Coupon, 
   Banner, ProductionStep, SystemConfig, Notice, Offer, PartnerBrand, BespokeService, 
@@ -101,6 +101,8 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isHydrated, setIsHydrated] = useState(false);
+  const bootstrappingRef = useRef(false);
+  
   const [cart, setCart] = useState<CartItem[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [adminUser, setAdminUser] = useState<User | null>(null);
@@ -128,7 +130,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [systemConfig, setSystemConfig] = useState<SystemConfig>({
     smtpHost: '', smtpPort: 465, smtpUser: '', smtpPass: '', secure: true, 
     senderName: 'Mehedi Tailors', senderEmail: '', isEnabled: false, 
-    siteName: 'Mehedi Tailors & Fabrics', dbVersion: 'REST-SQL-18.0', giftCardDenominations: [2000, 5000, 10000], giftCardsEnabled: true
+    siteName: 'Mehedi Tailors & Fabrics', dbVersion: 'REST-SQL-25.0', giftCardDenominations: [2000, 5000, 10000], giftCardsEnabled: true
   });
 
   const mapDbToCamel = (obj: any): any => {
@@ -143,12 +145,13 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const bootstrap = useCallback(async () => {
+    if (bootstrappingRef.current) return;
+    bootstrappingRef.current = true;
+    
     try {
-      // Diagnostic Check
+      console.log("[Store] Initiating Ledger Sync...");
       const health = await dbService.checkHealth();
-      console.log("Atelier Ledger Status:", health.status);
-
-      // FIX: Added getUpcoming() to Promise.all in bootstrap to synchronize all entities
+      
       const [users, prods, ords, conf, bans, nats, offs, coups, gcs, ds, svcs, pats, preqs, mreqs, revs, fabs, emails, upcoming] = await Promise.all([
         dbService.getUsers(), dbService.getProducts(), dbService.getOrders(),
         dbService.getConfig(), dbService.getBanners(), dbService.getNotices(),
@@ -175,7 +178,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setReviews(mapDbToCamel(revs));
       setFabrics(mapDbToCamel(fabs));
       setEmailLogs(mapDbToCamel(emails));
-      // FIX: Set upcoming products state from bootstrap data
       setUpcomingProducts(mapDbToCamel(upcoming));
       
       const storedUserId = localStorage.getItem('mt_user_id');
@@ -187,11 +189,12 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
            else setUser(fullUser);
         }
       }
-
       setIsHydrated(true);
     } catch (err) {
-      console.error("Central Ledger Sync Failed:", err);
-      setIsHydrated(true);
+      console.error("[Store] Critical Ledger Sync Failure:", err);
+      setIsHydrated(true); // Allow UI to render with error state
+    } finally {
+      bootstrappingRef.current = false;
     }
   }, []);
 

@@ -5,35 +5,30 @@ import { app as artisanRouter } from './server.js';
 export default defineConfig({
   server: {
     host: '0.0.0.0',
-    port: 5000,
-    allowedHosts: true,
+    port: 5173, // Changed from 5000 to avoid conflict with standalone server and proxy loops
     strictPort: true,
-    proxy: {
-      // If middleware fails, this acts as a fallback for internal routing
-      '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true
-      }
-    }
   },
   plugins: [
     {
       name: 'express-api-middleware',
       configureServer(server) {
         const apiApp = express();
-        // Crucial: Vite middleware doesn't parse bodies by default
+        // Vite middleware doesn't parse bodies by default, Express must do it
         apiApp.use(express.json({ limit: '50mb' }));
         apiApp.use(express.urlencoded({ extended: true, limit: '50mb' }));
         
         // Log API requests for debugging
         apiApp.use((req, res, next) => {
-          console.log(`[API-Proxy] ${req.method} ${req.url}`);
+          if (!req.url.includes('health')) {
+            console.log(`[API-Gateway] ${req.method} ${req.url}`);
+          }
           next();
         });
 
+        // Mount the production router
         apiApp.use(artisanRouter);
         
-        // Mount at /api
+        // Final middleware mount at /api prefix
         server.middlewares.use('/api', apiApp);
       },
     },
