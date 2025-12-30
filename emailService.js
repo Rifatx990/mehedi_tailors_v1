@@ -1,11 +1,8 @@
 import nodemailer from 'nodemailer';
-import pg from 'pg';
+import { pool } from './db.js';
 import crypto from 'crypto';
 import { templates } from './emailTemplates.js';
 import 'dotenv/config';
-
-const { Pool } = pg;
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 /**
  * PRODUCTION NOTIFICATION ENGINE
@@ -17,25 +14,16 @@ class EmailService {
         this.queueAdapter = null;      // Pluggable (e.g. BullMQ)
     }
 
-    /**
-     * Set a queue adapter if asynchronous background processing is desired
-     */
     setQueueAdapter(adapter) {
         this.queueAdapter = adapter;
     }
 
-    /**
-     * Generate unique hash for SMTP settings to manage cache lifecycle
-     */
     _getHash(config) {
         return crypto.createHash('sha256')
             .update(`${config.smtp_host}:${config.smtp_port}:${config.smtp_user}:${config.is_enabled}`)
             .digest('hex');
     }
 
-    /**
-     * Resolve transporter from cache or DB
-     */
     async _getTransporter() {
         const { rows } = await pool.query('SELECT * FROM system_config WHERE id = 1');
         const config = rows[0];
@@ -62,21 +50,14 @@ class EmailService {
         return { transporter, config };
     }
 
-    /**
-     * Primary dispatch method.
-     * Use this ONLY after DB transaction commit.
-     */
     async notify(event, recipient, entityId, payload, lang = 'en') {
         const template = templates[event];
         if (!template) throw new Error(`Event ${event} not mapped in templates.`);
 
-        // 1. Generate Idempotency Key: {Entity}:{Event}:{State}
-        // e.g. "MT-12345:PRODUCTION_UPDATE:Cutting"
         const state = payload.step || payload.status || 'default';
         const idempotencyKey = `${entityId}:${event}:${state}`;
 
         try {
-            // 2. Insert PENDING log (Ignore if idempotency key exists)
             const logResult = await pool.query(
                 `INSERT INTO email_logs (idempotency_key, event_type, recipient, payload, status)
                  VALUES ($1, $2, $3, $4, 'PENDING')
@@ -92,7 +73,6 @@ class EmailService {
 
             const logId = logResult.rows[0].id;
 
-            // 3. Dispatch Strategy
             if (this.queueAdapter) {
                 return await this.queueAdapter.add({ logId, event, recipient, payload, lang });
             }
@@ -104,9 +84,6 @@ class EmailService {
         }
     }
 
-    /**
-     * Core SMTP Logic with Retry circuit
-     */
     async _executeSend(logId, event, recipient, payload, lang, retries = 3) {
         const conn = await this._getTransporter();
         if (!conn) {

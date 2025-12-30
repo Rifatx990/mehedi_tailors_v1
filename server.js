@@ -1,10 +1,7 @@
 import express from 'express';
-import pg from 'pg';
+import { pool } from './db.js';
 import { emailService } from './emailService.js';
 import 'dotenv/config';
-
-const { Pool } = pg;
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 export const router = express.Router();
 
@@ -22,7 +19,6 @@ router.patch('/orders/:id', async (req, res) => {
     const { production_step, status } = req.body;
 
     try {
-        // Atomic Update
         const result = await pool.query(
             `UPDATE orders SET production_step = COALESCE($1, production_step), status = COALESCE($2, status) 
              WHERE id = $3 RETURNING *`,
@@ -32,7 +28,6 @@ router.patch('/orders/:id', async (req, res) => {
         const order = result.rows[0];
         if (!order) return res.status(404).send('Order missing');
 
-        // ASYNC NOTIFY (Triggered after success)
         if (order.customer_email) {
             const eventType = production_step ? 'PRODUCTION_UPDATE' : 'ORDER_STATUS_CHANGE';
             emailService.notify(eventType, order.customer_email, order.id, {
@@ -41,7 +36,7 @@ router.patch('/orders/:id', async (req, res) => {
                 stepBN: statusMapBN[production_step || order.status] || order.status,
                 invoiceUrl: `${process.env.APP_BASE_URL}/invoice/${order.id}`,
                 trackingUrl: `${process.env.APP_BASE_URL}/track-order?id=${order.id}`
-            }, 'en'); // Default to EN for now
+            }, 'en');
         }
 
         res.json(order);
