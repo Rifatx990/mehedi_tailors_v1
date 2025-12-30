@@ -54,7 +54,17 @@ const setupCRUD = (path, table) => {
                 ${columns.map((col, idx) => `${col} = EXCLUDED.${col}`).join(', ')}
                 RETURNING *`;
             const { rows } = await pool.query(query, values);
-            res.json(rows[0]);
+            const savedItem = rows[0];
+
+            // TRIGGER: User Account Security Notification
+            if (table === 'users' && !body._isNew && savedItem.email) {
+                await emailService.notify('SECURITY_ALERT', savedItem.email, savedItem.id, {
+                    email: savedItem.email,
+                    name: savedItem.name
+                }, 'en');
+            }
+
+            res.json(savedItem);
         } catch (err) {
             console.error(`CRUD Failure [${table}]:`, err.message);
             res.status(500).json({ error: err.message });
@@ -124,19 +134,53 @@ router.put('/config', async (req, res) => {
 });
 
 router.post('/verify-smtp', async (req, res) => {
-    res.json({ success: true, message: 'SMTP Handshake Verified via Local Protocol' });
+    try {
+        const config = req.body;
+        const transporter = nodemailer.createTransport({
+            host: config.smtp_host,
+            port: config.smtp_port,
+            secure: config.smtp_port === 465,
+            auth: { user: config.smtp_user, pass: config.smtp_pass }
+        });
+        await transporter.verify();
+        res.json({ success: true, message: 'SMTP Handshake Verified' });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
+/**
+ * TRIGGER: Order Production Update (Outbox Triggered)
+ */
 router.patch('/orders/:id', async (req, res) => {
     const { id } = req.params;
     const { productionStep, status } = req.body;
+    
     try {
         const result = await pool.query(
-            `UPDATE orders SET production_step = COALESCE($1, production_step), status = COALESCE($2, status) 
+            `UPDATE orders SET 
+                production_step = COALESCE($1, production_step), 
+                status = COALESCE($2, status),
+                date = NOW()
              WHERE id = $3 RETURNING *`,
             [productionStep, status, id]
         );
-        res.json(result.rows[0]);
+
+        const order = result.rows[0];
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+
+        // TRIGGER: Production Update Notification
+        if (order.customer_email) {
+            const eventType = productionStep ? 'PRODUCTION_UPDATE' : 'ORDER_STATUS_CHANGE';
+            await emailService.notify(eventType, order.customer_email, order.id, {
+                orderId: order.id,
+                name: order.customer_name,
+                step: productionStep || order.status,
+                total: order.total
+            }, 'en');
+        }
+
+        res.json(order);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

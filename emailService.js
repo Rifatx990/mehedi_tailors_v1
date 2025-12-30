@@ -5,60 +5,85 @@ import { templates } from './emailTemplates.js';
 import 'dotenv/config';
 
 /**
- * PRODUCTION NOTIFICATION ENGINE
- * Implements Outbox Pattern & Connection Pooling
+ * PRODUCTION-GRADE NOTIFICATION ARCHITECTURE
+ * Implements the Transactional Outbox Pattern for Mehedi Atelier.
  */
 class EmailService {
     constructor() {
-        this.transporters = new Map(); // Cache transporters by config hash
-        this.queueAdapter = null;      // Pluggable (e.g. BullMQ)
+        this.transporters = new Map();
+        this.queueAdapter = null; // BullMQ or similar can be attached here
     }
 
+    /**
+     * Attach an optional background worker (e.g. BullMQ)
+     */
     setQueueAdapter(adapter) {
         this.queueAdapter = adapter;
+        console.log('[EmailService] Background Queue Adapter attached.');
     }
 
-    _getHash(config) {
-        return crypto.createHash('sha256')
-            .update(`${config.smtp_host}:${config.smtp_port}:${config.smtp_user}:${config.is_enabled}`)
+    /**
+     * Generates a unique hash for SMTP configurations to manage the pool.
+     */
+    _getConfigHash(config) {
+        return crypto.createHash('md5')
+            .update(`${config.smtp_host}:${config.smtp_port}:${config.smtp_user}:${config.smtp_pass}:${config.is_enabled}`)
             .digest('hex');
     }
 
+    /**
+     * Fetches or instantiates a cached SMTP transporter.
+     */
     async _getTransporter() {
         const { rows } = await pool.query('SELECT * FROM system_config WHERE id = 1');
         const config = rows[0];
 
-        if (!config || !config.is_enabled) return null;
+        if (!config || !config.is_enabled) {
+            return { transporter: null, config: null };
+        }
 
-        const hash = this._getHash(config);
+        const hash = this._getConfigHash(config);
         if (this.transporters.has(hash)) {
             return { transporter: this.transporters.get(hash), config };
         }
 
-        console.log(`[EmailService] Instantiating new pool for ${config.smtp_host}`);
+        // Hot-swap/Refresh Transporter
+        console.log(`[EmailService] Calibrating new SMTP pool for ${config.smtp_host}...`);
         const transporter = nodemailer.createTransport({
             host: config.smtp_host,
             port: config.smtp_port,
-            secure: config.smtp_secure,
+            secure: config.smtp_port === 465,
             auth: { user: config.smtp_user, pass: config.smtp_pass },
             pool: true,
-            maxConnections: 5,
-            rateLimit: 10
+            maxConnections: 10,
+            rateLimit: 15
         });
 
-        this.transporters.set(hash, transporter);
-        return { transporter, config };
+        // Test handshake immediately
+        try {
+            await transporter.verify();
+            this.transporters.clear(); // Clear old stale transporters
+            this.transporters.set(hash, transporter);
+            return { transporter, config };
+        } catch (err) {
+            console.error(`[EmailService] SMTP Handshake Failed: ${err.message}`);
+            return { transporter: null, config: null };
+        }
     }
 
+    /**
+     * Records a notification intent into the Ledger (Outbox).
+     * This method is safe to call inside DB transactions.
+     */
     async notify(event, recipient, entityId, payload, lang = 'en') {
-        const template = templates[event];
-        if (!template) throw new Error(`Event ${event} not mapped in templates.`);
+        if (!recipient || !templates[event]) return;
 
-        const state = payload.step || payload.status || 'default';
+        // Structured Idempotency Key
+        const state = payload.step || payload.status || 'static';
         const idempotencyKey = `${entityId}:${event}:${state}`;
 
         try {
-            const logResult = await pool.query(
+            const result = await pool.query(
                 `INSERT INTO email_logs (idempotency_key, event_type, recipient, payload, status)
                  VALUES ($1, $2, $3, $4, 'PENDING')
                  ON CONFLICT (idempotency_key) DO NOTHING
@@ -66,35 +91,50 @@ class EmailService {
                 [idempotencyKey, event, recipient, JSON.stringify(payload)]
             );
 
-            if (logResult.rowCount === 0) {
-                console.warn(`[EmailService] Duplicate ignored: ${idempotencyKey}`);
+            if (result.rowCount === 0) {
+                console.warn(`[EmailService] Duplicate send prevented for ${idempotencyKey}`);
                 return;
             }
 
-            const logId = logResult.rows[0].id;
+            const logId = result.rows[0].id;
 
+            // Trigger dispatching
             if (this.queueAdapter) {
-                return await this.queueAdapter.add({ logId, event, recipient, payload, lang });
+                await this.queueAdapter.add({ logId, event, recipient, payload, lang });
+            } else {
+                // Immediate async dispatch for direct systems
+                setImmediate(() => this.dispatch(logId, event, recipient, payload, lang));
             }
 
-            return await this._executeSend(logId, event, recipient, payload, lang);
-
+            return logId;
         } catch (err) {
-            console.error(`[EmailService] Critical Failure: ${err.message}`);
+            console.error(`[EmailService] Ledger Record Failure: ${err.message}`);
         }
     }
 
-    async _executeSend(logId, event, recipient, payload, lang, retries = 3) {
-        const conn = await this._getTransporter();
-        if (!conn) {
-            await pool.query("UPDATE email_logs SET status = 'SKIPPED', error_reason = 'SMTP Disabled' WHERE id = $1", [logId]);
+    /**
+     * Executes the actual SMTP dispatch.
+     */
+    async dispatch(logId, event, recipient, payload, lang, attempt = 1) {
+        const { transporter, config } = await this._getTransporter();
+
+        if (!transporter) {
+            await pool.query(
+                "UPDATE email_logs SET status = 'FAILED', error_reason = 'SMTP Disabled or Config Error' WHERE id = $1",
+                [logId]
+            );
             return;
         }
 
-        const { transporter, config } = conn;
         const template = templates[event];
         const subject = template.subject[lang](payload);
-        const html = template.body[lang]({ ...payload, logo: config.site_logo });
+        const html = template.body[lang]({
+            ...payload,
+            logo: config.document_logo || config.site_logo,
+            siteName: config.site_name,
+            invoiceUrl: `${process.env.APP_BASE_URL}/#/invoice/${payload.orderId || entityId}`,
+            trackingUrl: `${process.env.APP_BASE_URL}/#/track-order?id=${payload.orderId || entityId}`
+        });
 
         try {
             await transporter.sendMail({
@@ -104,21 +144,25 @@ class EmailService {
                 html
             });
 
-            await pool.query("UPDATE email_logs SET status = 'SENT', updated_at = NOW() WHERE id = $1", [logId]);
-            console.log(`[EmailService] Dispatched ${event} to ${recipient}`);
+            await pool.query(
+                "UPDATE email_logs SET status = 'SENT', updated_at = NOW() WHERE id = $1",
+                [logId]
+            );
+            console.log(`[EmailService] Dispatch Successful: ${event} -> ${recipient}`);
 
         } catch (err) {
-            if (retries > 0) {
+            console.error(`[EmailService] SMTP Dispatch Error (Attempt ${attempt}): ${err.message}`);
+            
+            if (attempt < 3) {
+                const backoff = attempt * 2000;
                 await pool.query("UPDATE email_logs SET retry_count = retry_count + 1 WHERE id = $1", [logId]);
-                const delay = (4 - retries) * 2000;
-                await new Promise(r => setTimeout(r, delay));
-                return this._executeSend(logId, event, recipient, payload, lang, retries - 1);
+                setTimeout(() => this.dispatch(logId, event, recipient, payload, lang, attempt + 1), backoff);
+            } else {
+                await pool.query(
+                    "UPDATE email_logs SET status = 'FAILED', error_reason = $1, updated_at = NOW() WHERE id = $2",
+                    [err.message, logId]
+                );
             }
-
-            await pool.query(
-                "UPDATE email_logs SET status = 'FAILED', error_reason = $1, updated_at = NOW() WHERE id = $2",
-                [err.message, logId]
-            );
         }
     }
 }
