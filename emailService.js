@@ -1,156 +1,149 @@
 import nodemailer from 'nodemailer';
 import pg from 'pg';
-const { Pool } = pg;
+import crypto from 'crypto';
 import { templates } from './emailTemplates.js';
 import 'dotenv/config';
 
-const isProduction = process.env.NODE_ENV === 'production' || !!process.env.DATABASE_URL;
-
-const pool = new Pool(process.env.DATABASE_URL ? { 
-    connectionString: process.env.DATABASE_URL, 
-    ssl: { rejectUnauthorized: false } 
-} : {
-    user: process.env.DB_USER || 'postgres',
-    host: process.env.DB_HOST || '127.0.0.1',
-    database: process.env.DB_NAME || 'mehedi_atelier',
-    password: process.env.DB_PASSWORD || 'postgres',
-    port: parseInt(process.env.DB_PORT || '5432'),
-    ssl: isProduction ? { rejectUnauthorized: false } : false,
-});
+const { Pool } = pg;
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 /**
- * PRODUCTION-GRADE NOTIFICATION ENGINE
- * Handles SMTP caching, localized templating, and transactional logging.
+ * PRODUCTION NOTIFICATION ENGINE
+ * Implements Outbox Pattern & Connection Pooling
  */
 class EmailService {
     constructor() {
-        this.transporter = null;
-        this.configHash = null;
+        this.transporters = new Map(); // Cache transporters by config hash
+        this.queueAdapter = null;      // Pluggable (e.g. BullMQ)
     }
 
     /**
-     * Internal: Generates a hash to detect if SMTP settings changed in DB
+     * Set a queue adapter if asynchronous background processing is desired
      */
-    _generateConfigHash(config) {
-        return `${config.smtp_host}:${config.smtp_port}:${config.smtp_user}:${config.is_enabled}`;
+    setQueueAdapter(adapter) {
+        this.queueAdapter = adapter;
     }
 
     /**
-     * Fetches current SMTP config and manages Transporter lifecycle
+     * Generate unique hash for SMTP settings to manage cache lifecycle
+     */
+    _getHash(config) {
+        return crypto.createHash('sha256')
+            .update(`${config.smtp_host}:${config.smtp_port}:${config.smtp_user}:${config.is_enabled}`)
+            .digest('hex');
+    }
+
+    /**
+     * Resolve transporter from cache or DB
      */
     async _getTransporter() {
         const { rows } = await pool.query('SELECT * FROM system_config WHERE id = 1');
         const config = rows[0];
 
-        if (!config || !config.is_enabled) {
-            this.transporter = null;
-            return null;
+        if (!config || !config.is_enabled) return null;
+
+        const hash = this._getHash(config);
+        if (this.transporters.has(hash)) {
+            return { transporter: this.transporters.get(hash), config };
         }
 
-        const newHash = this._generateConfigHash(config);
-
-        // Reuse cached transporter if config hasn't changed
-        if (this.transporter && this.configHash === newHash) {
-            return { transporter: this.transporter, config };
-        }
-
-        console.log(`[EmailService] Initializing new SMTP Transporter for ${config.smtp_host}`);
-        
-        this.transporter = nodemailer.createTransport({
+        console.log(`[EmailService] Instantiating new pool for ${config.smtp_host}`);
+        const transporter = nodemailer.createTransport({
             host: config.smtp_host,
             port: config.smtp_port,
-            secure: config.secure || config.smtp_port === 465,
-            auth: {
-                user: config.smtp_user,
-                pass: config.smtp_pass
-            },
-            tls: { rejectUnauthorized: false }
+            secure: config.smtp_secure,
+            auth: { user: config.smtp_user, pass: config.smtp_pass },
+            pool: true,
+            maxConnections: 5,
+            rateLimit: 10
         });
 
-        this.configHash = newHash;
-        return { transporter: this.transporter, config };
+        this.transporters.set(hash, transporter);
+        return { transporter, config };
     }
 
     /**
-     * Main entry point for sending emails
-     * @param {string} templateKey - Key from emailTemplates.js
-     * @param {string} recipient - Target email
-     * @param {object} data - Data to inject into template
-     * @param {string} lang - 'en' or 'bn'
+     * Primary dispatch method.
+     * Use this ONLY after DB transaction commit.
      */
-    async send(templateKey, recipient, data, lang = 'en') {
-        const template = templates[templateKey];
-        if (!template) throw new Error(`Invalid Template Key: ${templateKey}`);
+    async notify(event, recipient, entityId, payload, lang = 'en') {
+        const template = templates[event];
+        if (!template) throw new Error(`Event ${event} not mapped in templates.`);
 
-        const subject = template.subject[lang](data);
-        const body = template.body[lang](data);
-        const logId = `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        // 1. Generate Idempotency Key: {Entity}:{Event}:{State}
+        // e.g. "MT-12345:PRODUCTION_UPDATE:Cutting"
+        const state = payload.step || payload.status || 'default';
+        const idempotencyKey = `${entityId}:${event}:${state}`;
 
         try {
-            // 1. Initial log entry (Persistence first)
-            await pool.query(
-                `INSERT INTO email_logs (id, recipient, subject, body, status, template_id, retry_count) 
-                 VALUES ($1, $2, $3, $4, $5, $6, 0)`,
-                [logId, recipient, subject, body, 'queued', templateKey]
+            // 2. Insert PENDING log (Ignore if idempotency key exists)
+            const logResult = await pool.query(
+                `INSERT INTO email_logs (idempotency_key, event_type, recipient, payload, status)
+                 VALUES ($1, $2, $3, $4, 'PENDING')
+                 ON CONFLICT (idempotency_key) DO NOTHING
+                 RETURNING id`,
+                [idempotencyKey, event, recipient, JSON.stringify(payload)]
             );
 
-            // 2. Immediate dispatch attempt
-            // In a high-scale env, you'd replace this with: await queue.add({ logId, ... })
-            return await this._processDispatch(logId, recipient, subject, body, data.siteName, 3);
+            if (logResult.rowCount === 0) {
+                console.warn(`[EmailService] Duplicate ignored: ${idempotencyKey}`);
+                return;
+            }
+
+            const logId = logResult.rows[0].id;
+
+            // 3. Dispatch Strategy
+            if (this.queueAdapter) {
+                return await this.queueAdapter.add({ logId, event, recipient, payload, lang });
+            }
+
+            return await this._executeSend(logId, event, recipient, payload, lang);
 
         } catch (err) {
-            console.error(`[EmailService] Critical failure for ${recipient}:`, err.message);
+            console.error(`[EmailService] Critical Failure: ${err.message}`);
         }
     }
 
     /**
-     * Recursive dispatch logic with retry circuit
+     * Core SMTP Logic with Retry circuit
      */
-    async _processDispatch(logId, recipient, subject, body, siteName, retriesLeft) {
-        const connection = await this._getTransporter();
-        
-        if (!connection) {
-            await pool.query('UPDATE email_logs SET status = $1, error_log = $2 WHERE id = $3', 
-                ['skipped', 'SMTP disabled in system_config', logId]);
+    async _executeSend(logId, event, recipient, payload, lang, retries = 3) {
+        const conn = await this._getTransporter();
+        if (!conn) {
+            await pool.query("UPDATE email_logs SET status = 'SKIPPED', error_reason = 'SMTP Disabled' WHERE id = $1", [logId]);
             return;
         }
 
-        const { transporter, config } = connection;
+        const { transporter, config } = conn;
+        const template = templates[event];
+        const subject = template.subject[lang](payload);
+        const html = template.body[lang]({ ...payload, logo: config.site_logo });
 
         try {
             await transporter.sendMail({
-                from: `"${siteName || config.sender_name || 'Mehedi Tailors'}" <${config.smtp_user}>`,
+                from: `"${config.site_name}" <${config.smtp_user}>`,
                 to: recipient,
-                subject: subject,
-                html: body
+                subject,
+                html
             });
 
-            // Mark Success
-            await pool.query('UPDATE email_logs SET status = $1, timestamp = NOW() WHERE id = $2', ['sent', logId]);
-            console.log(`[EmailService] SUCCESS | ID: ${logId} | To: ${recipient}`);
+            await pool.query("UPDATE email_logs SET status = 'SENT', updated_at = NOW() WHERE id = $1", [logId]);
+            console.log(`[EmailService] Dispatched ${event} to ${recipient}`);
 
         } catch (err) {
-            const isLastAttempt = retriesLeft <= 0;
-            const currentRetry = 3 - retriesLeft + 1;
-
-            console.warn(`[EmailService] ATTEMPT ${currentRetry} FAILED | To: ${recipient} | Error: ${err.message}`);
-
-            if (!isLastAttempt) {
-                // Wait before retrying (exponential backoff simulated)
-                await new Promise(res => setTimeout(res, 1000 * currentRetry));
-                
-                await pool.query('UPDATE email_logs SET retry_count = retry_count + 1 WHERE id = $1', [logId]);
-                return this._processDispatch(logId, recipient, subject, body, siteName, retriesLeft - 1);
+            if (retries > 0) {
+                await pool.query("UPDATE email_logs SET retry_count = retry_count + 1 WHERE id = $1", [logId]);
+                const delay = (4 - retries) * 2000;
+                await new Promise(r => setTimeout(r, delay));
+                return this._executeSend(logId, event, recipient, payload, lang, retries - 1);
             }
 
-            // Final failure log
             await pool.query(
-                'UPDATE email_logs SET status = $1, error_log = $2, retry_count = 3 WHERE id = $3',
-                ['failed', err.message, logId]
+                "UPDATE email_logs SET status = 'FAILED', error_reason = $1, updated_at = NOW() WHERE id = $2",
+                [err.message, logId]
             );
         }
     }
 }
 
-// Singleton Export
 export const emailService = new EmailService();
