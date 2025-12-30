@@ -5,10 +5,12 @@ const { Pool } = pg;
 
 const isProduction = process.env.NODE_ENV === 'production' || !!process.env.DATABASE_URL;
 
+// Most cloud providers (Neon, Render, Supabase) require SSL. 
+// We use rejectUnauthorized: false for maximum compatibility with self-signed certs common in these environments.
 const poolConfig = process.env.DATABASE_URL 
   ? { 
       connectionString: process.env.DATABASE_URL, 
-      ssl: isProduction ? { rejectUnauthorized: false } : false,
+      ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 30000,
       max: 20
@@ -23,13 +25,12 @@ const poolConfig = process.env.DATABASE_URL
       connectionTimeoutMillis: 10000,
     };
 
-console.log(`[Database] Initializing connection pool for ${poolConfig.host || 'Remote Gateway'}...`);
+console.log(`[Database] Initiating pool for ${poolConfig.host || 'Authenticated Gateway'}...`);
 
 export const pool = new Pool(poolConfig);
 
-// Diagnostic Heartbeat
 pool.on('error', (err) => {
-    console.error('[Database] Unexpected error on idle client:', err.message);
+    console.error('[Database] Idle client critical failure:', err.message);
 });
 
 export default pool;
