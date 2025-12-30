@@ -3,30 +3,41 @@
  * Supports EN (English) and BN (Bengali)
  */
 
+const getStepBN = (step) => {
+    const map = {
+        'Queue': 'অপেক্ষমান তালিকা',
+        'Cutting': 'কাটিং',
+        'Stitching': 'সেলাই',
+        'Finishing': 'ফিনিশিং',
+        'Ready': 'প্রস্তুত'
+    };
+    return map[step] || step;
+};
+
 export const templates = {
     ORDER_CONFIRMED: {
         subject: {
-            en: (data) => `Order Confirmed: #${data.orderId} | Mehedi Tailors`,
-            bn: (data) => `অর্ডার নিশ্চিত করা হয়েছে: #${data.orderId} | মেহেদী টেইলার্স`
+            en: (data) => `Order Confirmed: #${data.orderId || data.entityId} | Mehedi Tailors`,
+            bn: (data) => `অর্ডার নিশ্চিত করা হয়েছে: #${data.orderId || data.entityId} | মেহেদী টেইলার্স`
         },
         body: {
             en: (data) => `
-                <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;">
+                <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 15px;">
                     <img src="${data.logo}" style="height: 50px; margin-bottom: 20px;" />
                     <h2 style="color: #0f172a;">Salaam, ${data.name}!</h2>
-                    <p>We have successfully received your artisan commission <b>#${data.orderId}</b>.</p>
+                    <p>We have successfully received your artisan commission <b>#${data.orderId || data.entityId}</b>.</p>
                     <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin: 20px 0;">
                         <p style="margin: 0;"><b>Total Valuation:</b> BDT ${data.total}</p>
                         <p style="margin: 5px 0 0 0;"><b>Status:</b> Handing over to production queue</p>
                     </div>
-                    <p style="color: #64748b; font-size: 12px;">You can track your garment's journey in real-time via our portal.</p>
+                    <p style="color: #64748b; font-size: 12px;">You can track your garment's journey in real-time via <a href="${data.trackingUrl}">our portal</a>.</p>
                 </div>
             `,
             bn: (data) => `
-                <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;">
+                <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 15px;">
                     <img src="${data.logo}" style="height: 50px; margin-bottom: 20px;" />
                     <h2 style="color: #0f172a;">সালাম, ${data.name}!</h2>
-                    <p>আমরা সফলভাবে আপনার অর্ডারটি <b>#${data.orderId}</b> গ্রহণ করেছি।</p>
+                    <p>আমরা সফলভাবে আপনার অর্ডারটি <b>#${data.orderId || data.entityId}</b> গ্রহণ করেছি।</p>
                     <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin: 20px 0;">
                         <p style="margin: 0;"><b>মোট মূল্য:</b> BDT ${data.total}</p>
                     </div>
@@ -37,33 +48,44 @@ export const templates = {
     },
     PAYMENT_SUCCESS: {
         subject: {
-            en: (data) => `Payment Received - Order #${data.orderId}`,
-            bn: (data) => `পেমেন্ট সম্পন্ন হয়েছে - অর্ডার #${data.orderId}`
+            en: (data) => `Payment Received - Order #${data.orderId || data.entityId}`,
+            bn: (data) => `পেমেন্ট সম্পন্ন হয়েছে - অর্ডার #${data.orderId || data.entityId}`
         },
         body: {
             en: (data) => `
-                <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px;">
+                <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 15px;">
                     <h2 style="color: #10b981;">Fiscal Handshake Verified</h2>
-                    <p>A payment of <b>BDT ${data.amount}</b> has been settled for order #${data.orderId}.</p>
-                    <p>Gateway Reference: <b>${data.refId}</b></p>
+                    <p>A payment of <b>BDT ${data.amount}</b> has been settled for order #${data.orderId || data.entityId}.</p>
+                    <p>Gateway Reference: <b>${data.refId || 'N/A'}</b></p>
+                    <p><a href="${data.invoiceUrl}">Download Artisan Invoice</a></p>
                 </div>
             `,
             bn: (data) => `
                 <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px;">
                     <h2 style="color: #10b981;">পেমেন্ট নিশ্চিত করা হয়েছে</h2>
-                    <p>আপনার অর্ডার #${data.orderId} এর জন্য <b>BDT ${data.amount}</b> গ্রহণ করা হয়েছে।</p>
+                    <p>আপনার অর্ডার #${data.orderId || data.entityId} এর জন্য <b>BDT ${data.amount}</b> গ্রহণ করা হয়েছে।</p>
                 </div>
             `
         }
     },
     PRODUCTION_UPDATE: {
         subject: {
-            en: (data) => `Artisan Update: Your garment is now in ${data.step}`,
-            bn: (data) => `তৈরির আপডেট: আপনার পোশাক এখন ${data.stepBN} পর্যায়ে আছে`
+            en: (data) => `Artisan Update: Order #${data.orderId || data.entityId} is now in ${data.step}`,
+            bn: (data) => `তৈরির আপডেট: অর্ডার #${data.orderId || data.entityId} এখন ${getStepBN(data.step)} পর্যায়ে আছে`
         },
         body: {
-            en: (data) => `<p>The artisan team has moved your order #${data.orderId} to the <b>${data.step}</b> phase.</p>`,
-            bn: (data) => `<p>কারিগর দল আপনার অর্ডার #${data.orderId} টি এখন <b>${data.stepBN}</b> পর্যায়ে শুরু করেছেন।</p>`
+            en: (data) => `
+                <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 15px;">
+                    <h2 style="color: #0f172a;">Production Update</h2>
+                    <p>The artisan team has moved your order <b>#${data.orderId || data.entityId}</b> to the <b>${data.step}</b> phase.</p>
+                    <p>View details: <a href="${data.trackingUrl}">Track My Garment</a></p>
+                </div>
+            `,
+            bn: (data) => `
+                <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px;">
+                    <p>কারিগর দল আপনার অর্ডার #${data.orderId || data.entityId} টি এখন <b>${getStepBN(data.step)}</b> পর্যায়ে শুরু করেছেন।</p>
+                </div>
+            `
         }
     },
     SECURITY_ALERT: {

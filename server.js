@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from './db.js';
 import { emailService } from './emailService.js';
+import nodemailer from 'nodemailer';
 import 'dotenv/config';
 
 export const router = express.Router();
@@ -171,8 +172,13 @@ router.patch('/orders/:id', async (req, res) => {
 
         // TRIGGER: Production Update Notification
         if (order.customer_email) {
+            // Only trigger if specifically updating production step
             const eventType = productionStep ? 'PRODUCTION_UPDATE' : 'ORDER_STATUS_CHANGE';
-            await emailService.notify(eventType, order.customer_email, order.id, {
+            
+            // If the status change is NOT mapped in templates yet, we still use PRODUCTION_UPDATE as fallback
+            const finalEvent = templates[eventType] ? eventType : 'PRODUCTION_UPDATE';
+
+            await emailService.notify(finalEvent, order.customer_email, order.id, {
                 orderId: order.id,
                 name: order.customer_name,
                 step: productionStep || order.status,

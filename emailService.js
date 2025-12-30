@@ -11,34 +11,31 @@ import 'dotenv/config';
 class EmailService {
     constructor() {
         this.transporters = new Map();
-        this.queueAdapter = null; // BullMQ or similar can be attached here
+        this.queueAdapter = null;
     }
 
-    /**
-     * Attach an optional background worker (e.g. BullMQ)
-     */
     setQueueAdapter(adapter) {
         this.queueAdapter = adapter;
         console.log('[EmailService] Background Queue Adapter attached.');
     }
 
-    /**
-     * Generates a unique hash for SMTP configurations to manage the pool.
-     */
     _getConfigHash(config) {
         return crypto.createHash('md5')
             .update(`${config.smtp_host}:${config.smtp_port}:${config.smtp_user}:${config.smtp_pass}:${config.is_enabled}`)
             .digest('hex');
     }
 
-    /**
-     * Fetches or instantiates a cached SMTP transporter.
-     */
     async _getTransporter() {
         const { rows } = await pool.query('SELECT * FROM system_config WHERE id = 1');
         const config = rows[0];
 
-        if (!config || !config.is_enabled) {
+        if (!config) {
+            console.error('[EmailService] No system_config found in ledger.');
+            return { transporter: null, config: null };
+        }
+
+        if (!config.is_enabled) {
+            console.warn('[EmailService] Notifications are currently DISABLED in system settings.');
             return { transporter: null, config: null };
         }
 
@@ -47,7 +44,6 @@ class EmailService {
             return { transporter: this.transporters.get(hash), config };
         }
 
-        // Hot-swap/Refresh Transporter
         console.log(`[EmailService] Calibrating new SMTP pool for ${config.smtp_host}...`);
         const transporter = nodemailer.createTransport({
             host: config.smtp_host,
@@ -55,14 +51,13 @@ class EmailService {
             secure: config.smtp_port === 465,
             auth: { user: config.smtp_user, pass: config.smtp_pass },
             pool: true,
-            maxConnections: 10,
-            rateLimit: 15
+            maxConnections: 5,
+            rateLimit: 10
         });
 
-        // Test handshake immediately
         try {
             await transporter.verify();
-            this.transporters.clear(); // Clear old stale transporters
+            this.transporters.clear();
             this.transporters.set(hash, transporter);
             return { transporter, config };
         } catch (err) {
@@ -71,14 +66,12 @@ class EmailService {
         }
     }
 
-    /**
-     * Records a notification intent into the Ledger (Outbox).
-     * This method is safe to call inside DB transactions.
-     */
     async notify(event, recipient, entityId, payload, lang = 'en') {
-        if (!recipient || !templates[event]) return;
+        if (!recipient || !templates[event]) {
+            console.error(`[EmailService] Invalid notify attempt: Event=${event}, Recipient=${recipient}`);
+            return;
+        }
 
-        // Structured Idempotency Key
         const state = payload.step || payload.status || 'static';
         const idempotencyKey = `${entityId}:${event}:${state}`;
 
@@ -92,18 +85,18 @@ class EmailService {
             );
 
             if (result.rowCount === 0) {
-                console.warn(`[EmailService] Duplicate send prevented for ${idempotencyKey}`);
+                console.log(`[EmailService] Duplicate send prevented: ${idempotencyKey}`);
                 return;
             }
 
             const logId = result.rows[0].id;
+            console.log(`[EmailService] Logged outbox entry #${logId} for ${event}`);
 
-            // Trigger dispatching
             if (this.queueAdapter) {
-                await this.queueAdapter.add({ logId, event, recipient, payload, lang });
+                await this.queueAdapter.add({ logId, event, recipient, payload, lang, entityId });
             } else {
-                // Immediate async dispatch for direct systems
-                setImmediate(() => this.dispatch(logId, event, recipient, payload, lang));
+                // Async dispatch to not block main thread
+                setImmediate(() => this.dispatch(logId, event, recipient, payload, lang, entityId));
             }
 
             return logId;
@@ -112,31 +105,31 @@ class EmailService {
         }
     }
 
-    /**
-     * Executes the actual SMTP dispatch.
-     */
-    async dispatch(logId, event, recipient, payload, lang, attempt = 1) {
-        const { transporter, config } = await this._getTransporter();
-
-        if (!transporter) {
-            await pool.query(
-                "UPDATE email_logs SET status = 'FAILED', error_reason = 'SMTP Disabled or Config Error' WHERE id = $1",
-                [logId]
-            );
-            return;
-        }
-
-        const template = templates[event];
-        const subject = template.subject[lang](payload);
-        const html = template.body[lang]({
-            ...payload,
-            logo: config.document_logo || config.site_logo,
-            siteName: config.site_name,
-            invoiceUrl: `${process.env.APP_BASE_URL}/#/invoice/${payload.orderId || entityId}`,
-            trackingUrl: `${process.env.APP_BASE_URL}/#/track-order?id=${payload.orderId || entityId}`
-        });
-
+    async dispatch(logId, event, recipient, payload, lang, entityId, attempt = 1) {
         try {
+            const { transporter, config } = await this._getTransporter();
+
+            if (!transporter) {
+                await pool.query(
+                    "UPDATE email_logs SET status = 'FAILED', error_reason = 'SMTP Disabled or Config Error' WHERE id = $1",
+                    [logId]
+                );
+                return;
+            }
+
+            const template = templates[event];
+            const context = {
+                ...payload,
+                entityId,
+                logo: config.document_logo || config.site_logo,
+                siteName: config.site_name,
+                invoiceUrl: `${process.env.APP_BASE_URL || ''}/#/invoice/${payload.orderId || entityId}`,
+                trackingUrl: `${process.env.APP_BASE_URL || ''}/#/track-order?id=${payload.orderId || entityId}`
+            };
+
+            const subject = template.subject[lang](context);
+            const html = template.body[lang](context);
+
             await transporter.sendMail({
                 from: `"${config.site_name}" <${config.smtp_user}>`,
                 to: recipient,
@@ -148,15 +141,15 @@ class EmailService {
                 "UPDATE email_logs SET status = 'SENT', updated_at = NOW() WHERE id = $1",
                 [logId]
             );
-            console.log(`[EmailService] Dispatch Successful: ${event} -> ${recipient}`);
+            console.log(`[EmailService] Dispatch Successful: LogID=${logId} Event=${event} -> ${recipient}`);
 
         } catch (err) {
-            console.error(`[EmailService] SMTP Dispatch Error (Attempt ${attempt}): ${err.message}`);
+            console.error(`[EmailService] SMTP Dispatch Error (LogID=${logId}, Attempt ${attempt}): ${err.message}`);
             
             if (attempt < 3) {
                 const backoff = attempt * 2000;
                 await pool.query("UPDATE email_logs SET retry_count = retry_count + 1 WHERE id = $1", [logId]);
-                setTimeout(() => this.dispatch(logId, event, recipient, payload, lang, attempt + 1), backoff);
+                setTimeout(() => this.dispatch(logId, event, recipient, payload, lang, entityId, attempt + 1), backoff);
             } else {
                 await pool.query(
                     "UPDATE email_logs SET status = 'FAILED', error_reason = $1, updated_at = NOW() WHERE id = $2",
