@@ -7,18 +7,33 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5000,
     allowedHosts: true,
-    strictPort: true
+    strictPort: true,
+    proxy: {
+      // If middleware fails, this acts as a fallback for internal routing
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      }
+    }
   },
   plugins: [
     {
       name: 'express-api-middleware',
       configureServer(server) {
-        // Create a wrapper app to ensure standard Express behavior inside Connect
         const apiApp = express();
-        apiApp.use(express.json());
+        // Crucial: Vite middleware doesn't parse bodies by default
+        apiApp.use(express.json({ limit: '50mb' }));
+        apiApp.use(express.urlencoded({ extended: true, limit: '50mb' }));
+        
+        // Log API requests for debugging
+        apiApp.use((req, res, next) => {
+          console.log(`[API-Proxy] ${req.method} ${req.url}`);
+          next();
+        });
+
         apiApp.use(artisanRouter);
         
-        // Mount at /api. connect-middleware strips the prefix before passing to apiApp
+        // Mount at /api
         server.middlewares.use('/api', apiApp);
       },
     },

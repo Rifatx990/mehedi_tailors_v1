@@ -3,11 +3,13 @@
  */
 
 export class DatabaseService {
+  // Use relative path which is handled by Vite express-api-middleware
   private readonly baseUrl: string = '/api';
 
   public async request<T>(path: string, options?: RequestInit): Promise<T> {
+    const url = `${this.baseUrl}${path}`;
     try {
-      const response = await fetch(`${this.baseUrl}${path}`, {
+      const response = await fetch(url, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
@@ -17,17 +19,20 @@ export class DatabaseService {
       });
 
       if (!response.ok) {
-        let errorMessage = `API Error: ${response.status}`;
+        let errorMessage = `Ledger Error: ${response.status} ${response.statusText}`;
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorData.message || errorMessage;
-        } catch (e) {}
+        } catch (e) {
+          // Response was not JSON
+        }
         throw new Error(errorMessage);
       }
 
       return response.json();
     } catch (err: any) {
-      console.error(`API Request Failure [${path}]:`, err.message);
+      console.error(`[DatabaseService] Request Failure [${url}]:`, err.message);
+      // Re-throw to allow context to handle UI states
       throw err;
     }
   }
@@ -67,7 +72,7 @@ export class DatabaseService {
 
   // --- USER ENTITIES ---
   async getUsers() { return this.request<any[]>('/users'); }
-  async saveUser(user: any) { 
+  async saveUser(user: any) {
     return this.request<any>(`/users${user.id && !user._isNew ? `/${user.id}` : ''}`, {
       method: user.id && !user._isNew ? 'PUT' : 'POST',
       body: JSON.stringify(user)
