@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS system_config (
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '25.0.6-PRO',
+    db_version TEXT DEFAULT '25.0.7-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -101,6 +101,18 @@ CREATE TABLE IF NOT EXISTS orders (
     bkash_payment_details JSONB
 );
 
+CREATE TABLE IF NOT EXISTS email_logs ( 
+    id TEXT PRIMARY KEY, 
+    recipient TEXT NOT NULL, 
+    subject TEXT, 
+    body TEXT, 
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, 
+    status TEXT, 
+    template_id TEXT,
+    retry_count INTEGER DEFAULT 0,
+    error_log TEXT
+);
+
 CREATE TABLE IF NOT EXISTS upcoming_products ( id TEXT PRIMARY KEY, name TEXT NOT NULL, image TEXT, expected_date TEXT, description TEXT, is_active BOOLEAN DEFAULT true );
 CREATE TABLE IF NOT EXISTS bespoke_services ( id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT, image TEXT, base_price DECIMAL(12,2) NOT NULL, description TEXT, is_active BOOLEAN DEFAULT true );
 CREATE TABLE IF NOT EXISTS coupons ( id TEXT PRIMARY KEY, code TEXT UNIQUE NOT NULL, discount_percent INTEGER NOT NULL, is_active BOOLEAN DEFAULT true, usage_limit INTEGER, usage_count INTEGER DEFAULT 0, expiry_date TIMESTAMPTZ );
@@ -113,16 +125,14 @@ CREATE TABLE IF NOT EXISTS dues ( id TEXT PRIMARY KEY, user_id TEXT REFERENCES u
 CREATE TABLE IF NOT EXISTS material_requests ( id TEXT PRIMARY KEY, worker_id TEXT REFERENCES users(id), worker_name TEXT, material_name TEXT, quantity TEXT, status TEXT DEFAULT 'pending', date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, notes TEXT );
 CREATE TABLE IF NOT EXISTS product_requests ( id TEXT PRIMARY KEY, user_name TEXT, email TEXT, product_title TEXT, description TEXT, date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP );
 CREATE TABLE IF NOT EXISTS reviews ( id TEXT PRIMARY KEY, user_name TEXT, rating INTEGER, comment TEXT, date TEXT, status TEXT DEFAULT 'pending' );
-CREATE TABLE IF NOT EXISTS email_logs ( id TEXT PRIMARY KEY, recipient TEXT NOT NULL, subject TEXT, body TEXT, timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, status TEXT, template_id TEXT );
 CREATE TABLE IF NOT EXISTS partners ( id TEXT PRIMARY KEY, name TEXT NOT NULL, logo TEXT, is_active BOOLEAN DEFAULT true );
 `;
 
 const MIGRATIONS = [
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS phone TEXT",
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_used TEXT",
-    "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS document_logo TEXT",
-    "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]'",
-    "ALTER TABLE system_config ADD COLUMN IF NOT EXISTS gift_cards_enabled BOOLEAN DEFAULT true"
+    "ALTER TABLE email_logs ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0",
+    "ALTER TABLE email_logs ADD COLUMN IF NOT EXISTS error_log TEXT"
 ];
 
 async function run() {
@@ -130,32 +140,14 @@ async function run() {
     let client;
     try {
         client = await pool.connect();
-        
-        // Phase 1: Ensure Base Schema
         await client.query(SCHEMA);
-        
-        // Phase 2: Run Migrations for Existing Tables
-        for (const sql of MIGRATIONS) {
-            try {
-                await client.query(sql);
-            } catch (migErr) {
-                console.warn(`Migration skip/fail: ${sql.substring(0, 30)}... | ${migErr.message}`);
-            }
-        }
-        
-        // Phase 3: Synchronize Config Seed
+        for (const sql of MIGRATIONS) { await client.query(sql).catch(() => {}); }
         await client.query('INSERT INTO system_config (id, site_name) VALUES (1, $1) ON CONFLICT (id) DO NOTHING', ['Mehedi Tailors & Fabrics']);
-        
-        // Phase 4: Synchronize Administrative Identity
         await client.query(`
             INSERT INTO users (id, name, email, role, password) 
             VALUES ('adm-001', 'System Admin', 'admin@meheditailors.com', 'admin', 'admin123') 
-            ON CONFLICT (id) DO UPDATE SET 
-                email = EXCLUDED.email,
-                name = EXCLUDED.name,
-                role = EXCLUDED.role
+            ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name, role = EXCLUDED.role
         `);
-        
         console.log('Relational Database Synchronized and Patched Successfully.');
     } catch (err) {
         console.error('DATABASE INIT CRITICAL FAILURE:', err.message);
