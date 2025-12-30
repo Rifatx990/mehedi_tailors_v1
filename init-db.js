@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS system_config (
     site_name TEXT DEFAULT 'Mehedi Tailors & Fabrics',
     site_logo TEXT,
     document_logo TEXT,
-    db_version TEXT DEFAULT '25.0.7-PRO',
+    db_version TEXT DEFAULT '25.0.8-PRO',
     gift_card_denominations JSONB DEFAULT '[2000, 5000, 10000, 25000]',
     gift_cards_enabled BOOLEAN DEFAULT true,
     smtp_host TEXT,
@@ -131,6 +131,9 @@ CREATE TABLE IF NOT EXISTS partners ( id TEXT PRIMARY KEY, name TEXT NOT NULL, l
 const MIGRATIONS = [
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS phone TEXT",
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_used TEXT",
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS bespoke_note TEXT",
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS bespoke_type TEXT",
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_date TEXT",
     "ALTER TABLE email_logs ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0",
     "ALTER TABLE email_logs ADD COLUMN IF NOT EXISTS error_log TEXT"
 ];
@@ -141,7 +144,13 @@ async function run() {
     try {
         client = await pool.connect();
         await client.query(SCHEMA);
-        for (const sql of MIGRATIONS) { await client.query(sql).catch(() => {}); }
+        for (const sql of MIGRATIONS) { 
+            try {
+                await client.query(sql);
+            } catch (migErr) {
+                console.warn(`Migration step skipped: ${sql.substring(0, 30)}...`);
+            }
+        }
         await client.query('INSERT INTO system_config (id, site_name) VALUES (1, $1) ON CONFLICT (id) DO NOTHING', ['Mehedi Tailors & Fabrics']);
         await client.query(`
             INSERT INTO users (id, name, email, role, password) 
